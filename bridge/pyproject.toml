@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "petes-printer-bridge"
+version = "0.1.0"
+description = "Local web and Epson TM-L90 bridge for Pete's Printer"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "httpx>=0.28,<1",
+  "Pillow>=12,<13",
+  "platformdirs>=4.3,<5",
+  "pydantic>=2.10,<3",
+  "python-escpos[usb]>=3.1,<4",
+  "python-multipart>=0.0.20,<1",
+  "uvicorn[standard]>=0.34,<1"
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10"]
+
+[project.scripts]
+petes-printer = "petes_printer_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated:starlette.exceptions.StarletteDeprecationWarning"
+]
