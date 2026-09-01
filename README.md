@@ -136,6 +136,8 @@ petes-printer --create-token mcp \
 }
 ```
 
+For hosts that connect over a URL rather than spawning a process, `npm run mcp:http` serves the same tools over streamable HTTP on loopback, with host and origin checks on.
+
 The handoff needs no new machinery: the server writes to the bridge, and any open editor tab picks the draft up over its existing event stream. Ask it to print and the browser raises its approval panel; the tool returns a job id straight away rather than holding the call open, and `get_print_job_status` reports where the job ended up.
 
 Pete’s Printer is available under the [MIT License](LICENSE).

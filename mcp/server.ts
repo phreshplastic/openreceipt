@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { McpServer, fromJsonSchema } from "@modelcontextprotocol/server";
+import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { McpServer, WebStandardStreamableHTTPServerTransport, fromJsonSchema, localhostAllowedHostnames, localhostAllowedOrigins } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { createAgentTools, recipes, renderReceiptText, runAgentTool, type AgentToolDefinition } from "../src/agent";
 import { BridgeBackend } from "./bridge-client";
@@ -117,9 +118,53 @@ export function createServer(backend: BridgeBackend) {
   return server;
 }
 
-export async function main() {
-  const server = createServer(new BridgeBackend());
-  await server.connect(new StdioServerTransport());
+/**
+ * Streamable HTTP for hosts that connect over a URL rather than spawning a process.
+ * Loopback only, with the SDK's host and origin checks on, so a page in the browser
+ * cannot reach a printer through it.
+ */
+async function serveHttp(backend: BridgeBackend, port: number) {
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: () => crypto.randomUUID(),
+    enableDnsRebindingProtection: true,
+    // The Host header carries the port, so allow the bare and port-qualified forms.
+    allowedHosts: localhostAllowedHostnames().flatMap((host) => [host, `${host}:${port}`]),
+    allowedOrigins: localhostAllowedOrigins(),
+  });
+  await createServer(backend).connect(transport);
+
+  const node = createHttpServer((incoming: IncomingMessage, outgoing: ServerResponse) => {
+    void (async () => {
+      const chunks: Buffer[] = [];
+      for await (const chunk of incoming) chunks.push(chunk as Buffer);
+      const url = new URL(incoming.url ?? "/", `http://${incoming.headers.host ?? `127.0.0.1:${port}`}`);
+      const headers = new Headers();
+      for (const [key, value] of Object.entries(incoming.headers)) {
+        if (typeof value === "string") headers.set(key, value);
+        else if (Array.isArray(value)) for (const entry of value) headers.append(key, entry);
+      }
+      const method = incoming.method ?? "GET";
+      const body = method === "GET" || method === "HEAD" || !chunks.length ? undefined : Buffer.concat(chunks);
+      const response = await transport.handleRequest(new Request(url, { method, headers, body }));
+      outgoing.writeHead(response.status, Object.fromEntries(response.headers));
+      if (!response.body) return outgoing.end();
+      for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) outgoing.write(chunk);
+      outgoing.end();
+    })().catch((error) => {
+      outgoing.writeHead(500, { "Content-Type": "application/json" });
+      outgoing.end(JSON.stringify({ error: error instanceof Error ? error.message : "Request failed." }));
+    });
+  });
+
+  await new Promise<void>((resolve) => node.listen(port, "127.0.0.1", resolve));
+  process.stderr.write(`Pete's Printer MCP listening on http://127.0.0.1:${port}\n`);
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const backend = new BridgeBackend();
+  if (!argv.includes("--http")) return createServer(backend).connect(new StdioServerTransport());
+  const portFlag = argv.indexOf("--port");
+  await serveHttp(backend, portFlag >= 0 ? Number(argv[portFlag + 1]) : 8733);
 }
 
 const entry = process.argv[1] ?? "";
