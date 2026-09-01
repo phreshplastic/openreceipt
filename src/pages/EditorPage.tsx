@@ -9,7 +9,7 @@ import { ReceiptCanvas } from "../components/ReceiptCanvas";
 import { SettingsModal, TemplatesModal } from "../components/Overlays";
 import { createBlock, renderReceiptSvg, type CoreReceiptBlock, type ReceiptBlock, type ReceiptHistoryStatus, type ReceiptOperation, type ReceiptState } from "../receipt";
 import type { CatalogBlockKind } from "../receipt";
-import { getLibraryDefinition, type BlockLibraryPreferences, type CatalogInsertConfig, type ReceiptCommand } from "../block-library";
+import { configDescriptorFor, getLibraryDefinition, type BlockLibraryPreferences, type CatalogInsertConfig, type ConfigValues, type ReceiptCommand, type UserDefaults } from "../block-library";
 import type { PrototypeBlockId } from "../blocks/types";
 import type { AppSettings } from "../state/storage";
 import type { ReceiptSyncStatus } from "../state/receiptSession";
@@ -46,11 +46,13 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [inspectorMode, setInspectorMode] = useState<InspectorMode>("format");
   const [library, setLibrary] = useState<LibraryState>();
-  const [refreshingId, setRefreshingId] = useState<string>();
+  const [catalogBusy, setCatalogBusy] = useState<{ id: string; kind: "refresh" | "reconfigure" }>();
+  const [catalogError, setCatalogError] = useState<{ id: string; message: string }>();
   const [insertNotice, setInsertNotice] = useState("");
   const [scrollToId, setScrollToId] = useState<string>();
   const canvasPointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
   const selected = state.document.blocks.find((block) => block.id === selectedId);
+  const defaults: UserDefaults = { location: settings.defaultLocation, unit: settings.defaultUnit };
   const apply = (operations: ReceiptOperation[]) => applyOperations(state.revision, operations);
   const replace = (block: ReceiptBlock) => apply([{ type: "replace", id: block.id, block }]);
   const add = (type: CoreReceiptBlock["type"], index: number) => {
@@ -93,9 +95,23 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     else void insertCatalog(kind, undefined, index);
   };
   const refreshCatalog = async (id: string) => {
-    setRefreshingId(id);
+    setCatalogBusy({ id, kind: "refresh" });
+    setCatalogError(undefined);
     try { await applyCommands(state.revision, [{ type: "refreshCatalogBlock", id }]); }
-    finally { setRefreshingId(undefined); }
+    finally { setCatalogBusy(undefined); }
+  };
+  // A failed fetch commits nothing, so the block keeps its last good data and its old settings.
+  const reconfigureCatalog = async (id: string, values: ConfigValues) => {
+    const block = state.document.blocks.find((candidate) => candidate.id === id);
+    const descriptor = block?.type === "catalog" ? configDescriptorFor(block.kind) : undefined;
+    if (!descriptor) return;
+    setCatalogBusy({ id, kind: "reconfigure" });
+    setCatalogError(undefined);
+    try {
+      await applyCommands(state.revision, [{ type: "reconfigureCatalogBlock", id, config: descriptor.toInsertConfig(values, defaults) }]);
+    } catch (error) {
+      setCatalogError({ id, message: error instanceof Error ? error.message : "Could not update this block." });
+    } finally { setCatalogBusy(undefined); }
   };
 
   useEffect(() => {
@@ -197,7 +213,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
           {insertNotice && !editorActivity && <div className="agent-activity insert-activity" role="status"><span>{insertNotice}</span><button type="button" onClick={() => { undo(); setInsertNotice(""); }}>Undo</button></div>}
         </div>
       </section>
-      <Inspector block={selected} canRemove={state.document.blocks.length > 1} mode={inspectorMode} favoriteIds={blockLibraryPreferences.favoriteIds} paperWidth={state.document.page.printableWidthDots} refreshingId={refreshingId} page={state.document.page} settings={settings} bridgeOnline={bridgeOnline} printStatus={printStatus} webMcpAvailable={webMcpAvailable} onModeChange={setInspectorMode} onChange={replace} onRemove={remove} onBrowseLibrary={() => openLibrary()} onInsertFavorite={(id) => addFavorite(id)} onRefreshCatalog={refreshCatalog} onPageChange={(page) => apply([{ type: "setPage", page }])} onSettingsChange={updateSettings} />
+      <Inspector block={selected} canRemove={state.document.blocks.length > 1} mode={inspectorMode} favoriteIds={blockLibraryPreferences.favoriteIds} paperWidth={state.document.page.printableWidthDots} catalogBusy={catalogBusy} catalogError={catalogError} onReconfigureCatalog={reconfigureCatalog} page={state.document.page} settings={settings} bridgeOnline={bridgeOnline} printStatus={printStatus} webMcpAvailable={webMcpAvailable} onModeChange={setInspectorMode} onChange={replace} onRemove={remove} onBrowseLibrary={() => openLibrary()} onInsertFavorite={(id) => addFavorite(id)} onRefreshCatalog={refreshCatalog} onPageChange={(page) => apply([{ type: "setPage", page }])} onSettingsChange={updateSettings} />
     </div>
 
     <MobileFormatBar block={selected} onChange={replace} />
@@ -205,7 +221,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
 
     {templatesOpen && <TemplatesModal onClose={() => setTemplatesOpen(false)} onLoad={(id) => { loadTemplate(id); setTemplatesOpen(false); }} />}
     {settingsOpen && <SettingsModal settings={settings} webMcpAvailable={webMcpAvailable} documentMeta={{ paperWidthMm: state.document.page.paperWidthMm, width: rendered.width, height: rendered.height, revision: state.revision }} onChange={updateSettings} onClose={() => setSettingsOpen(false)} />}
-    {library && <BlockLibraryModal width={state.document.page.printableWidthDots} favoriteIds={blockLibraryPreferences.favoriteIds} initialId={library.initialId} onToggleFavorite={toggleBlockFavorite} onInsert={(kind, config) => insertCatalog(kind, config, library.index)} onClose={() => setLibrary(undefined)} />}
+    {library && <BlockLibraryModal defaults={defaults} width={state.document.page.printableWidthDots} favoriteIds={blockLibraryPreferences.favoriteIds} initialId={library.initialId} onToggleFavorite={toggleBlockFavorite} onInsert={(kind, config) => insertCatalog(kind, config, library.index)} onClose={() => setLibrary(undefined)} />}
   </main>;
 }
 

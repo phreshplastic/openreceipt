@@ -358,6 +358,22 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .habit-editor-row > div:first-child { display: grid; grid-template-columns: 1fr 24px; gap: 4px; }
 .habit-days { margin-top: 6px; display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
 .habit-days button { height: 25px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); cursor: pointer; font-size: 14px; line-height: 1; }
+.catalog-triple-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.catalog-row-card .structured-line > input { min-width: 0; }
+.catalog-form-note { margin: 10px 0 0; color: var(--muted); font-size: 9px; line-height: 1.45; }
+.config-fields { display: flex; flex-direction: column; gap: 9px; margin: 11px 0 0; }
+.config-fields > label { display: flex; flex-direction: column; gap: 5px; color: var(--muted); font-size: 10px; }
+.config-fields select { width: 100%; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 11px; }
+.config-fields > small { color: var(--muted); font-size: 9px; line-height: 1.45; }
+.config-list { display: flex; flex-direction: column; gap: 6px; }
+.config-list > span { color: var(--muted); font-size: 10px; }
+.config-list .structured-editor input { height: 32px; padding: 0 8px; font-size: 11px; }
+.library-config .config-list { grid-column: 1 / -1; }
+.prototype-card.study { opacity: .78; }
+.prototype-card.study:hover { opacity: 1; }
+.setup-home { display: grid; grid-template-columns: minmax(0, 1fr) 70px; gap: 7px; margin-left: auto; }
+.setup-home input, .setup-home select { height: 36px; min-width: 0; padding: 0 9px; border: 1px solid var(--line-dark); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 11px; }
+.library-config .config-list .structured-editor input { height: 34px; border-color: var(--line-dark); font-size: 10px; }
 
 .overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgb(0 0 0 / 38%); animation: overlay-in 180ms ease-out; }
 .modal { width: min(620px, 100%); max-height: min(720px, calc(100vh - 40px)); overflow: auto; border: 1px solid var(--line-dark); border-radius: 12px; background: var(--surface-raised); box-shadow: var(--shadow-modal); animation: modal-in 220ms var(--ease-out); }

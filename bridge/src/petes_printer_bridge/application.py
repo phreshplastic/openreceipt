@@ -94,6 +94,8 @@ class LocalApplication:
             "configured": bool(row["configured"]),
             "printPolicy": row["print_policy"],
             "trustedTemplateIds": json.loads(row["trusted_template_ids_json"]),
+            "defaultLocation": row["default_location"],
+            "defaultUnit": row["default_unit"],
             "updatedAt": row["updated_at"],
         }
 
@@ -106,6 +108,8 @@ class LocalApplication:
             configured=request.configured,
             print_policy=request.printPolicy,
             trusted_template_ids=request.trustedTemplateIds,
+            default_location=request.defaultLocation,
+            default_unit=request.defaultUnit,
             actor=request.actor.model_dump(exclude_none=True),
         )
 

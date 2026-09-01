@@ -572,6 +572,10 @@
                         "items": {
                           "type": "number"
                         }
+                      },
+                      "place": {
+                        "type": "string",
+                        "maxLength": 60
                       }
                     },
                     "required": [
@@ -1132,6 +1136,10 @@
                       "outlook": {
                         "type": "string",
                         "maxLength": 300
+                      },
+                      "place": {
+                        "type": "string",
+                        "maxLength": 60
                       }
                     },
                     "required": [
@@ -1276,6 +1284,673 @@
                   },
                   "kind": {
                     "type": "string",
+                    "const": "mealPlan"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "meals": {
+                        "minItems": 1,
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 30
+                            },
+                            "dishes": {
+                              "maxItems": 6,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                  },
+                                  "text": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 120
+                                  },
+                                  "detail": {
+                                    "type": "string",
+                                    "maxLength": 80
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "text"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dishes"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "prep": {
+                        "maxItems": 6,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 30
+                            },
+                            "checked": {
+                              "default": false,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "text",
+                            "checked"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "dateLabel",
+                      "meals",
+                      "prep"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "meetingNotes"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "topic": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "attendees": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "decisions": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 200
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "text"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "actions": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "text": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 160
+                            },
+                            "owner": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "due": {
+                              "type": "string",
+                              "maxLength": 40
+                            },
+                            "done": {
+                              "default": false,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "text",
+                            "done"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "dateLabel",
+                      "decisions",
+                      "actions"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "workoutLog"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "focus": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "duration": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "exercises": {
+                        "maxItems": 12,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 60
+                            },
+                            "sets": {
+                              "type": "string",
+                              "maxLength": 20
+                            },
+                            "reps": {
+                              "type": "string",
+                              "maxLength": 20
+                            },
+                            "load": {
+                              "type": "string",
+                              "maxLength": 20
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "dateLabel",
+                      "exercises"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "surf"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "location": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "latitude": {
+                            "type": "number",
+                            "minimum": -90,
+                            "maximum": 90
+                          },
+                          "longitude": {
+                            "type": "number",
+                            "minimum": -180,
+                            "maximum": 180
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "latitude",
+                          "longitude",
+                          "timezone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "location"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "location": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "summary": {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "windows": {
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "time": {
+                              "type": "string",
+                              "maxLength": 20
+                            },
+                            "height": {
+                              "type": "number"
+                            },
+                            "period": {
+                              "type": "number"
+                            },
+                            "direction": {
+                              "type": "string",
+                              "maxLength": 20
+                            }
+                          },
+                          "required": [
+                            "time",
+                            "height",
+                            "period",
+                            "direction"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "heightTrend": {
+                        "minItems": 3,
+                        "maxItems": 24,
+                        "type": "array",
+                        "items": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "required": [
+                      "location",
+                      "summary",
+                      "windows",
+                      "heightTrend"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refreshedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "stale": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "refreshError": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "config",
+                  "data",
+                  "refreshedAt",
+                  "stale"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "games"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "league": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      }
+                    },
+                    "required": [
+                      "league"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "league": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "games": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "away": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "home": {
+                              "type": "string",
+                              "maxLength": 60
+                            },
+                            "awayScore": {
+                              "type": "number"
+                            },
+                            "homeScore": {
+                              "type": "number"
+                            },
+                            "status": {
+                              "type": "string",
+                              "maxLength": 40
+                            }
+                          },
+                          "required": [
+                            "away",
+                            "home",
+                            "status"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "league",
+                      "games"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refreshedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "stale": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "refreshError": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "config",
+                  "data",
+                  "refreshedAt",
+                  "stale"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "earthquakes"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "events": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "magnitude": {
+                              "type": "number"
+                            },
+                            "place": {
+                              "type": "string",
+                              "maxLength": 160
+                            },
+                            "depth": {
+                              "type": "number"
+                            },
+                            "age": {
+                              "type": "string",
+                              "maxLength": 40
+                            }
+                          },
+                          "required": [
+                            "magnitude",
+                            "place",
+                            "depth",
+                            "age"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "events"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refreshedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "stale": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "refreshError": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data",
+                  "refreshedAt",
+                  "stale"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
                     "const": "dailyPlan"
                   },
                   "definitionVersion": {
@@ -1339,243 +2014,7 @@
                   },
                   "kind": {
                     "type": "string",
-                    "const": "groupedChecklist"
-                  },
-                  "definitionVersion": {
-                    "type": "number",
-                    "const": 1
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "dateLabel": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "title": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "prioritiesLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "scheduleLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "rememberLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      }
-                    },
-                    "required": [
-                      "dateLabel"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "kind",
-                  "definitionVersion",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "type": {
-                    "type": "string",
-                    "const": "catalog"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "workoutLog"
-                  },
-                  "definitionVersion": {
-                    "type": "number",
-                    "const": 1
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "dateLabel": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "title": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "prioritiesLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "scheduleLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "rememberLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      }
-                    },
-                    "required": [
-                      "dateLabel"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "kind",
-                  "definitionVersion",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "type": {
-                    "type": "string",
-                    "const": "catalog"
-                  },
-                  "kind": {
-                    "type": "string",
                     "const": "weatherJournal"
-                  },
-                  "definitionVersion": {
-                    "type": "number",
-                    "const": 1
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "dateLabel": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "title": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "prioritiesLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "scheduleLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "rememberLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      }
-                    },
-                    "required": [
-                      "dateLabel"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "kind",
-                  "definitionVersion",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "type": {
-                    "type": "string",
-                    "const": "catalog"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "mealPlan"
-                  },
-                  "definitionVersion": {
-                    "type": "number",
-                    "const": 1
-                  },
-                  "data": {
-                    "type": "object",
-                    "properties": {
-                      "dateLabel": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "title": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "prioritiesLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "scheduleLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "rememberLabel": {
-                        "type": "string",
-                        "maxLength": 80
-                      }
-                    },
-                    "required": [
-                      "dateLabel"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "id",
-                  "type",
-                  "kind",
-                  "definitionVersion",
-                  "data"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                  },
-                  "type": {
-                    "type": "string",
-                    "const": "catalog"
-                  },
-                  "kind": {
-                    "type": "string",
-                    "const": "meetingNotes"
                   },
                   "definitionVersion": {
                     "type": "number",

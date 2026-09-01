@@ -1,12 +1,18 @@
 import { ExternalLink, Plus, Search, Star, X } from "lucide-react";
 import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import {
+  configDescriptorFor,
   getLibraryDefinition,
+  initialConfigValues,
   isAvailableCatalogKind,
   libraryDefinitions,
+  missingRequiredField,
   renderLibraryPreview,
   type CatalogInsertConfig,
+  type ConfigValues,
+  type UserDefaults,
 } from "../block-library";
+import { ConfigFields } from "./ConfigFields";
 import type { CatalogBlockKind } from "../receipt";
 import type { PaperWidthDots, PrototypeBlockId } from "../blocks/types";
 import { PaperSurface } from "./PaperSurface";
@@ -22,18 +28,19 @@ type Props = {
   width: PaperWidthDots;
   favoriteIds: CatalogBlockKind[];
   initialId?: PrototypeBlockId;
+  defaults: UserDefaults;
   onToggleFavorite(id: CatalogBlockKind): void;
   onInsert(kind: CatalogBlockKind, config?: CatalogInsertConfig): Promise<void>;
   onClose(): void;
 };
 
-export function BlockLibraryModal({ width, favoriteIds, initialId, onToggleFavorite, onInsert, onClose }: Props) {
+export function BlockLibraryModal({ width, favoriteIds, initialId, defaults, onToggleFavorite, onInsert, onClose }: Props) {
   const modalRef = useRef<HTMLElement>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<(typeof categories)[number]>("All");
   const [selectedId, setSelectedId] = useState<PrototypeBlockId>(initialId ?? "weather");
-  const [city, setCity] = useState("New York");
-  const [unit, setUnit] = useState<"fahrenheit" | "celsius">("fahrenheit");
+  const [config, setConfig] = useState<ConfigValues>({});
+  const [configuredId, setConfiguredId] = useState<PrototypeBlockId>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const close = useEffectEvent(onClose);
@@ -64,6 +71,13 @@ export function BlockLibraryModal({ width, favoriteIds, initialId, onToggleFavor
     return matchesQuery && matchesCategory;
   });
   const selected = getLibraryDefinition(selectedId) ?? libraryDefinitions[0];
+  const descriptor = configDescriptorFor(selected.id);
+  // Reset the form to this block's own defaults whenever the selection changes.
+  if (configuredId !== selected.id) {
+    setConfiguredId(selected.id);
+    setConfig(descriptor ? initialConfigValues(descriptor, defaults) : {});
+  }
+  const missing = descriptor ? missingRequiredField(descriptor, config) : undefined;
   const selectedFavoriteId = isAvailableCatalogKind(selected.id) ? selected.id : undefined;
   const favorite = selectedFavoriteId ? favoriteIds.includes(selectedFavoriteId) : false;
 
@@ -72,8 +86,8 @@ export function BlockLibraryModal({ width, favoriteIds, initialId, onToggleFavor
     setBusy(true);
     setError("");
     try {
-      const config = selected.id === "weather" ? { city, unit } satisfies CatalogInsertConfig : undefined;
-      await onInsert(selected.id, config);
+      const insertConfig: CatalogInsertConfig = descriptor ? descriptor.toInsertConfig(config, defaults) : undefined;
+      await onInsert(selected.id, insertConfig);
       onClose();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not add this block.");
@@ -111,16 +125,12 @@ export function BlockLibraryModal({ width, favoriteIds, initialId, onToggleFavor
           <p>{selected.designNote}</p>
           <div className="library-detail-meta"><span>{width === 576 ? "80 mm" : "58 mm"} receipt</span><span>{selected.availability === "available" ? selected.dataMode : "Preview only"}</span></div>
 
-          {selected.id === "weather" && <div className="library-config">
-            <label><span>City or postal code</span><input value={city} onChange={(event) => setCity(event.target.value)} /></label>
-            <label><span>Temperature</span><select value={unit} onChange={(event) => setUnit(event.target.value as typeof unit)}><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
-            <small>Fetched once when added. Refresh it when you want newer data.</small>
-          </div>}
+          {descriptor && <ConfigFields descriptor={descriptor} values={config} variant="modal" disabled={busy} onChange={setConfig} />}
 
           {error && <div className="library-error" role="alert">{error}</div>}
           <div className="library-detail-actions">
             {selected.availability === "available" && isAvailableCatalogKind(selected.id)
-              ? <button type="button" className="button primary" disabled={busy || selected.id === "weather" && !city.trim()} onClick={() => void insert()}><Plus size={15} />{busy ? "Adding…" : selected.requiresConfiguration ? "Configure and add" : "Add block"}</button>
+              ? <button type="button" className="button primary" disabled={busy || Boolean(missing)} onClick={() => void insert()}><Plus size={15} />{busy ? "Adding…" : missing ? `${missing.label} is needed` : "Add block"}</button>
               : <a className="button secondary" href={`/blocks#prototype-${selected.id}`} target="_blank" rel="noreferrer">Review in playground<ExternalLink size={13} /></a>}
             {selected.sourceUrl && <a className="library-source" href={selected.sourceUrl} target="_blank" rel="noreferrer">Data from {selected.sourceName}<ExternalLink size={11} /></a>}
           </div>

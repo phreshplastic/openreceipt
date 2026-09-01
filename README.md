@@ -55,6 +55,10 @@ npm run test:e2e
 bridge/.venv/bin/pytest bridge/tests
 ```
 
+For a design pass over the printed output, `npx tsx scripts/design-sheet.mts <prefix>` renders one
+receipt containing every insertable block to SVG and PNG at both paper widths, with live data. It is
+the fastest way to see whether a change reads well next to fifteen other blocks on one roll.
+
 The receipt module is the shared test surface for human and agent mutations. The bridge treats a failure before transmission as `failed`; once sending begins, an uncertain result becomes `unknown` and is never retried automatically.
 
 ## Local API and headless tokens
@@ -82,11 +86,19 @@ The same ten tools are registered in the browser through WebMCP and served headl
 | `list_receipt_blocks` | The block vocabulary, with when each one earns its place |
 | `list_receipt_recipes` | Situations — the blocks a trip or a morning brief wants, and what to ask first |
 | `draft_receipt` | Composes a whole receipt in one call from flat, id-free blocks |
-| `edit_receipt` | Positional block edits plus item- and row-level changes |
+| `edit_receipt` | Positional block edits plus single-line changes anywhere a block has lines |
 | `preview_receipt` | Dot dimensions, paper length in millimetres, warnings, and the text that will print |
 | `undo_agent_edit` | Steps back the last change |
 | `request_receipt_print` | Consequential; may wait for an explicit tap of approval |
 | `open_receipt_editor` | Brings the visible editor up so a person can look first |
+
+Blocks are not monoliths. `addItem`, `setItem`, `checkItem` and `removeItem` reach one line at a time
+inside checklists, facts tables, tables, agendas, habit rows, countdown milestones, grouped lists,
+meal plans, meeting notes and workout logs — declared once in `src/receipt/collections.ts`, so both
+surfaces and the human panel agree on what a block's children are. `group` picks a section
+("actions", "dinner"), and `fields` sets named attributes like `owner`, `due`, `sets` or `value`;
+`list_receipt_blocks` names the legal fields per block, and a wrong guess is corrected by the error.
+Sibling ids always survive, so an agent ticking one box never clobbers the line you are typing.
 
 Every mutation and print request is revision-bound: printing uses an immutable snapshot, and any human edit during approval invalidates the request. Tools carry `readOnlyHint`, and anything that can surface third-party feed text carries `untrustedContentHint`.
 
@@ -100,9 +112,19 @@ The agent brings the intelligence; the app brings the taste. When someone descri
 | "print my morning" | `daily_brief` → forecast, agenda, habit grid, one line of news |
 | "remind me to call mom at 6" | `reminder` → one `draft_receipt` call |
 | "mark the passport as packed" | `edit_receipt` `checkItem` — one item, no block rewrite |
+| "add an action for Sam, due Friday" | `edit_receipt` `addItem` with `group: "actions"` and `fields: {owner, due}` |
+| "put the weather for Porto instead" | `edit_receipt` `replace`, or change the city in the panel and tap Apply |
 | "how long will that be?" | `preview_receipt` → paper length and overflow warnings |
 | "actually, undo that" | `undo_agent_edit` |
 | "looks good, print it" | `request_receipt_print` |
+
+### Where "here" is
+
+The app guesses a home city from the browser's timezone alone — no permission prompt, no IP sent to
+any third party — and offers it as the starting point for every block that fetches weather, air
+quality or surf. It is editable during setup and in the Print panel, and every block can point
+somewhere else: changing a live block's city refetches, and a failed fetch changes nothing at all,
+so you never get one city's numbers under another city's heading.
 
 ### WebMCP in the browser
 

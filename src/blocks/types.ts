@@ -11,7 +11,6 @@ export type PrototypeBlockId =
   | "home"
   | "habit"
   | "dailyPlan"
-  | "groupedChecklist"
   | "workoutLog"
   | "weatherJournal"
   | "mealPlan"
@@ -42,6 +41,8 @@ export type WeatherData = {
   updated: string;
   temperatureTrend: number[];
   precipitationTrend: number[];
+  /** Where these numbers are from, so two forecasts never share a heading. */
+  place?: string;
 };
 
 export type AirData = {
@@ -50,6 +51,7 @@ export type AirData = {
   pm25: number;
   uv: number;
   outlook: string;
+  place?: string;
 };
 
 export type SurfData = {
@@ -107,6 +109,27 @@ export type WriteInData = {
   rememberLabel?: string;
 };
 
+export type MealPlanData = {
+  dateLabel: string;
+  meals: Array<{ id: string; name: string; dishes: Array<{ id: string; text: string; detail?: string }> }>;
+  prep: Array<{ id: string; text: string; checked: boolean }>;
+};
+
+export type MeetingNotesData = {
+  dateLabel: string;
+  topic?: string;
+  attendees?: string;
+  decisions: Array<{ id: string; text: string }>;
+  actions: Array<{ id: string; text: string; owner?: string; due?: string; done: boolean }>;
+};
+
+export type WorkoutLogData = {
+  dateLabel: string;
+  focus?: string;
+  duration?: string;
+  exercises: Array<{ id: string; name: string; sets?: string; reps?: string; load?: string }>;
+};
+
 export type DeliveryData = {
   carrier: string;
   status: string;
@@ -142,11 +165,10 @@ export type PrototypeDataMap = {
   home: HomeData;
   habit: HabitData;
   dailyPlan: WriteInData;
-  groupedChecklist: WriteInData;
-  workoutLog: WriteInData;
+  workoutLog: WorkoutLogData;
   weatherJournal: WriteInData;
-  mealPlan: WriteInData;
-  meetingNotes: WriteInData;
+  mealPlan: MealPlanData;
+  meetingNotes: MeetingNotesData;
   packingList: WriteInData;
   delivery: DeliveryData;
   countdown: CountdownData;

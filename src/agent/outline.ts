@@ -39,6 +39,12 @@ export function describeBlock(block: ReceiptBlock): string {
     case "markets": return `markets   base ${block.data.base}${block.stale ? " · stale" : ""}`;
     case "agenda": return `agenda    ${block.data.events.length} events · ${preview(block.data.date, 22)}`;
     case "habit": return `habits    ${block.data.rows.length} rows · ${preview(block.data.title, 22)}`;
+    case "surf": return `surf      ${preview(block.data.location, 22)}${block.stale ? " · stale" : ""}`;
+    case "games": return `games     ${block.data.games.length} in ${preview(block.data.league, 18)}${block.stale ? " · stale" : ""}`;
+    case "earthquakes": return `quakes    ${block.data.events.length} events${block.stale ? " · stale" : ""}`;
+    case "mealPlan": return `meals     ${block.data.meals.map((meal) => `${meal.name} ${meal.dishes.length}`).join(", ")}`;
+    case "meetingNotes": return `meeting   ${block.data.decisions.length} decisions · ${block.data.actions.length} actions`;
+    case "workoutLog": return `workout   ${block.data.exercises.length} exercises${block.data.focus ? ` · ${preview(block.data.focus, 18)}` : ""}`;
     default: return `form      ${block.kind} (blank, write-in)`;
   }
 }
@@ -113,6 +119,15 @@ function blockToText(block: ReceiptBlock, columns: number): string[] {
     case "markets": return block.data.rows.map((row) => `${row.symbol} ${row.value.toFixed(3)} ${row.change >= 0 ? "+" : ""}${row.change.toFixed(2)}%`);
     case "agenda": return [block.data.date, ...block.data.events.map((event) => `${event.start}${event.end ? `–${event.end}` : ""}  ${event.title}`)];
     case "habit": return [block.data.title, ...block.data.rows.map((row) => `${row.label.padEnd(14).slice(0, 14)} ${row.values.map((value) => (value === 2 ? "●" : value === 1 ? "○" : "·")).join(" ")}`)];
+    case "surf": return [block.data.location, ...wrap(block.data.summary, columns)];
+    case "games": return [block.data.league, ...block.data.games.map((game) => `${game.away} at ${game.home}  ${game.status}`)];
+    case "earthquakes": return block.data.events.map((event) => `M${event.magnitude.toFixed(1)}  ${event.place.slice(0, columns - 8)}`);
+    case "mealPlan": return block.data.meals.flatMap((meal) => [`— ${meal.name.toUpperCase()} —`, ...(meal.dishes.length ? meal.dishes.flatMap((dish) => wrap(dish.text, columns)) : ["  ______________"])]);
+    case "meetingNotes": return [
+      ...block.data.decisions.flatMap((decision) => wrap(`• ${decision.text}`, columns)),
+      ...block.data.actions.flatMap((action) => wrap(`${box(action.done)} ${action.text}${action.owner ? ` (${action.owner})` : ""}`, columns)),
+    ];
+    case "workoutLog": return block.data.exercises.map((exercise) => `${exercise.name.padEnd(20).slice(0, 20)} ${exercise.sets ?? "_"}x${exercise.reps ?? "_"} ${exercise.load ?? ""}`.trimEnd());
     default: return [`[ blank ${block.kind} form ]`];
   }
 }

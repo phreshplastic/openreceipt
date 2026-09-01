@@ -66,6 +66,8 @@ class SettingsUpdateRequest(StrictModel):
     configured: bool
     printPolicy: Literal["confirm", "approved", "autonomous"]
     trustedTemplateIds: list[str] = Field(default_factory=list, max_length=100)
+    defaultLocation: str = Field(default="", max_length=120)
+    defaultUnit: Literal["fahrenheit", "celsius"] = "celsius"
     actor: Actor
 
 

@@ -1,6 +1,7 @@
 import { AlignCenter, AlignLeft, AlignRight, Blocks, Bold, Check, ChevronRight, Italic, Plus, RotateCw, Star, Trash2, Underline } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
-import { getLibraryDefinition, renderLibraryPreview } from "../block-library";
+import { useMemo, useState, type ReactNode } from "react";
+import { configDescriptorFor, getLibraryDefinition, initialConfigValues, isLiveCatalogBlock, missingRequiredField, renderLibraryPreview, type ConfigValues, type LiveCatalogBlock, type UserDefaults } from "../block-library";
+import { ConfigFields } from "./ConfigFields";
 import { createId, receiptTemplates, type CatalogBlockKind, type CatalogReceiptBlock, type ReceiptBlock, type ReceiptDocument } from "../receipt";
 import type { PaperWidthDots } from "../blocks/types";
 import { printPolicies, type AppSettings } from "../state/storage";
@@ -13,7 +14,8 @@ type Props = {
   mode: InspectorMode;
   favoriteIds: CatalogBlockKind[];
   paperWidth: PaperWidthDots;
-  refreshingId?: string;
+  catalogBusy?: { id: string; kind: "refresh" | "reconfigure" };
+  catalogError?: { id: string; message: string };
   page: ReceiptDocument["page"];
   settings: AppSettings;
   bridgeOnline: boolean;
@@ -25,6 +27,7 @@ type Props = {
   onBrowseLibrary(): void;
   onInsertFavorite(id: CatalogBlockKind): void;
   onRefreshCatalog(id: string): Promise<void>;
+  onReconfigureCatalog(id: string, values: ConfigValues): Promise<void>;
   onPageChange(page: ReceiptDocument["page"]): void;
   onSettingsChange(settings: AppSettings): void;
 };
@@ -96,6 +99,13 @@ function PrintPanel({ page, settings, bridgeOnline, printStatus, webMcpAvailable
   ];
   return <div className="print-panel">
     <InspectorSection label="Paper size"><div className="paper-profile-options">{profiles.map((profile) => <button type="button" key={profile.paperWidthMm} aria-pressed={page.paperWidthMm === profile.paperWidthMm} className={page.paperWidthMm === profile.paperWidthMm ? "selected" : ""} onClick={() => onPageChange(profile)}><span className="radio">{page.paperWidthMm === profile.paperWidthMm && <Check size={11} />}</span><span><strong>{profile.label}</strong><small>{profile.detail}</small></span></button>)}</div></InspectorSection>
+    <InspectorSection label="Home">
+      <div className="inspector-control-stack">
+        <label className="inspector-control-row"><span>City</span><input aria-label="Home city" placeholder="City or postal code" value={settings.defaultLocation} onChange={(event) => onSettingsChange({ ...settings, defaultLocation: event.target.value })} /></label>
+        <label className="inspector-control-row"><span>Units</span><select value={settings.defaultUnit} onChange={(event) => onSettingsChange({ ...settings, defaultUnit: event.target.value as AppSettings["defaultUnit"] })}><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
+      </div>
+      <p className="catalog-form-note">Where new weather, air and surf blocks start. Each block can point somewhere else.</p>
+    </InspectorSection>
     <InspectorSection label="Printer"><div className="printer-summary"><span className={`status-dot ${bridgeOnline ? "online" : ""}`} /><div><strong>{bridgeOnline ? "Local printer ready" : "Printer offline"}</strong><small>{printStatus || (bridgeOnline ? "Local bridge" : "Click the status in the toolbar to retry")}</small></div></div></InspectorSection>
     <InspectorSection label="Agent printing"><div className="inspector-policy-options">{printPolicies.map((policy) => <button type="button" key={policy.id} className={settings.printPolicy === policy.id ? "selected" : ""} onClick={() => onSettingsChange({ ...settings, printPolicy: policy.id })}><span className="radio">{settings.printPolicy === policy.id && <Check size={11} />}</span><span><strong>{policy.name}</strong><small>{policy.description}</small></span></button>)}</div>
       {settings.printPolicy === "approved" && <div className="inspector-trusted-templates"><span>Approved templates</span>{receiptTemplates.map((template) => <label key={template.id}><input type="checkbox" checked={settings.trustedTemplateIds.includes(template.id)} onChange={(event) => onSettingsChange({ ...settings, trustedTemplateIds: event.target.checked ? [...settings.trustedTemplateIds, template.id] : settings.trustedTemplateIds.filter((id) => id !== template.id) })} /><span>{template.name}</span></label>)}</div>}
@@ -104,15 +114,63 @@ function PrintPanel({ page, settings, bridgeOnline, printStatus, webMcpAvailable
   </div>;
 }
 
-function CatalogBlockEditor({ block, refreshing, onChange, onRefresh }: { block: CatalogReceiptBlock; refreshing: boolean; onChange(block: CatalogReceiptBlock): void; onRefresh(): Promise<void> }) {
-  if (block.kind === "weather") return <>
-    <InspectorSection label="Weather source">
-      <div className={`catalog-status ${block.stale ? "stale" : ""}`}><span className="status-dot" /><div><strong>{block.config.location.name}</strong><small>{block.stale ? "Saved forecast · refresh failed" : `Updated ${new Date(block.refreshedAt).toLocaleString()}`}</small></div></div>
-      <label className="inspector-control-row"><span>Units</span><select value={block.config.unit} disabled><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
-      <button type="button" className="button secondary catalog-refresh" disabled={refreshing} onClick={() => void onRefresh()}><RotateCw size={14} className={refreshing ? "spinning" : ""} />{refreshing ? "Refreshing…" : "Refresh weather"}</button>
-      {block.refreshError && <p className="inspector-inline-error">{block.refreshError}</p>}
-    </InspectorSection>
-  </>;
+type CatalogEditorProps = {
+  block: CatalogReceiptBlock;
+  busy?: "refresh" | "reconfigure";
+  error?: string;
+  defaults: UserDefaults;
+  onChange(block: CatalogReceiptBlock): void;
+  onRefresh(): Promise<void>;
+  onReconfigure(values: ConfigValues): Promise<void>;
+};
+
+/** Repeating list of lines, in the same shape as the core checklist editor. */
+function LineList({ label, addLabel, canAdd, children, onAdd }: { label: string; addLabel: string; canAdd: boolean; children: ReactNode; onAdd(): void }) {
+  return <InspectorSection label={label}><div className="structured-editor">
+    {children}
+    <button type="button" className="add-line" disabled={!canAdd} onClick={onAdd}><Plus size={14} />{addLabel}</button>
+  </div></InspectorSection>;
+}
+
+function TickBox({ checked, label, onChange }: { checked: boolean; label: string; onChange(): void }) {
+  return <button type="button" className={`check-button ${checked ? "checked" : ""}`} aria-label={label} aria-pressed={checked} onClick={onChange}>{checked && <Check size={13} />}</button>;
+}
+
+/** Status, editable config and a refresh, for anything backed by a feed. */
+function LiveSourcePanel({ block, busy, error, defaults, onRefresh, onReconfigure }: CatalogEditorProps & { block: LiveCatalogBlock }) {
+  const descriptor = configDescriptorFor(block.kind);
+  // Remounted by key whenever the committed config changes, so the form always starts from truth.
+  const committed = useMemo(() => descriptor ? initialConfigValues(descriptor, defaults, block) : {}, [block, defaults, descriptor]);
+  const [values, setValues] = useState<ConfigValues>(committed);
+  const changed = JSON.stringify(values) !== JSON.stringify(committed);
+  const missing = descriptor ? missingRequiredField(descriptor, values) : undefined;
+  const source = block.kind === "markets" ? `Base ${block.data.base}`
+    : block.kind === "news" ? "Top stories"
+    : block.kind === "earthquakes" ? "Magnitude 4.5+, past day"
+    : block.kind === "games" ? block.config.league
+    : "config" in block && block.config && "location" in block.config ? block.config.location.name
+    : getLibraryDefinition(block.kind)?.name ?? "Live source";
+
+  return <InspectorSection label="Live source">
+    <div className={`catalog-status ${block.stale ? "stale" : ""}`}><span className="status-dot" /><div>
+      <strong>{source}</strong>
+      <small>{block.stale ? "Saved copy \u00b7 refresh failed" : `Updated ${new Date(block.refreshedAt).toLocaleString()}`}</small>
+    </div></div>
+    {descriptor && <ConfigFields descriptor={descriptor} values={values} variant="inspector" disabled={busy === "reconfigure"} onChange={setValues} />}
+    {descriptor && changed && <button type="button" className="button primary catalog-refresh" disabled={Boolean(busy) || Boolean(missing)} onClick={() => void onReconfigure(values)}>
+      {busy === "reconfigure" ? "Fetching\u2026" : missing ? `${missing.label} is needed` : "Apply and fetch"}
+    </button>}
+    <button type="button" className="button secondary catalog-refresh" disabled={Boolean(busy)} onClick={() => void onRefresh()}>
+      <RotateCw size={14} className={busy === "refresh" ? "spinning" : ""} />{busy === "refresh" ? "Refreshing\u2026" : "Refresh data"}
+    </button>
+    {(error || block.refreshError) && <p className="inspector-inline-error">{error ?? block.refreshError}</p>}
+  </InspectorSection>;
+}
+
+function CatalogBlockEditor(props: CatalogEditorProps) {
+  const { block, onChange } = props;
+
+  if (isLiveCatalogBlock(block)) return <LiveSourcePanel key={`${block.id}:${JSON.stringify("config" in block ? block.config : null)}`} {...props} block={block} />;
 
   if (block.kind === "agenda") return <>
     <InspectorSection label="Day"><input className="inspector-wide-input" aria-label="Agenda date" value={block.data.date} onChange={(event) => onChange({ ...block, data: { ...block.data, date: event.target.value } })} /></InspectorSection>
@@ -125,65 +183,157 @@ function CatalogBlockEditor({ block, refreshing, onChange, onRefresh }: { block:
 
   if (block.kind === "habit") return <>
     <InspectorSection label="Heading"><div className="inspector-control-stack"><input className="inspector-wide-input" aria-label="Habit matrix title" value={block.data.title} onChange={(event) => onChange({ ...block, data: { ...block.data, title: event.target.value } })} /><input className="inspector-wide-input" aria-label="Habit matrix period" value={block.data.period} onChange={(event) => onChange({ ...block, data: { ...block.data, period: event.target.value } })} /></div></InspectorSection>
-    <InspectorSection label="Habits"><div className="habit-editor">{block.data.rows.map((row, rowIndex) => <div className="habit-editor-row" key={row.id}><div><input aria-label={`Habit ${rowIndex + 1}`} value={row.label} onChange={(event) => onChange({ ...block, data: { ...block.data, rows: block.data.rows.map((item) => item.id === row.id ? { ...item, label: event.target.value } : item) } })} /><button type="button" aria-label={`Remove habit ${rowIndex + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, rows: block.data.rows.filter((item) => item.id !== row.id) } })}><Trash2 size={12} /></button></div><div className="habit-days" aria-label={`${row.label} week`}>{row.values.map((value, dayIndex) => <button type="button" key={dayIndex} aria-label={`${row.label}, day ${dayIndex + 1}: ${value === 2 ? "done" : value === 1 ? "empty" : "skipped"}`} onClick={() => onChange({ ...block, data: { ...block.data, rows: block.data.rows.map((item) => item.id === row.id ? { ...item, values: item.values.map((day, index) => index === dayIndex ? (day === 1 ? 2 : day === 2 ? 0 : 1) as 0 | 1 | 2 : day) } : item) } })}>{value === 2 ? "●" : value === 1 ? "○" : "·"}</button>)}</div></div>)}<button type="button" className="add-line" disabled={block.data.rows.length >= 10} onClick={() => onChange({ ...block, data: { ...block.data, rows: [...block.data.rows, { id: createId(), label: "New habit", values: [1, 1, 1, 1, 1, 1, 1] }] } })}><Plus size={14} />Add habit</button></div></InspectorSection>
+    <InspectorSection label="Habits"><div className="habit-editor">{block.data.rows.map((row, rowIndex) => <div className="habit-editor-row" key={row.id}><div><input aria-label={`Habit ${rowIndex + 1}`} value={row.label} onChange={(event) => onChange({ ...block, data: { ...block.data, rows: block.data.rows.map((item) => item.id === row.id ? { ...item, label: event.target.value } : item) } })} /><button type="button" aria-label={`Remove habit ${rowIndex + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, rows: block.data.rows.filter((item) => item.id !== row.id) } })}><Trash2 size={12} /></button></div><div className="habit-days" aria-label={`${row.label} week`}>{row.values.map((value, dayIndex) => <button type="button" key={dayIndex} aria-label={`${row.label}, day ${dayIndex + 1}: ${value === 2 ? "done" : value === 1 ? "empty" : "skipped"}`} onClick={() => onChange({ ...block, data: { ...block.data, rows: block.data.rows.map((item) => item.id === row.id ? { ...item, values: item.values.map((day, index) => index === dayIndex ? (day === 1 ? 2 : day === 2 ? 0 : 1) as 0 | 1 | 2 : day) } : item) } })}>{value === 2 ? "\u25cf" : value === 1 ? "\u25cb" : "\u00b7"}</button>)}</div></div>)}<button type="button" className="add-line" disabled={block.data.rows.length >= 10} onClick={() => onChange({ ...block, data: { ...block.data, rows: [...block.data.rows, { id: createId(), label: "New habit", values: [1, 1, 1, 1, 1, 1, 1] }] } })}><Plus size={14} />Add habit</button></div></InspectorSection>
   </>;
 
   if (block.kind === "checklistGroups") {
     const groups = block.data.groups;
     const setGroups = (next: typeof groups) => onChange({ ...block, data: { ...block.data, groups: next } });
+    const editGroup = (groupIndex: number, change: (group: typeof groups[number]) => typeof groups[number]) =>
+      setGroups(groups.map((group, index) => index === groupIndex ? change(group) : group));
     return <>
       <InspectorSection label="Heading"><div className="inspector-control-stack">
         <input className="inspector-wide-input" aria-label="List title" value={block.data.title} onChange={(event) => onChange({ ...block, data: { ...block.data, title: event.target.value } })} />
         <input className="inspector-wide-input" aria-label="List note" placeholder="Note" value={block.data.note ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, note: event.target.value || undefined } })} />
       </div></InspectorSection>
-      {groups.map((group, groupIndex) => <InspectorSection label={`Group ${groupIndex + 1}`} key={groupIndex}><div className="inspector-control-stack">
-        <div className="catalog-detail-row">
-          <input aria-label={`Group name ${groupIndex + 1}`} value={group.name} onChange={(event) => setGroups(groups.map((item, index) => index === groupIndex ? { ...item, name: event.target.value } : item))} />
-          <button type="button" aria-label={`Remove group ${groupIndex + 1}`} disabled={groups.length <= 1} onClick={() => setGroups(groups.filter((_, index) => index !== groupIndex))}><Trash2 size={13} /></button>
-        </div>
-        {group.items.map((item, itemIndex) => <div className="catalog-detail-row" key={itemIndex}>
-          <button type="button" aria-label={`${item.text}: ${item.checked ? "packed" : "not packed"}`} onClick={() => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: entry.items.map((line, position) => position === itemIndex ? { ...line, checked: !line.checked } : line) } : entry))}>{item.checked ? "\u25a0" : "\u25a1"}</button>
-          <input aria-label={`Item ${itemIndex + 1} in ${group.name}`} value={item.text} onChange={(event) => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: entry.items.map((line, position) => position === itemIndex ? { ...line, text: event.target.value } : line) } : entry))} />
-          <button type="button" aria-label={`Remove item ${itemIndex + 1} in ${group.name}`} disabled={group.items.length <= 1} onClick={() => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: entry.items.filter((_, position) => position !== itemIndex) } : entry))}><Trash2 size={13} /></button>
+      <InspectorSection label="Groups"><div className="catalog-structured-list">
+        {groups.map((group, groupIndex) => <div className="catalog-row-card" key={groupIndex}>
+          <div className="catalog-detail-row">
+            <input aria-label={`Group name ${groupIndex + 1}`} value={group.name} onChange={(event) => editGroup(groupIndex, (item) => ({ ...item, name: event.target.value }))} />
+            <button type="button" aria-label={`Remove group ${groupIndex + 1}`} disabled={groups.length <= 1} onClick={() => setGroups(groups.filter((_, index) => index !== groupIndex))}><Trash2 size={13} /></button>
+          </div>
+          {group.items.map((item, itemIndex) => <div className="structured-line" key={itemIndex}>
+            <TickBox checked={item.checked} label={`${item.checked ? "Uncheck" : "Check"} ${item.text}`} onChange={() => editGroup(groupIndex, (entry) => ({ ...entry, items: entry.items.map((line, position) => position === itemIndex ? { ...line, checked: !line.checked } : line) }))} />
+            <input aria-label={`Item ${itemIndex + 1} in ${group.name}`} value={item.text} onChange={(event) => editGroup(groupIndex, (entry) => ({ ...entry, items: entry.items.map((line, position) => position === itemIndex ? { ...line, text: event.target.value } : line) }))} />
+            <button type="button" className="line-remove" aria-label={`Remove item ${itemIndex + 1} in ${group.name}`} disabled={group.items.length <= 1} onClick={() => editGroup(groupIndex, (entry) => ({ ...entry, items: entry.items.filter((_, position) => position !== itemIndex) }))}><Trash2 size={13} /></button>
+          </div>)}
+          <button type="button" className="add-line" disabled={group.items.length >= 20} onClick={() => editGroup(groupIndex, (entry) => ({ ...entry, items: [...entry.items, { text: "New item", checked: false }] }))}><Plus size={14} />Add item</button>
         </div>)}
-        <button type="button" className="add-line" disabled={group.items.length >= 20} onClick={() => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: [...entry.items, { text: "New item", checked: false }] } : entry))}><Plus size={14} />Add item</button>
-      </div></InspectorSection>)}
-      <InspectorSection label="Groups"><button type="button" className="add-line" disabled={groups.length >= 6} onClick={() => setGroups([...groups, { name: "New group", items: [{ text: "New item", checked: false }] }])}><Plus size={14} />Add group</button></InspectorSection>
+        <button type="button" className="add-line" disabled={groups.length >= 6} onClick={() => setGroups([...groups, { name: "New group", items: [{ text: "New item", checked: false }] }])}><Plus size={14} />Add group</button>
+      </div></InspectorSection>
     </>;
   }
 
   if (block.kind === "countdown") {
     const milestones = block.data.milestones;
+    const setMilestones = (next: typeof milestones) => onChange({ ...block, data: { ...block.data, milestones: next } });
     return <>
       <InspectorSection label="Event"><div className="inspector-control-stack">
         <input className="inspector-wide-input" aria-label="Countdown event" value={block.data.event} onChange={(event) => onChange({ ...block, data: { ...block.data, event: event.target.value } })} />
         <input className="inspector-wide-input" aria-label="Countdown date" value={block.data.date} onChange={(event) => onChange({ ...block, data: { ...block.data, date: event.target.value } })} />
         <label className="inspector-control-row"><span>Days</span><input type="number" min={0} value={block.data.days} onChange={(event) => onChange({ ...block, data: { ...block.data, days: Math.max(0, Math.round(Number(event.target.value) || 0)) } })} /></label>
+        <label className="inspector-control-row"><span>Eyebrow</span><input value={block.data.label} onChange={(event) => onChange({ ...block, data: { ...block.data, label: event.target.value } })} /></label>
       </div></InspectorSection>
-      <InspectorSection label="Milestones"><div className="inspector-control-stack">{milestones.map((milestone, index) => <div className="catalog-detail-row" key={index}>
-        <button type="button" aria-label={`${milestone.label}: ${milestone.complete ? "done" : "not done"}`} onClick={() => onChange({ ...block, data: { ...block.data, milestones: milestones.map((item, position) => position === index ? { ...item, complete: !item.complete } : item) } })}>{milestone.complete ? "\u25a0" : "\u25a1"}</button>
-        <input aria-label={`Milestone ${index + 1}`} value={milestone.label} onChange={(event) => onChange({ ...block, data: { ...block.data, milestones: milestones.map((item, position) => position === index ? { ...item, label: event.target.value } : item) } })} />
-        <button type="button" aria-label={`Remove milestone ${index + 1}`} disabled={milestones.length <= 1} onClick={() => onChange({ ...block, data: { ...block.data, milestones: milestones.filter((_, position) => position !== index) } })}><Trash2 size={13} /></button>
-      </div>)}<button type="button" className="add-line" disabled={milestones.length >= 5} onClick={() => onChange({ ...block, data: { ...block.data, milestones: [...milestones, { label: "Next", complete: false }] } })}><Plus size={14} />Add milestone</button></div></InspectorSection>
+      <LineList label="Milestones" addLabel="Add milestone" canAdd={milestones.length < 5} onAdd={() => setMilestones([...milestones, { label: "Next", complete: false }])}>
+        {milestones.map((milestone, index) => <div className="structured-line" key={index}>
+          <TickBox checked={milestone.complete} label={`${milestone.complete ? "Unmark" : "Mark"} ${milestone.label}`} onChange={() => setMilestones(milestones.map((item, position) => position === index ? { ...item, complete: !item.complete } : item))} />
+          <input aria-label={`Milestone ${index + 1}`} maxLength={20} value={milestone.label} onChange={(event) => setMilestones(milestones.map((item, position) => position === index ? { ...item, label: event.target.value } : item))} />
+          <button type="button" className="line-remove" aria-label={`Remove milestone ${index + 1}`} disabled={milestones.length <= 1} onClick={() => setMilestones(milestones.filter((_, position) => position !== index))}><Trash2 size={13} /></button>
+        </div>)}
+      </LineList>
     </>;
   }
 
-  if (block.kind === "news" || block.kind === "air" || block.kind === "markets") return <>
-    <InspectorSection label="Live source">
-      <div className={`catalog-status ${block.stale ? "stale" : ""}`}><span className="status-dot" /><div><strong>{block.kind === "air" ? block.config.location.name : block.kind === "markets" ? `Base ${block.data.base}` : "Top stories"}</strong><small>{block.stale ? "Saved copy \u00b7 refresh failed" : `Updated ${new Date(block.refreshedAt).toLocaleString()}`}</small></div></div>
-      <button type="button" className="button secondary catalog-refresh" disabled={refreshing} onClick={() => void onRefresh()}><RotateCw size={14} className={refreshing ? "spinning" : ""} />{refreshing ? "Refreshing\u2026" : "Refresh data"}</button>
-      {block.refreshError && <p className="inspector-inline-error">{block.refreshError}</p>}
-    </InspectorSection>
-  </>;
+  if (block.kind === "mealPlan") {
+    const meals = block.data.meals;
+    const editMeal = (mealId: string, change: (meal: typeof meals[number]) => typeof meals[number]) =>
+      onChange({ ...block, data: { ...block.data, meals: meals.map((meal) => meal.id === mealId ? change(meal) : meal) } });
+    return <>
+      <InspectorSection label="Meals"><div className="catalog-structured-list">
+        {meals.map((meal) => <div className="catalog-row-card" key={meal.id}>
+          <div className="catalog-detail-row">
+            <input aria-label={`Meal name ${meal.name}`} value={meal.name} onChange={(event) => editMeal(meal.id, (item) => ({ ...item, name: event.target.value }))} />
+            <button type="button" aria-label={`Remove ${meal.name}`} disabled={meals.length <= 1} onClick={() => onChange({ ...block, data: { ...block.data, meals: meals.filter((item) => item.id !== meal.id) } })}><Trash2 size={13} /></button>
+          </div>
+          {meal.dishes.map((dish, index) => <div className="structured-line" key={dish.id}>
+            <input aria-label={`Dish ${index + 1} for ${meal.name}`} value={dish.text} onChange={(event) => editMeal(meal.id, (item) => ({ ...item, dishes: item.dishes.map((entry) => entry.id === dish.id ? { ...entry, text: event.target.value } : entry) }))} />
+            <button type="button" className="line-remove" aria-label={`Remove dish ${index + 1} from ${meal.name}`} onClick={() => editMeal(meal.id, (item) => ({ ...item, dishes: item.dishes.filter((entry) => entry.id !== dish.id) }))}><Trash2 size={13} /></button>
+          </div>)}
+          <button type="button" className="add-line" disabled={meal.dishes.length >= 6} onClick={() => editMeal(meal.id, (item) => ({ ...item, dishes: [...item.dishes, { id: createId(), text: "New dish" }] }))}><Plus size={14} />Add dish</button>
+        </div>)}
+        <button type="button" className="add-line" disabled={meals.length >= 5} onClick={() => onChange({ ...block, data: { ...block.data, meals: [...meals, { id: createId(), name: "New meal", dishes: [] }] } })}><Plus size={14} />Add meal</button>
+      </div></InspectorSection>
+      <LineList label="Prep before the day" addLabel="Add prep step" canAdd={block.data.prep.length < 6} onAdd={() => onChange({ ...block, data: { ...block.data, prep: [...block.data.prep, { id: createId(), text: "Prep", checked: false }] } })}>
+        {block.data.prep.map((item, index) => <div className="structured-line" key={item.id}>
+          <TickBox checked={item.checked} label={`${item.checked ? "Uncheck" : "Check"} ${item.text}`} onChange={() => onChange({ ...block, data: { ...block.data, prep: block.data.prep.map((entry) => entry.id === item.id ? { ...entry, checked: !entry.checked } : entry) } })} />
+          <input aria-label={`Prep step ${index + 1}`} maxLength={30} value={item.text} onChange={(event) => onChange({ ...block, data: { ...block.data, prep: block.data.prep.map((entry) => entry.id === item.id ? { ...entry, text: event.target.value } : entry) } })} />
+          <button type="button" className="line-remove" aria-label={`Remove prep step ${index + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, prep: block.data.prep.filter((entry) => entry.id !== item.id) } })}><Trash2 size={13} /></button>
+        </div>)}
+      </LineList>
+    </>;
+  }
 
+  if (block.kind === "meetingNotes") {
+    const { decisions, actions } = block.data;
+    return <>
+      <InspectorSection label="Meeting"><div className="inspector-control-stack">
+        <input className="inspector-wide-input" aria-label="Meeting topic" placeholder="Topic" value={block.data.topic ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, topic: event.target.value || undefined } })} />
+        <input className="inspector-wide-input" aria-label="Attendees" placeholder="With" value={block.data.attendees ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, attendees: event.target.value || undefined } })} />
+      </div></InspectorSection>
+      <LineList label="Decisions" addLabel="Add decision" canAdd={decisions.length < 8} onAdd={() => onChange({ ...block, data: { ...block.data, decisions: [...decisions, { id: createId(), text: "New decision" }] } })}>
+        {decisions.map((decision, index) => <div className="structured-line" key={decision.id}>
+          <input aria-label={`Decision ${index + 1}`} value={decision.text} onChange={(event) => onChange({ ...block, data: { ...block.data, decisions: decisions.map((entry) => entry.id === decision.id ? { ...entry, text: event.target.value } : entry) } })} />
+          <button type="button" className="line-remove" aria-label={`Remove decision ${index + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, decisions: decisions.filter((entry) => entry.id !== decision.id) } })}><Trash2 size={13} /></button>
+        </div>)}
+      </LineList>
+      <InspectorSection label="Actions"><div className="catalog-structured-list">
+        {actions.map((action, index) => {
+          const edit = (change: Partial<typeof action>) => onChange({ ...block, data: { ...block.data, actions: actions.map((entry) => entry.id === action.id ? { ...entry, ...change } : entry) } });
+          return <div className="catalog-row-card" key={action.id}>
+            <div className="structured-line">
+              <TickBox checked={action.done} label={`${action.done ? "Reopen" : "Complete"} ${action.text}`} onChange={() => edit({ done: !action.done })} />
+              <input aria-label={`Action ${index + 1}`} value={action.text} onChange={(event) => edit({ text: event.target.value })} />
+              <button type="button" className="line-remove" aria-label={`Remove action ${index + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, actions: actions.filter((entry) => entry.id !== action.id) } })}><Trash2 size={13} /></button>
+            </div>
+            <div className="catalog-time-row">
+              <input aria-label={`Owner of action ${index + 1}`} placeholder="Owner" value={action.owner ?? ""} onChange={(event) => edit({ owner: event.target.value || undefined })} />
+              <input aria-label={`Due date for action ${index + 1}`} placeholder="Due" value={action.due ?? ""} onChange={(event) => edit({ due: event.target.value || undefined })} />
+            </div>
+          </div>;
+        })}
+        <button type="button" className="add-line" disabled={actions.length >= 8} onClick={() => onChange({ ...block, data: { ...block.data, actions: [...actions, { id: createId(), text: "New action", done: false }] } })}><Plus size={14} />Add action</button>
+      </div></InspectorSection>
+    </>;
+  }
+
+  if (block.kind === "workoutLog") {
+    const exercises = block.data.exercises;
+    const edit = (id: string, change: Partial<typeof exercises[number]>) =>
+      onChange({ ...block, data: { ...block.data, exercises: exercises.map((entry) => entry.id === id ? { ...entry, ...change } : entry) } });
+    return <>
+      <InspectorSection label="Session"><div className="inspector-control-stack">
+        <input className="inspector-wide-input" aria-label="Workout focus" placeholder="Focus" value={block.data.focus ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, focus: event.target.value || undefined } })} />
+        <input className="inspector-wide-input" aria-label="Workout duration" placeholder="Time" value={block.data.duration ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, duration: event.target.value || undefined } })} />
+      </div></InspectorSection>
+      <InspectorSection label="Exercises"><div className="catalog-structured-list">
+        {exercises.map((exercise, index) => <div className="catalog-row-card" key={exercise.id}>
+          <div className="catalog-detail-row">
+            <input aria-label={`Exercise ${index + 1}`} value={exercise.name} onChange={(event) => edit(exercise.id, { name: event.target.value })} />
+            <button type="button" aria-label={`Remove exercise ${index + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, exercises: exercises.filter((entry) => entry.id !== exercise.id) } })}><Trash2 size={13} /></button>
+          </div>
+          <div className="catalog-triple-row">
+            <input aria-label={`Sets for ${exercise.name}`} placeholder="Sets" value={exercise.sets ?? ""} onChange={(event) => edit(exercise.id, { sets: event.target.value || undefined })} />
+            <input aria-label={`Reps for ${exercise.name}`} placeholder="Reps" value={exercise.reps ?? ""} onChange={(event) => edit(exercise.id, { reps: event.target.value || undefined })} />
+            <input aria-label={`Load for ${exercise.name}`} placeholder="Load" value={exercise.load ?? ""} onChange={(event) => edit(exercise.id, { load: event.target.value || undefined })} />
+          </div>
+        </div>)}
+        <button type="button" className="add-line" disabled={exercises.length >= 12} onClick={() => onChange({ ...block, data: { ...block.data, exercises: [...exercises, { id: createId(), name: "New exercise" }] } })}><Plus size={14} />Add exercise</button>
+      </div></InspectorSection>
+    </>;
+  }
+
+  // What is left are the blank forms — ruled paper to write on, so only the labels are editable.
   const fields = block.kind === "dailyPlan"
     ? ([["Title", "title"], ["Date", "dateLabel"], ["Priorities", "prioritiesLabel"], ["Schedule", "scheduleLabel"], ["Notes", "rememberLabel"]] as const)
     : ([["Date", "dateLabel"]] as const);
   const data = block.data as Record<string, string | undefined>;
-  return <InspectorSection label="Labels"><div className="inspector-control-stack">{fields.map(([label, key]) => <label className="inspector-control-row" key={key}><span>{label}</span><input value={data[key] ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, [key]: event.target.value } } as CatalogReceiptBlock)} /></label>)}</div></InspectorSection>;
+  return <InspectorSection label="Labels">
+    <div className="inspector-control-stack">{fields.map(([label, key]) => <label className="inspector-control-row" key={key}><span>{label}</span><input value={data[key] ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, [key]: event.target.value } } as CatalogReceiptBlock)} /></label>)}</div>
+    <p className="catalog-form-note">A blank form. It prints ruled and empty, ready to fill in by hand.</p>
+  </InspectorSection>;
 }
 
-export function Inspector({ block, canRemove, mode, favoriteIds, paperWidth, refreshingId, page, settings, bridgeOnline, printStatus, webMcpAvailable, onModeChange, onChange, onRemove, onBrowseLibrary, onInsertFavorite, onRefreshCatalog, onPageChange, onSettingsChange }: Props) {
+export function Inspector({ block, canRemove, mode, favoriteIds, paperWidth, catalogBusy, catalogError, page, settings, bridgeOnline, printStatus, webMcpAvailable, onModeChange, onChange, onRemove, onBrowseLibrary, onInsertFavorite, onRefreshCatalog, onReconfigureCatalog, onPageChange, onSettingsChange }: Props) {
   if (mode === "library") return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><BlocksShelf favoriteIds={favoriteIds} paperWidth={paperWidth} onBrowseLibrary={onBrowseLibrary} onInsertFavorite={onInsertFavorite} /></aside>;
   if (mode === "print") return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><PrintPanel page={page} settings={settings} bridgeOnline={bridgeOnline} printStatus={printStatus} webMcpAvailable={webMcpAvailable} onPageChange={onPageChange} onSettingsChange={onSettingsChange} /></aside>;
   if (!block) return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><div className="inspector-empty"><span>Nothing selected</span><p>Choose a block on the receipt to adjust it.</p></div></aside>;
@@ -209,6 +359,14 @@ export function Inspector({ block, canRemove, mode, favoriteIds, paperWidth, ref
     </div></InspectorSection></>}
 
     {block.type === "divider" && <InspectorSection label="Rule"><label className="inspector-control-row"><span>Style</span><select value={block.style} onChange={(event) => onChange({ ...block, style: event.target.value as typeof block.style })}><option value="solid">Solid</option><option value="dashed">Dashed</option></select></label></InspectorSection>}
-    {block.type === "catalog" && <CatalogBlockEditor block={block} refreshing={refreshingId === block.id} onChange={onChange} onRefresh={() => onRefreshCatalog(block.id)} />}
+    {block.type === "catalog" && <CatalogBlockEditor
+      block={block}
+      busy={catalogBusy?.id === block.id ? catalogBusy.kind : undefined}
+      error={catalogError?.id === block.id ? catalogError.message : undefined}
+      defaults={{ location: settings.defaultLocation, unit: settings.defaultUnit }}
+      onChange={onChange}
+      onRefresh={() => onRefreshCatalog(block.id)}
+      onReconfigure={(values) => onReconfigureCatalog(block.id, values)}
+    />}
   </aside>;
 }

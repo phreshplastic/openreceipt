@@ -16,7 +16,7 @@ const itemSchema = z.union([
   z.object({ text: z.string().min(1).max(160), checked: z.boolean().optional() }),
 ]);
 
-const writeInForms = ["dailyPlan", "packingList", "mealPlan", "meetingNotes", "workoutLog", "weatherJournal", "groupedChecklist"] as const;
+const writeInForms = ["dailyPlan", "packingList", "weatherJournal", "mealPlan", "meetingNotes", "workoutLog"] as const;
 
 export const draftBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("heading"), text: z.string().min(1).max(240), size: z.enum(["display", "heading", "section"]).optional(), align: align.optional() }),
@@ -31,6 +31,9 @@ export const draftBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("air"), city: z.string().min(1).max(160) }),
   z.object({ type: z.literal("news") }),
   z.object({ type: z.literal("markets") }),
+  z.object({ type: z.literal("surf"), city: z.string().min(1).max(160) }),
+  z.object({ type: z.literal("games"), league: z.string().max(40).optional() }),
+  z.object({ type: z.literal("quakes") }),
   z.object({ type: z.literal("agenda"), date: z.string().max(100).optional(), events: z.array(z.object({ start: z.string().min(1).max(40), end: z.string().max(40).optional(), title: z.string().min(1).max(300), detail: z.string().max(300).optional() })).min(1).max(16) }),
   z.object({ type: z.literal("habits"), title: z.string().max(120).optional(), period: z.string().max(120).optional(), habits: z.array(z.string().min(1).max(80)).min(1).max(10) }),
   z.object({ type: z.literal("form"), form: z.enum(writeInForms) }),
@@ -80,6 +83,12 @@ export async function compileDraftBlock(block: DraftBlock, dependencies?: Catalo
       return catalog("news", undefined, dependencies);
     case "markets":
       return catalog("markets", undefined, dependencies);
+    case "surf":
+      return catalog("surf", { city: block.city }, dependencies);
+    case "games":
+      return catalog("games", { league: block.league ?? "Basketball" }, dependencies);
+    case "quakes":
+      return catalog("earthquakes", undefined, dependencies);
     case "agenda": {
       const built = await catalog("agenda", undefined, dependencies);
       if (built.kind !== "agenda") throw new Error("Agenda block could not be created.");

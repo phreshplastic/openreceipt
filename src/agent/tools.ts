@@ -2,11 +2,12 @@ import { z } from "zod";
 import type { CatalogDependencies } from "../block-library";
 import type { PrintResult } from "../printing/coordinator";
 import { receiptDocumentSchema, type ReceiptBlock, type ReceiptDocument } from "../receipt/model";
+import { addChild, blockLabel, collectionFor, removeChild, viewCollection, writeChild } from "../receipt/collections";
 import type { ReceiptState } from "../receipt/controller";
 import { refreshCatalogBlock } from "../block-library";
 import { clampOutput, describeBlock, diffReceipts, measureReceipt, outlineReceipt, renderReceiptText } from "./outline";
 import { recipes, suggestRecipes } from "./recipes";
-import { blockVocabulary } from "./vocabulary";
+import { blockVocabulary, collectionFields } from "./vocabulary";
 import { compileDraftBlock, compileDraftBlocks, draftBlockSchema } from "./schema";
 
 export type AgentPhase = "reading" | "drafting" | "editing" | "waitingForApproval" | "printing" | "complete" | "error";
@@ -58,6 +59,9 @@ const position = z.number().int().min(1).describe("1-based position of a block, 
 const itemRef = z.union([z.number().int().min(1), z.string().min(1).max(160)]).describe("1-based position, or text to match");
 
 const emptyInput = z.object({}).strict();
+const groupRef = z.union([z.number().int().min(1), z.string().max(40)]).describe("Which group, section or meal — position or name");
+const childFields = z.record(z.string().max(24), z.union([z.string().max(300), z.number(), z.boolean()]))
+  .describe("Other attributes on the line; list_receipt_blocks names them per block");
 
 const editOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("setTitle"), title: z.string().min(1).max(160) }).strict(),
@@ -66,12 +70,10 @@ const editOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("remove"), at: position }).strict(),
   z.object({ op: z.literal("move"), at: position, to: position }).strict(),
   z.object({ op: z.literal("refresh"), at: position }).strict(),
-  z.object({ op: z.literal("addItem"), at: position, group: z.union([z.number().int().min(1), z.string().max(40)]).optional(), text: z.string().min(1).max(160), checked: z.boolean().optional() }).strict(),
-  z.object({ op: z.literal("setItem"), at: position, item: itemRef, text: z.string().min(1).max(160).optional(), checked: z.boolean().optional() }).strict(),
+  z.object({ op: z.literal("addItem"), at: position, group: groupRef.optional(), text: z.string().min(1).max(300), checked: z.boolean().optional(), fields: childFields.optional() }).strict(),
+  z.object({ op: z.literal("setItem"), at: position, item: itemRef, text: z.string().min(1).max(300).optional(), checked: z.boolean().optional(), fields: childFields.optional() }).strict(),
   z.object({ op: z.literal("checkItem"), at: position, item: itemRef, checked: z.boolean().optional() }).strict(),
   z.object({ op: z.literal("removeItem"), at: position, item: itemRef }).strict(),
-  z.object({ op: z.literal("setRow"), at: position, row: itemRef, label: z.string().min(1).max(160).optional(), value: z.string().max(300).optional() }).strict(),
-  z.object({ op: z.literal("removeRow"), at: position, row: itemRef }).strict(),
 ]);
 
 export type EditOperation = z.infer<typeof editOperationSchema>;
@@ -150,62 +152,19 @@ async function applyEditOperations(document: ReceiptDocument, operations: EditOp
       continue;
     }
 
-    // Item and row operations, so a single change never rewrites a whole block.
-    if (operation.op === "addItem") {
-      if (target.type === "checklist") {
-        replaceBlock(document, index, { ...target, items: [...target.items, { id: crypto.randomUUID(), text: operation.text, checked: operation.checked ?? false }] });
-        continue;
-      }
-      if (target.type === "catalog" && target.kind === "checklistGroups") {
-        const names = target.data.groups.map((group) => group.name);
-        const groupIndex = operation.group === undefined ? names.length - 1 : matchIndex(names, operation.group, "group");
-        replaceBlock(document, index, { ...target, data: { ...target.data, groups: target.data.groups.map((group, position) => position === groupIndex ? { ...group, items: [...group.items, { text: operation.text, checked: operation.checked ?? false }] } : group) } });
-        continue;
-      }
-      throw new Error(`Block ${operation.at} has no items to add to.`);
+    // Item operations, so one change never rewrites a whole block while a human is typing in it.
+    const descriptor = collectionFor(target);
+    if (!descriptor) {
+      const refreshable = target.type === "catalog" && "refreshedAt" in target;
+      throw new Error(`Block ${operation.at} is a ${blockLabel(target)} block and has no editable lines.${refreshable ? " Use refresh to update it." : ""}`);
     }
+    if (operation.op === "addItem") { replaceBlock(document, index, addChild(descriptor, target, operation)); continue; }
 
-    if (operation.op === "setItem" || operation.op === "checkItem" || operation.op === "removeItem") {
-      if (target.type === "checklist") {
-        const itemIndex = matchIndex(target.items.map((item) => item.text), operation.item, "item");
-        const items = operation.op === "removeItem"
-          ? target.items.filter((_, position) => position !== itemIndex)
-          : target.items.map((item, position) => position !== itemIndex ? item : {
-              ...item,
-              text: operation.op === "setItem" ? operation.text ?? item.text : item.text,
-              checked: operation.checked ?? (operation.op === "checkItem" ? true : item.checked),
-            });
-        if (!items.length) throw new Error("A list needs at least one item.");
-        replaceBlock(document, index, { ...target, items });
-        continue;
-      }
-      if (target.type === "catalog" && target.kind === "checklistGroups") {
-        const flat = target.data.groups.flatMap((group, groupIndex) => group.items.map((item, itemIndex) => ({ groupIndex, itemIndex, text: item.text })));
-        const found = flat[matchIndex(flat.map((entry) => entry.text), operation.item, "item")];
-        const groups = target.data.groups.map((group, groupIndex) => {
-          if (groupIndex !== found.groupIndex) return group;
-          const items = operation.op === "removeItem"
-            ? group.items.filter((_, position) => position !== found.itemIndex)
-            : group.items.map((item, position) => position !== found.itemIndex ? item : {
-                text: operation.op === "setItem" ? operation.text ?? item.text : item.text,
-                checked: operation.checked ?? (operation.op === "checkItem" ? true : item.checked),
-              });
-          return { ...group, items };
-        }).filter((group) => group.items.length);
-        if (!groups.length) throw new Error("A grouped list needs at least one item.");
-        replaceBlock(document, index, { ...target, data: { ...target.data, groups } });
-        continue;
-      }
-      throw new Error(`Block ${operation.at} is a ${target.type === "catalog" ? target.kind : target.type} block and has no items.`);
-    }
-
-    if (target.type !== "keyValue") throw new Error(`Block ${operation.at} has no label/value rows.`);
-    const rowIndex = matchIndex(target.rows.map((row) => row.label), operation.row, "row");
-    const rows = operation.op === "removeRow"
-      ? target.rows.filter((_, position) => position !== rowIndex)
-      : target.rows.map((row, position) => position !== rowIndex ? row : { ...row, label: operation.label ?? row.label, value: operation.value ?? row.value });
-    if (!rows.length) throw new Error("A facts block needs at least one row.");
-    replaceBlock(document, index, { ...target, rows });
+    const view = viewCollection(descriptor, target);
+    const address = view.addresses[matchIndex(view.keys, operation.item, view.noun)];
+    replaceBlock(document, index, operation.op === "removeItem"
+      ? removeChild(descriptor, target, address)
+      : writeChild(descriptor, target, address, operation.op === "checkItem" ? { checked: operation.checked ?? true } : operation));
   }
 
   return receiptDocumentSchema.parse(document) as ReceiptDocument;
@@ -305,8 +264,12 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
       untrustedContent: false,
       async execute(input) {
         emptyInput.parse(input ?? {});
-        const text = blockVocabulary.map((entry) => `${entry.type}${entry.live ? " (live)" : ""} — ${entry.whenToUse} Needs: ${entry.needs}`).join("\n");
-        return { text: clampOutput(text).text, data: { status: "ok", blocks: blockVocabulary, nextAction: "Compose them with draft_receipt." } };
+        const text = blockVocabulary.map((entry) => {
+          const fields = entry.collection ? collectionFields[entry.collection] ?? [] : [];
+          return `${entry.type}${entry.live ? " (live)" : ""} — ${entry.whenToUse} Needs: ${entry.needs}${fields.length ? ` Line fields: ${fields.join(", ")}` : ""}`;
+        }).join("\n");
+        const forms = ["mealPlan (meals: breakfast/lunch/dinner; field detail)", "meetingNotes (groups: decisions/actions; fields owner, due)", "workoutLog (fields sets, reps, load)"].join("; ");
+        return { text: clampOutput(`${text}\nFillable forms, via addItem: ${forms}`).text, data: { status: "ok", blocks: blockVocabulary, formCollections: forms, nextAction: "Compose them with draft_receipt." } };
       },
     },
 
@@ -355,7 +318,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     {
       name: "edit_receipt",
       title: "Edit the receipt",
-      description: "Changes part of the receipt without rewriting it. Blocks are addressed by 1-based position from get_receipt. Item and row operations touch a single line, which is what to use when someone is editing the same receipt by hand. Pass dryRun to preview.",
+      description: "Changes part of the receipt without rewriting it. Blocks are addressed by 1-based position from get_receipt. The item operations touch a single line — use them whenever someone may be editing the same receipt by hand. They reach checklists, facts, tables, agendas, habit rows, countdown milestones, grouped lists, meal plans, meeting notes and workout logs; `group` picks a section and `fields` sets named attributes like owner, due, sets or value. Pass dryRun to preview.",
       inputSchema: editInput,
       readOnly: false,
       untrustedContent: true,

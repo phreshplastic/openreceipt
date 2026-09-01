@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createReceiptState, createDefaultDocument } from "../receipt";
 import { decideAgentPrint } from "./permissions";
-import type { AppSettings } from "./storage";
+import { defaultSettings, type AppSettings } from "./storage";
 
-const settings = (printPolicy: AppSettings["printPolicy"], trustedTemplateIds: string[] = []): AppSettings => ({ configured: true, printPolicy, trustedTemplateIds });
+const settings = (printPolicy: AppSettings["printPolicy"], trustedTemplateIds: string[] = []): AppSettings => ({ ...defaultSettings, configured: true, printPolicy, trustedTemplateIds });
 
 describe("agent print permissions", () => {
   it("confirms by default", () => expect(decideAgentPrint(settings("confirm"), createReceiptState(createDefaultDocument()))).toBe("confirm"));

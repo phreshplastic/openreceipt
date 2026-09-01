@@ -1,4 +1,5 @@
 import type { ReceiptDocumentV2, RasterizedReceipt, ReceiptState, RenderedReceipt } from "../receipt";
+import type { SharedSettings } from "../state/storage";
 
 export type PaperProfile = {
   id: "80mm-576" | "58mm-420";
@@ -38,7 +39,7 @@ export type PrintJob = {
 
 export type ApiActor = { kind: "human" | "webmcp" | "api" | "mcp" | "system"; label?: string; clientId?: string };
 export type CanonicalReceipt = ReceiptState & { checksum: string; createdAt: string; updatedAt: string };
-export type CanonicalSettings = { revision: number; initialized: boolean; configured: boolean; printPolicy: "confirm" | "approved" | "autonomous"; trustedTemplateIds: string[]; updatedAt: string };
+export type CanonicalSettings = { revision: number; initialized: boolean; configured: boolean; printPolicy: "confirm" | "approved" | "autonomous"; trustedTemplateIds: string[]; defaultLocation: string; defaultUnit: "fahrenheit" | "celsius"; updatedAt: string };
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public current?: unknown) {
@@ -103,7 +104,7 @@ export async function getCanonicalSettings(signal?: AbortSignal) {
   return readJson<CanonicalSettings>(await apiFetch("/api/v1/settings", { signal, cache: "no-store" }));
 }
 
-export async function updateCanonicalSettings(settings: Pick<CanonicalSettings, "configured" | "printPolicy" | "trustedTemplateIds">, expectedRevision: number, actor: ApiActor, mutationId = crypto.randomUUID()) {
+export async function updateCanonicalSettings(settings: SharedSettings, expectedRevision: number, actor: ApiActor, mutationId = crypto.randomUUID()) {
   return readJson<CanonicalSettings>(await apiFetch("/api/v1/settings", {
     method: "PUT", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ mutationId, expectedRevision, ...settings, actor }),

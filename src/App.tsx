@@ -11,7 +11,7 @@ import { ChartLabPage } from "./pages/ChartLabPage";
 import { LandingPage } from "./pages/LandingPage";
 import { SetupPage } from "./pages/SetupPage";
 import { decideAgentPrint } from "./state/permissions";
-import { loadReceipt, loadSettings, saveReceipt, saveSettings, type AppSettings } from "./state/storage";
+import { acceptSharedSettings, loadReceipt, loadSettings, saveReceipt, saveSettings, shareableSettings, type AppSettings } from "./state/storage";
 import { ReceiptSession, type ReceiptConflict, type ReceiptSyncStatus } from "./state/receiptSession";
 import { registerWebMcpTools, type AgentActivity, type AgentAppStatus, type AgentBackend } from "./webmcp/register";
 
@@ -68,9 +68,9 @@ function AppContent() {
       return;
     }
     try {
-      const saved = await updateCanonicalSettings(next, settingsRevisionRef.current, { kind: "human", label: "Browser" });
+      const saved = await updateCanonicalSettings(shareableSettings(next), settingsRevisionRef.current, { kind: "human", label: "Browser" });
       settingsRevisionRef.current = saved.revision;
-      const accepted = { configured: saved.configured, printPolicy: saved.printPolicy, trustedTemplateIds: saved.trustedTemplateIds };
+      const accepted = acceptSharedSettings(saved);
       settingsRef.current = accepted;
       setSettings(accepted);
       saveSettings(accepted);
@@ -107,10 +107,10 @@ function AppContent() {
       await ensureBrowserSession();
       let shared = await getCanonicalSettings();
       if (!shared.initialized) {
-        shared = await updateCanonicalSettings(settingsRef.current, shared.revision, { kind: "human", label: "Browser migration" });
+        shared = await updateCanonicalSettings(shareableSettings(settingsRef.current), shared.revision, { kind: "human", label: "Browser migration" });
       }
       settingsRevisionRef.current = shared.revision;
-      const accepted = { configured: shared.configured, printPolicy: shared.printPolicy, trustedTemplateIds: shared.trustedTemplateIds };
+      const accepted = acceptSharedSettings(shared);
       settingsRef.current = accepted;
       setSettings(accepted);
       saveSettings(accepted);
@@ -335,8 +335,8 @@ function AppContent() {
     return () => controller.abort();
   }, []);
 
-  const completeSetup = async (profile: PaperProfile) => {
-    await commitSettings({ ...settingsRef.current, configured: true, printPolicy: "confirm" });
+  const completeSetup = async (profile: PaperProfile, defaults: { location: string; unit: "fahrenheit" | "celsius" }) => {
+    await commitSettings({ ...settingsRef.current, configured: true, printPolicy: "confirm", defaultLocation: defaults.location.trim(), defaultUnit: defaults.unit });
     applyOperations(receiptRef.current.revision, [{ type: "setPage", page: { paperWidthMm: profile.paperWidthMm, printableWidthDots: profile.printableWidthDots, paddingDots: profile.paddingDots } }]);
     setBridgeOnline(true);
   };
@@ -381,7 +381,7 @@ function AppContent() {
 
   return <><Routes>
     <Route path="/" element={<LandingPage configured={settings.configured} />} />
-    <Route path="/setup" element={<SetupPage onComplete={completeSetup} onTestPrint={testPrint} />} />
+    <Route path="/setup" element={<SetupPage defaults={{ location: settings.defaultLocation, unit: settings.defaultUnit }} onComplete={completeSetup} onTestPrint={testPrint} />} />
     <Route path="/app" element={<EditorPage state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} bridgeOnline={bridgeOnline} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(false)} print={printCurrent} />} />
     <Route path="/blocks" element={<BlocksPage />} />
     <Route path="/blocks/charts" element={<ChartLabPage />} />

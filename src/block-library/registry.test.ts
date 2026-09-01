@@ -15,6 +15,9 @@ const dependencies: CatalogDependencies = {
   air: vi.fn(async () => structuredClone(samplePrototypeData.air)),
   markets: vi.fn(async () => structuredClone(samplePrototypeData.markets)),
   news: vi.fn(async () => structuredClone(samplePrototypeData.news)),
+  surf: vi.fn(async () => structuredClone(samplePrototypeData.surf)),
+  games: vi.fn(async () => structuredClone(samplePrototypeData.games)),
+  earthquakes: vi.fn(async () => structuredClone(samplePrototypeData.earthquakes)),
   now: () => now,
 };
 
@@ -82,8 +85,8 @@ describe("Block Library preferences", () => {
     expect(toggleFavorite(preferences, "agenda").favoriteIds).toEqual(["habit"]);
   });
 
-  it("drops preview-only and malformed favorite IDs", () => {
-    storage.setItem("petes-printer:block-library:v1", JSON.stringify({ version: 1, favoriteIds: ["weather", "surf", "weather", 42] }));
+  it("drops design-study and malformed favorite IDs", () => {
+    storage.setItem("petes-printer:block-library:v1", JSON.stringify({ version: 1, favoriteIds: ["weather", "delivery", "weather", 42] }));
     expect(loadBlockLibraryPreferences(storage).favoriteIds).toEqual(["weather"]);
   });
 });

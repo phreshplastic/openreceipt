@@ -1,12 +1,13 @@
 import { blockCatalog, getPrototype } from "../blocks/catalog";
-import { geocodeCity, loadAir, loadMarkets, loadTopStories, loadWeather, type LoadOptions } from "../blocks/feeds";
+import { configDescriptorFor, requiresConfiguration } from "./configuration";
+import { geocodeCity, loadAir, loadEarthquakes, loadGames, loadMarkets, loadSurf, loadTopStories, loadWeather, type LoadOptions } from "../blocks/feeds";
 import { samplePrototypeData } from "../blocks/fixtures";
 import { renderPrototypeBlock, renderPrototypePart, type PrototypePart } from "../blocks/render";
 import type { PaperWidthDots, PreviewLocation, PrototypeBlockId } from "../blocks/types";
 import { catalogReceiptBlockSchema, createId, type CatalogBlockKind, type CatalogReceiptBlock } from "../receipt/model";
 
 export type LibraryAvailability = "available" | "preview";
-export type LibraryDataMode = "Live data" | "Write-in" | "Sample data";
+export type LibraryDataMode = "Live data" | "Write-in" | "Blank form" | "Design study";
 
 export type LibraryDefinition = {
   id: PrototypeBlockId;
@@ -23,9 +24,10 @@ export type LibraryDefinition = {
 
 export type WeatherInsertConfig = { city: string; unit: "fahrenheit" | "celsius" };
 export type LocationInsertConfig = { city: string };
+export type LeagueInsertConfig = { league: string };
 export type ChecklistGroupsInsertConfig = { title: string; note?: string; groups: Array<{ name: string; items: Array<{ text: string; checked?: boolean }> }> };
 export type CountdownInsertConfig = { event: string; date: string; days: number; label?: string; milestones?: Array<{ label: string; complete?: boolean }> };
-export type CatalogInsertConfig = WeatherInsertConfig | LocationInsertConfig | ChecklistGroupsInsertConfig | CountdownInsertConfig | undefined;
+export type CatalogInsertConfig = WeatherInsertConfig | LocationInsertConfig | LeagueInsertConfig | ChecklistGroupsInsertConfig | CountdownInsertConfig | undefined;
 
 export type CatalogDependencies = {
   geocode(query: string, options?: LoadOptions): Promise<PreviewLocation>;
@@ -33,24 +35,34 @@ export type CatalogDependencies = {
   air(location: PreviewLocation, options?: LoadOptions): Promise<Extract<CatalogReceiptBlock, { kind: "air" }>["data"]>;
   markets(options?: LoadOptions): Promise<Extract<CatalogReceiptBlock, { kind: "markets" }>["data"]>;
   news(options?: LoadOptions): Promise<Extract<CatalogReceiptBlock, { kind: "news" }>["data"]>;
+  surf(location: PreviewLocation, options?: LoadOptions): Promise<Extract<CatalogReceiptBlock, { kind: "surf" }>["data"]>;
+  games(league: string, options?: LoadOptions): Promise<Extract<CatalogReceiptBlock, { kind: "games" }>["data"]>;
+  earthquakes(options?: LoadOptions): Promise<Extract<CatalogReceiptBlock, { kind: "earthquakes" }>["data"]>;
   now(): Date;
 };
 
-const writeInFormKinds = ["dailyPlan", "groupedChecklist", "workoutLog", "weatherJournal", "mealPlan", "meetingNotes", "packingList"] as const;
+/** Forms that exist to be written on with a pen; only their date label is data. */
+const writeInFormKinds = ["dailyPlan", "weatherJournal", "packingList"] as const;
 type WriteInFormKind = (typeof writeInFormKinds)[number];
 
+/** Rendered in the playground as design studies; no data source exists, so they cannot be printed. */
+export const designStudyIds = new Set<PrototypeBlockId>(["departures", "home", "delivery"]);
+
 const availableKinds = new Set<CatalogBlockKind>([
-  "weather", "agenda", "habit", "checklistGroups", "countdown", "news", "air", "markets", ...writeInFormKinds,
+  "weather", "agenda", "habit", "checklistGroups", "countdown", "news", "air", "markets",
+  "mealPlan", "meetingNotes", "workoutLog", "surf", "games", "earthquakes", ...writeInFormKinds,
 ]);
 const liveIds = new Set<PrototypeBlockId>(["weather", "air", "surf", "games", "markets", "news", "earthquakes"]);
 
 export const libraryDefinitions: LibraryDefinition[] = blockCatalog.map((prototype) => ({
   ...prototype,
   availability: availableKinds.has(prototype.id as CatalogBlockKind) ? "available" : "preview",
-  dataMode: liveIds.has(prototype.id) ? "Live data"
-    : ["habit", "checklistGroups", "countdown", ...writeInFormKinds].includes(prototype.id) ? "Write-in"
-    : "Sample data",
-  requiresConfiguration: ["weather", "air", "checklistGroups", "countdown"].includes(prototype.id),
+  // Say what the block will actually do once it is on paper, not what it looks like here.
+  dataMode: !availableKinds.has(prototype.id as CatalogBlockKind) ? "Design study"
+    : liveIds.has(prototype.id) ? "Live data"
+    : (writeInFormKinds as readonly string[]).includes(prototype.id) ? "Blank form"
+    : "Write-in",
+  requiresConfiguration: requiresConfiguration(prototype.id),
 }));
 
 export const insertableLibraryDefinitions = libraryDefinitions.filter((definition) => definition.availability === "available");
@@ -64,18 +76,21 @@ export function getLibraryDefinition(id: string) {
 }
 
 export function listBlockCatalog() {
-  return insertableLibraryDefinitions.map(({ id, name, category, description, dataMode, requiresConfiguration }) => ({
-    id,
-    name,
-    category,
-    description,
-    dataMode,
-    requiresConfiguration,
-    configuration: id === "weather" ? { city: "City or postal code", unit: ["fahrenheit", "celsius"] }
-      : id === "air" ? { city: "City or postal code" }
-      : id === "checklistGroups" ? { title: "List title", groups: "Named groups of items" }
-      : id === "countdown" ? { event: "What you are counting down to", date: "Human-readable date", days: "Whole days remaining" }
-      : undefined,
+  return insertableLibraryDefinitions.map((definition) => ({
+    id: definition.id,
+    name: definition.name,
+    category: definition.category,
+    description: definition.description,
+    dataMode: definition.dataMode,
+    requiresConfiguration: definition.requiresConfiguration,
+    // Derived from the one descriptor table, so the modal and this listing cannot drift.
+    configuration: configDescriptorFor(definition.id)?.fields.map((field) => ({
+      name: field.name,
+      label: field.label,
+      type: field.type,
+      required: field.required ?? false,
+      ...(field.type === "select" ? { options: field.options.map((option) => option.value) } : {}),
+    })),
   }));
 }
 
@@ -93,6 +108,9 @@ const defaultDependencies: CatalogDependencies = {
   air: loadAir,
   markets: loadMarkets,
   news: loadTopStories,
+  surf: loadSurf,
+  games: loadGames,
+  earthquakes: loadEarthquakes,
   now: () => new Date(),
 };
 
@@ -170,6 +188,47 @@ export async function createCatalogBlock(kind: CatalogBlockKind, config?: Catalo
     });
   }
 
+  if (kind === "surf") {
+    const place = config as LocationInsertConfig | undefined;
+    if (!place?.city?.trim()) throw new Error("Choose a break or coastal town before adding Surf window.");
+    const location = await dependencies.geocode(place.city);
+    return catalogReceiptBlockSchema.parse({
+      id: createId(), type: "catalog", kind, definitionVersion: 1,
+      config: { location }, data: await dependencies.surf(location), ...live,
+    });
+  }
+
+  if (kind === "games") {
+    const league = (config as LeagueInsertConfig | undefined)?.league?.trim() || "Basketball";
+    return catalogReceiptBlockSchema.parse({
+      id: createId(), type: "catalog", kind, definitionVersion: 1,
+      config: { league }, data: await dependencies.games(league), ...live,
+    });
+  }
+
+  if (kind === "earthquakes") return catalogReceiptBlockSchema.parse({
+    id: createId(), type: "catalog", kind, definitionVersion: 1, data: await dependencies.earthquakes(), ...live,
+  });
+
+  if (kind === "mealPlan") return catalogReceiptBlockSchema.parse({
+    id: createId(), type: "catalog", kind, definitionVersion: 1,
+    data: {
+      dateLabel: dateLabel(now).toUpperCase(),
+      meals: ["Breakfast", "Lunch", "Dinner"].map((name) => ({ id: createId(), name, dishes: [] })),
+      prep: ["Defrost", "Pack", "Chop", "Soak"].map((text) => ({ id: createId(), text, checked: false })),
+    },
+  });
+
+  if (kind === "meetingNotes") return catalogReceiptBlockSchema.parse({
+    id: createId(), type: "catalog", kind, definitionVersion: 1,
+    data: { dateLabel: dateLabel(now).toUpperCase(), decisions: [], actions: [] },
+  });
+
+  if (kind === "workoutLog") return catalogReceiptBlockSchema.parse({
+    id: createId(), type: "catalog", kind, definitionVersion: 1,
+    data: { dateLabel: dateLabel(now).toUpperCase(), exercises: [] },
+  });
+
   if (kind === "agenda") return catalogReceiptBlockSchema.parse({
     id: createId(), type: "catalog", kind, definitionVersion: 1,
     data: {
@@ -210,17 +269,51 @@ export async function createCatalogBlock(kind: CatalogBlockKind, config?: Catalo
   throw new Error(`${kind} cannot be added to a receipt yet.`);
 }
 
+const liveKinds = new Set<CatalogBlockKind>(["weather", "air", "news", "markets", "surf", "games", "earthquakes"]);
+
+/** Every block that carries feed data, and therefore a refresh state. */
+export type LiveCatalogBlock = Extract<CatalogReceiptBlock, { refreshedAt: string }>;
+
+export function isLiveCatalogKind(kind: CatalogBlockKind) {
+  return liveKinds.has(kind);
+}
+
+export function isLiveCatalogBlock(block: CatalogReceiptBlock): block is LiveCatalogBlock {
+  return liveKinds.has(block.kind);
+}
+
+async function fetchLiveData(block: CatalogReceiptBlock, dependencies: CatalogDependencies) {
+  switch (block.kind) {
+    case "weather": return dependencies.weather(block.config.location, block.config.unit);
+    case "air": return dependencies.air(block.config.location);
+    case "surf": return dependencies.surf(block.config.location);
+    case "games": return dependencies.games(block.config.league);
+    case "news": return dependencies.news();
+    case "markets": return dependencies.markets();
+    case "earthquakes": return dependencies.earthquakes();
+    default: return undefined;
+  }
+}
+
+/** Refreshing keeps the last good copy when the network fails — a stale forecast still prints. */
 export async function refreshCatalogBlock(block: CatalogReceiptBlock, dependencies: CatalogDependencies = defaultDependencies): Promise<CatalogReceiptBlock> {
-  if (block.kind !== "weather" && block.kind !== "air" && block.kind !== "news" && block.kind !== "markets") return block;
+  if (!liveKinds.has(block.kind)) return block;
   try {
-    const data = block.kind === "weather" ? await dependencies.weather(block.config.location, block.config.unit)
-      : block.kind === "air" ? await dependencies.air(block.config.location)
-      : block.kind === "news" ? await dependencies.news()
-      : await dependencies.markets();
+    const data = await fetchLiveData(block, dependencies);
     return catalogReceiptBlockSchema.parse({ ...block, data, refreshedAt: dependencies.now().toISOString(), stale: false, refreshError: undefined });
   } catch (error) {
     return catalogReceiptBlockSchema.parse({ ...block, stale: true, refreshError: error instanceof Error ? error.message : "Refresh failed." });
   }
+}
+
+/**
+ * Reconfiguring is all-or-nothing. Keeping the old data beside new config would print
+ * one city's numbers under another city's heading, so a failure changes nothing at all.
+ */
+export async function reconfigureCatalogBlock(block: CatalogReceiptBlock, config: CatalogInsertConfig, dependencies: CatalogDependencies = defaultDependencies): Promise<CatalogReceiptBlock> {
+  if (configDescriptorFor(block.kind)?.mode !== "live") throw new Error(`${block.kind} blocks are edited directly, not reconfigured.`);
+  const rebuilt = await createCatalogBlock(block.kind, config, dependencies);
+  return catalogReceiptBlockSchema.parse({ ...rebuilt, id: block.id });
 }
 
 export function prototypeForLibrary(id: string) {

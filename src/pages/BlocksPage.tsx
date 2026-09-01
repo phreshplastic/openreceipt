@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState, type FormEvent, t
 import { ArrowLeft, ChevronDown, ExternalLink, Plus, Search, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { blockCatalog, prototypeCategories } from "../blocks/catalog";
+import { designStudyIds } from "../block-library";
 import { geocodeCity, loadBlockFeeds } from "../blocks/feeds";
 import { createSampleSnapshot, newYorkLocation } from "../blocks/fixtures";
 import { renderPrototypeBlock } from "../blocks/render";
@@ -137,6 +138,8 @@ export function BlocksPage() {
     setSelectedId(id);
   };
   const selected = selectedId ? blockCatalog.find((prototype) => prototype.id === selectedId) : undefined;
+  const printable = blockCatalog.filter((prototype) => !designStudyIds.has(prototype.id));
+  const studies = blockCatalog.filter((prototype) => designStudyIds.has(prototype.id));
 
   return <main className="blocks-page">
     <header className="blocks-header"><Brand compact /><div className="blocks-header-note"><span>Experimental surface</span><strong>Block playground</strong></div><div className="blocks-header-actions"><Link className="text-button" to="/blocks/charts">Chart lab</Link><Link className="text-button" to="/app"><ArrowLeft size={14} />Back to editor</Link></div></header>
@@ -150,12 +153,22 @@ export function BlocksPage() {
     </section>
 
     <section className="contact-sheet" aria-labelledby="contact-sheet-title">
-      <header><div><span>Design review · write-in pass</span><h2 id="contact-sheet-title">Twenty printable pieces</h2></div><p>Every paper surface below is rendered in printer dots. Click one to inspect it at full scale.</p></header>
-      <div className={`prototype-grid paper-${width}`}>{blockCatalog.map((prototype, index) => <article className="prototype-card" id={`prototype-${prototype.id}`} key={prototype.id}>
+      <header><div><span>Design review · write-in pass</span><h2 id="contact-sheet-title">{printable.length} printable pieces</h2></div><p>Every paper surface below is rendered in printer dots. Click one to inspect it at full scale.</p></header>
+      <div className={`prototype-grid paper-${width}`}>{printable.map((prototype, index) => <article className="prototype-card" id={`prototype-${prototype.id}`} key={prototype.id}>
         <div className="prototype-card-heading"><div><span>{String(index + 1).padStart(2, "0")} · {prototype.category}</span><h3>{prototype.name}</h3></div><span className={`prototype-source state-${snapshot.states[prototype.id]}`}>{stateLabel(snapshot.states[prototype.id])}</span></div>
         <button type="button" className="prototype-preview-button" onClick={() => setSelectedId(prototype.id)} aria-label={`Focus ${prototype.name} preview`}><PrototypePaper prototype={prototype} snapshot={snapshot} width={width} /></button>
         <p>{prototype.description}</p>
         <footer><span>{width} dots</span>{prototype.sourceUrl ? <a href={prototype.sourceUrl} target="_blank" rel="noreferrer">{prototype.sourceName}<ExternalLink size={11} /></a> : <span>Deterministic sample</span>}</footer>
+      </article>)}</div>
+    </section>
+
+    <section className="contact-sheet" aria-labelledby="design-studies-title">
+      <header><div><span>Not printable</span><h2 id="design-studies-title">Design studies</h2></div><p>These have no data source behind them. They render invented numbers, so they stay off real paper until a feed exists.</p></header>
+      <div className={`prototype-grid paper-${width}`}>{studies.map((prototype, index) => <article className="prototype-card study" id={`prototype-${prototype.id}`} key={prototype.id}>
+        <div className="prototype-card-heading"><div><span>{String(index + 1).padStart(2, "0")} · {prototype.category}</span><h3>{prototype.name}</h3></div><span className="prototype-source state-sample">Invented data</span></div>
+        <button type="button" className="prototype-preview-button" onClick={() => setSelectedId(prototype.id)} aria-label={`Focus ${prototype.name} preview`}><PrototypePaper prototype={prototype} snapshot={snapshot} width={width} /></button>
+        <p>{prototype.description}</p>
+        <footer><span>{width} dots</span><span>No feed yet</span></footer>
       </article>)}</div>
     </section>
     <footer className="blocks-footer"><strong>PETE’S PRINTER</strong><span>Nothing on this page changes your saved receipt.</span><Link to="/app">Return to the editor</Link></footer>

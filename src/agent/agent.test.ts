@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import { samplePrototypeData } from "../blocks/fixtures";
 import type { CatalogDependencies } from "../block-library";
 import { ReceiptController, createReceiptState } from "../receipt/controller";
@@ -8,7 +9,7 @@ import { TOOL_OUTPUT_LIMIT, clampOutput, measureReceipt, outlineReceipt } from "
 import { recipes } from "./recipes";
 import { compileDraftBlocks, type DraftBlock } from "./schema";
 import { createAgentTools, runAgentTool, type AgentBackend } from "./tools";
-import { blockVocabulary } from "./vocabulary";
+import { blockVocabulary, collectionFields } from "./vocabulary";
 
 const now = new Date("2026-08-31T12:00:00.000Z");
 const dependencies: CatalogDependencies = {
@@ -17,6 +18,9 @@ const dependencies: CatalogDependencies = {
   air: vi.fn(async () => structuredClone(samplePrototypeData.air)),
   markets: vi.fn(async () => structuredClone(samplePrototypeData.markets)),
   news: vi.fn(async () => structuredClone(samplePrototypeData.news)),
+  surf: vi.fn(async () => structuredClone(samplePrototypeData.surf)),
+  games: vi.fn(async () => structuredClone(samplePrototypeData.games)),
+  earthquakes: vi.fn(async () => structuredClone(samplePrototypeData.earthquakes)),
   now: () => now,
 };
 
@@ -34,6 +38,9 @@ const everyBlock: DraftBlock[] = [
   { type: "air", city: "Lisbon" },
   { type: "news" },
   { type: "markets" },
+  { type: "surf", city: "Ericeira" },
+  { type: "games", league: "Soccer" },
+  { type: "quakes" },
   { type: "agenda", events: [{ start: "8:20", title: "Flight TP 204", detail: "Gate 22" }] },
   { type: "habits", habits: ["Water", "Walk"] },
   { type: "form", form: "meetingNotes" },
@@ -169,5 +176,26 @@ describe("printing", () => {
     const result = await call(harness, "request_receipt_print", { expectedRevision: 0, reason: "Asked for it" });
     expect(result.data.status).toBe("succeeded");
     expect(harness.requestPrint).toHaveBeenCalledWith(0, "Asked for it", undefined);
+  });
+});
+
+describe("granular edits across every collection", () => {
+  const editTool = () => createAgentTools(makeBackend().backend).find((tool) => tool.name === "edit_receipt")!;
+
+  it("keeps Chrome's tool description under its cap after widening edit_receipt", () => {
+    const edit = editTool();
+    expect(edit.description.length).toBeLessThanOrEqual(500);
+  });
+
+  // This schema is shipped to every agent on every turn, so its growth should be a
+  // deliberate decision. Bump this only alongside a reason for the extra context cost.
+  it("keeps the edit schema small enough to ship to every agent", () => {
+    expect(JSON.stringify(z.toJSONSchema(editTool().inputSchema)).length).toBeLessThanOrEqual(16_000);
+  });
+
+  it("names every collection's fields to the agent", () => {
+    expect(collectionFields.meetingNotes).toEqual(["owner", "due"]);
+    expect(collectionFields.workoutLog).toEqual(["sets", "reps", "load"]);
+    expect(collectionFields.keyValue).toEqual(["value", "emphasis"]);
   });
 });

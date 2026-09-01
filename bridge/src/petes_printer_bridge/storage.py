@@ -73,6 +73,8 @@ class BridgeStore:
                   configured integer not null,
                   print_policy text not null,
                   trusted_template_ids_json text not null,
+                  default_location text not null default '',
+                  default_unit text not null default 'celsius',
                   updated_at text not null
                 );
                 create table if not exists mutations (
@@ -108,6 +110,14 @@ class BridgeStore:
             for name, kind in additions.items():
                 if name not in columns:
                     self.connection.execute(f"alter table print_jobs add column {name} {kind}")
+            settings_columns = {row["name"] for row in self.connection.execute("pragma table_info(app_settings)")}
+            settings_additions = {
+                "default_location": "text not null default ''",
+                "default_unit": "text not null default 'celsius'",
+            }
+            for name, kind in settings_additions.items():
+                if name not in settings_columns:
+                    self.connection.execute(f"alter table app_settings add column {name} {kind}")
             self.connection.execute(
                 "insert or ignore into configuration (id, adapter, profile_id, updated_at) values (1, ?, ?, ?)",
                 ("epson-tm-l90-usb", "80mm-576", now_iso()),
@@ -118,11 +128,12 @@ class BridgeStore:
             )
             self.connection.execute(
                 """insert or ignore into app_settings
-                (id, revision, initialized, configured, print_policy, trusted_template_ids_json, updated_at)
-                values (1, 0, 0, 0, 'confirm', '[]', ?)""",
+                (id, revision, initialized, configured, print_policy, trusted_template_ids_json,
+                 default_location, default_unit, updated_at)
+                values (1, 0, 0, 0, 'confirm', '[]', '', 'celsius', ?)""",
                 (now_iso(),),
             )
-            self.connection.execute("pragma user_version = 2")
+            self.connection.execute("pragma user_version = 3")
 
     def configuration(self) -> BridgeConfiguration:
         with self.lock:
@@ -290,6 +301,8 @@ class BridgeStore:
         configured: bool,
         print_policy: str,
         trusted_template_ids: list[str],
+        default_location: str,
+        default_unit: str,
         actor: dict[str, Any],
     ) -> tuple[dict[str, Any], bool]:
         with self.lock, self.connection:
@@ -306,8 +319,8 @@ class BridgeStore:
             trusted_json = json.dumps(sorted(set(trusted_template_ids)), separators=(",", ":"))
             self.connection.execute(
                 """update app_settings set revision=?, initialized=1, configured=?, print_policy=?,
-                trusted_template_ids_json=?, updated_at=? where id=1""",
-                (revision, int(configured), print_policy, trusted_json, timestamp),
+                trusted_template_ids_json=?, default_location=?, default_unit=?, updated_at=? where id=1""",
+                (revision, int(configured), print_policy, trusted_json, default_location, default_unit, timestamp),
             )
             result = {
                 "revision": revision,
@@ -315,6 +328,8 @@ class BridgeStore:
                 "configured": configured,
                 "printPolicy": print_policy,
                 "trustedTemplateIds": json.loads(trusted_json),
+                "defaultLocation": default_location,
+                "defaultUnit": default_unit,
                 "updatedAt": timestamp,
             }
             self.connection.execute(

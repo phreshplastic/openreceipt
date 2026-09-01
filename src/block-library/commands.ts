@@ -1,10 +1,11 @@
 import { applyReceiptOperations, createReceiptState, StaleReceiptRevisionError, type ReceiptOperation, type ReceiptState } from "../receipt";
-import { createCatalogBlock, refreshCatalogBlock, type CatalogDependencies, type CatalogInsertConfig } from "./registry";
+import { createCatalogBlock, reconfigureCatalogBlock, refreshCatalogBlock, type CatalogDependencies, type CatalogInsertConfig } from "./registry";
 import type { CatalogBlockKind } from "../receipt/model";
 
 export type CatalogReceiptCommand =
   | { type: "insertCatalogBlock"; kind: CatalogBlockKind; config?: CatalogInsertConfig; index?: number }
-  | { type: "refreshCatalogBlock"; id: string };
+  | { type: "refreshCatalogBlock"; id: string }
+  | { type: "reconfigureCatalogBlock"; id: string; config: CatalogInsertConfig };
 
 export type ReceiptCommand = ReceiptOperation | CatalogReceiptCommand;
 
@@ -20,6 +21,11 @@ export async function prepareReceiptCommands(state: ReceiptState, expectedRevisi
       const block = working.document.blocks.find((candidate) => candidate.id === command.id);
       if (!block || block.type !== "catalog") throw new Error(`Catalog block ${command.id} was not found.`);
       operation = { type: "replace", id: block.id, block: await refreshCatalogBlock(block, dependencies) };
+    } else if (command.type === "reconfigureCatalogBlock") {
+      const block = working.document.blocks.find((candidate) => candidate.id === command.id);
+      if (!block || block.type !== "catalog") throw new Error(`Catalog block ${command.id} was not found.`);
+      // Throwing here abandons the whole batch, so a failed fetch leaves the receipt untouched.
+      operation = { type: "replace", id: block.id, block: await reconfigureCatalogBlock(block, command.config, dependencies) };
     } else operation = command;
     working = applyReceiptOperations(working, working.revision, [operation]);
   }

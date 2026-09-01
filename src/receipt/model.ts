@@ -90,6 +90,7 @@ const weatherDataSchema = z.object({
   updated: z.string().max(40),
   temperatureTrend: z.array(z.number()).min(3).max(24),
   precipitationTrend: z.array(z.number()).min(3).max(24),
+  place: z.string().max(60).optional(),
 });
 
 const locationSchema = z.object({
@@ -141,7 +142,7 @@ const habitCatalogBlockSchema = z.object({
   data: z.object({ title: z.string().max(120), period: z.string().max(120), rows: z.array(habitRowSchema).min(1).max(10) }),
 });
 
-const writeInKinds = ["dailyPlan", "groupedChecklist", "workoutLog", "weatherJournal", "mealPlan", "meetingNotes", "packingList"] as const;
+const writeInKinds = ["dailyPlan", "weatherJournal", "packingList"] as const;
 
 const writeInDataSchema = z.object({
   dateLabel: z.string().max(120),
@@ -211,7 +212,7 @@ const airCatalogBlockSchema = z.object({
   kind: z.literal("air"),
   definitionVersion: z.literal(1),
   config: z.object({ location: locationSchema }),
-  data: z.object({ aqi: z.number(), label: z.string().max(80), pm25: z.number(), uv: z.number(), outlook: z.string().max(300) }),
+  data: z.object({ aqi: z.number(), label: z.string().max(80), pm25: z.number(), uv: z.number(), outlook: z.string().max(300), place: z.string().max(60).optional() }),
   refreshedAt: z.string().datetime(),
   stale: z.boolean().default(false),
   refreshError: z.string().max(300).optional(),
@@ -228,6 +229,100 @@ const marketsCatalogBlockSchema = z.object({
   refreshError: z.string().max(300).optional(),
 });
 
+const mealPlanCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("mealPlan"),
+  definitionVersion: z.literal(1),
+  data: z.object({
+    dateLabel: z.string().max(120),
+    meals: z.array(z.object({
+      id,
+      name: z.string().min(1).max(30),
+      dishes: z.array(z.object({ id, text: z.string().min(1).max(120), detail: z.string().max(80).optional() })).max(6),
+    })).min(1).max(5),
+    prep: z.array(z.object({ id, text: z.string().min(1).max(30), checked: z.boolean().default(false) })).max(6),
+  }),
+});
+
+const meetingNotesCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("meetingNotes"),
+  definitionVersion: z.literal(1),
+  data: z.object({
+    dateLabel: z.string().max(120),
+    topic: z.string().max(80).optional(),
+    attendees: z.string().max(120).optional(),
+    decisions: z.array(z.object({ id, text: z.string().min(1).max(200) })).max(8),
+    actions: z.array(z.object({ id, text: z.string().min(1).max(160), owner: z.string().max(40).optional(), due: z.string().max(40).optional(), done: z.boolean().default(false) })).max(8),
+  }),
+});
+
+const workoutLogCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("workoutLog"),
+  definitionVersion: z.literal(1),
+  data: z.object({
+    dateLabel: z.string().max(120),
+    focus: z.string().max(60).optional(),
+    duration: z.string().max(40).optional(),
+    exercises: z.array(z.object({
+      id,
+      name: z.string().min(1).max(60),
+      sets: z.string().max(20).optional(),
+      reps: z.string().max(20).optional(),
+      load: z.string().max(20).optional(),
+    })).max(12),
+  }),
+});
+
+const surfCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("surf"),
+  definitionVersion: z.literal(1),
+  config: z.object({ location: locationSchema }),
+  data: z.object({
+    location: z.string().max(60),
+    summary: z.string().max(300),
+    windows: z.array(z.object({ time: z.string().max(20), height: z.number(), period: z.number(), direction: z.string().max(20) })).length(3),
+    heightTrend: z.array(z.number()).min(3).max(24),
+  }),
+  refreshedAt: z.string().datetime(),
+  stale: z.boolean().default(false),
+  refreshError: z.string().max(300).optional(),
+});
+
+const gamesCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("games"),
+  definitionVersion: z.literal(1),
+  config: z.object({ league: z.string().min(1).max(40) }),
+  data: z.object({
+    league: z.string().max(60),
+    games: z.array(z.object({ away: z.string().max(60), home: z.string().max(60), awayScore: z.number().optional(), homeScore: z.number().optional(), status: z.string().max(40) })).max(8),
+  }),
+  refreshedAt: z.string().datetime(),
+  stale: z.boolean().default(false),
+  refreshError: z.string().max(300).optional(),
+});
+
+const earthquakesCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("earthquakes"),
+  definitionVersion: z.literal(1),
+  data: z.object({
+    events: z.array(z.object({ magnitude: z.number(), place: z.string().max(160), depth: z.number(), age: z.string().max(40) })).max(8),
+  }),
+  refreshedAt: z.string().datetime(),
+  stale: z.boolean().default(false),
+  refreshError: z.string().max(300).optional(),
+});
+
 export const catalogReceiptBlockSchema = z.discriminatedUnion("kind", [
   weatherCatalogBlockSchema,
   agendaCatalogBlockSchema,
@@ -237,6 +332,12 @@ export const catalogReceiptBlockSchema = z.discriminatedUnion("kind", [
   newsCatalogBlockSchema,
   airCatalogBlockSchema,
   marketsCatalogBlockSchema,
+  mealPlanCatalogBlockSchema,
+  meetingNotesCatalogBlockSchema,
+  workoutLogCatalogBlockSchema,
+  surfCatalogBlockSchema,
+  gamesCatalogBlockSchema,
+  earthquakesCatalogBlockSchema,
   ...writeInCatalogBlockSchemas,
 ]);
 

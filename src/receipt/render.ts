@@ -97,6 +97,7 @@ const receiptRhythm = {
   regular: 20,
   section: 26,
   rule: 18,
+  card: 34,
 } as const;
 
 function spacingAfter(block: ReceiptBlock, next?: ReceiptBlock) {
@@ -104,6 +105,9 @@ function spacingAfter(block: ReceiptBlock, next?: ReceiptBlock) {
   if (block.type === "heading" && next.type === "text") return receiptRhythm.tight;
   if (block.type === "divider" || next.type === "divider") return receiptRhythm.rule;
   if (next.type === "heading") return receiptRhythm.section;
+  // Library blocks are self-contained cards with their own eyebrow and rules. At the
+  // body rhythm they read as one run-on block, so give them room to be separate objects.
+  if (block.type === "catalog" || next.type === "catalog") return receiptRhythm.card;
   return receiptRhythm.regular;
 }
 

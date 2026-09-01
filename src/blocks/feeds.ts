@@ -155,7 +155,7 @@ export function transformSurf(payload: unknown): SurfData {
   }));
   const strongest = windows.reduce((best, value) => value.height > best.height ? value : best);
   return {
-    location: "Rockaway Beach",
+    location: "",
     windows,
     summary: `Best size near ${strongest.time}. Conditions stay ${strongest.height < 3 ? "small" : "rideable"} through the day.`,
     heightTrend: heights.slice(0, 18).filter((_, index) => index % 2 === 0).map((height) => round(number(height) * 3.28084, 1)),
@@ -187,7 +187,7 @@ export function transformMarkets(payload: unknown): MarketsData {
     const previous = values.at(-2)!;
     return { symbol, value, change: round((value - previous) / previous * 100, 2), history: values };
   });
-  return { base: `USD market pulse`, rows };
+  return { base: "USD", rows };
 }
 
 export function transformNews(items: unknown[], now: Date): NewsData {
@@ -244,7 +244,12 @@ export async function loadWeather(location: PreviewLocation, unit: "fahrenheit" 
     options.signal,
     options.timeoutMs ?? 5_000,
   );
-  return transformWeather(payload);
+  return { ...transformWeather(payload), place: shortPlace(location) };
+}
+
+/** The first comma-separated part of a geocoded name — "Lisbon", not "Lisbon, Lisboa, Portugal". */
+function shortPlace(location: PreviewLocation) {
+  return location.name.split(",")[0]?.trim() || location.name;
 }
 
 async function loadNews(fetcher: Fetcher, signal: AbortSignal | undefined, timeoutMs: number, now: Date) {
@@ -259,7 +264,8 @@ export async function loadTopStories(options: LoadOptions = {}): Promise<NewsDat
 
 export async function loadAir(location: PreviewLocation, options: LoadOptions = {}): Promise<AirData> {
   const timezone = encodeURIComponent(location.timezone || "auto");
-  return transformAir(await fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${location.latitude}&longitude=${location.longitude}&current=us_aqi,pm2_5,uv_index&timezone=${timezone}`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000));
+  const data = transformAir(await fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${location.latitude}&longitude=${location.longitude}&current=us_aqi,pm2_5,uv_index&timezone=${timezone}`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000));
+  return { ...data, place: shortPlace(location) };
 }
 
 export async function loadMarkets(options: LoadOptions = {}): Promise<MarketsData> {
@@ -267,6 +273,23 @@ export async function loadMarkets(options: LoadOptions = {}): Promise<MarketsDat
   const startDate = new Date(now);
   startDate.setUTCDate(startDate.getUTCDate() - 10);
   return transformMarkets(await fetchJson(`https://api.frankfurter.dev/v2/rates?base=USD&quotes=EUR,GBP,JPY&from=${isoDate(startDate)}&to=${isoDate(now)}`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000));
+}
+
+export async function loadSurf(location: PreviewLocation, options: LoadOptions = {}): Promise<SurfData> {
+  const timezone = encodeURIComponent(location.timezone || "auto");
+  const payload = await fetchJson(`https://marine-api.open-meteo.com/v1/marine?latitude=${location.latitude}&longitude=${location.longitude}&hourly=wave_height,wave_period,wave_direction&timezone=${timezone}&forecast_hours=18&length_unit=metric`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000);
+  return { ...transformSurf(payload), location: shortPlace(location) };
+}
+
+export async function loadGames(league: string, options: LoadOptions = {}): Promise<GamesData> {
+  const day = isoDate(options.now ?? new Date());
+  const payload = await fetchJson(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${day}&s=${encodeURIComponent(league)}`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000);
+  return { ...transformGames(payload), league };
+}
+
+export async function loadEarthquakes(options: LoadOptions = {}): Promise<EarthquakeData> {
+  const payload = await fetchJson("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson", options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000);
+  return transformEarthquakes(payload, options.now ?? new Date());
 }
 
 export async function loadBlockFeeds(location = newYorkLocation, options: LoadOptions = {}): Promise<FeedSnapshot> {
@@ -277,15 +300,14 @@ export async function loadBlockFeeds(location = newYorkLocation, options: LoadOp
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return structuredClone(cached.snapshot);
   const snapshot = createSampleSnapshot(location);
-  const end = isoDate(now);
   const jobs: Array<[PrototypeBlockId, () => Promise<unknown>]> = [
     ["weather", async () => loadWeather(location, "fahrenheit", { ...options, fetcher, timeoutMs })],
     ["air", async () => loadAir(location, { ...options, fetcher, timeoutMs })],
-    ["surf", async () => transformSurf(await fetchJson("https://marine-api.open-meteo.com/v1/marine?latitude=40.583&longitude=-73.815&hourly=wave_height,wave_period,wave_direction&timezone=America%2FNew_York&forecast_hours=18&length_unit=metric", fetcher, options.signal, timeoutMs))],
-    ["games", async () => transformGames(await fetchJson(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${end}&s=Basketball`, fetcher, options.signal, timeoutMs))],
+    ["surf", async () => loadSurf(location, { ...options, fetcher, timeoutMs })],
+    ["games", async () => loadGames("Basketball", { ...options, fetcher, timeoutMs, now })],
     ["markets", async () => loadMarkets({ ...options, fetcher, timeoutMs, now })],
     ["news", async () => loadNews(fetcher, options.signal, timeoutMs, now)],
-    ["earthquakes", async () => transformEarthquakes(await fetchJson("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson", fetcher, options.signal, timeoutMs), now)],
+    ["earthquakes", async () => loadEarthquakes({ ...options, fetcher, timeoutMs, now })],
   ];
   await Promise.all(jobs.map(async ([id, load]) => {
     try {
@@ -304,7 +326,9 @@ export async function geocodeCity(query: string, options: LoadOptions = {}): Pro
   const trimmed = query.trim();
   if (!trimmed) throw new Error("Enter a city or postal code.");
   const payload = record(await fetchJson(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=1&language=en&format=json`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000));
-  const result = record(array(payload.results)[0]);
+  // Open-Meteo omits `results` entirely when nothing matches, so say so in plain words.
+  if (!Array.isArray(payload.results) || !payload.results.length) throw new Error(`No location found for \u201c${trimmed}\u201d.`);
+  const result = record(payload.results[0]);
   const latitude = number(result.latitude, Number.NaN);
   const longitude = number(result.longitude, Number.NaN);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error(`No location found for “${trimmed}”.`);

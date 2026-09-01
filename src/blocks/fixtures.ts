@@ -43,7 +43,7 @@ export const samplePrototypeData: PrototypeDataMap = {
     ],
   },
   markets: {
-    base: "USD market pulse",
+    base: "USD",
     rows: [
       { symbol: "EUR", value: 0.8562, change: 0.31, history: [0.849, 0.851, 0.85, 0.854, 0.8562] },
       { symbol: "GBP", value: 0.7391, change: -0.18, history: [0.741, 0.742, 0.74, 0.738, 0.7391] },
@@ -104,11 +104,44 @@ export const samplePrototypeData: PrototypeDataMap = {
     ],
   },
   dailyPlan: { dateLabel: "DATE  __________" },
-  groupedChecklist: { dateLabel: "DATE  __________" },
-  workoutLog: { dateLabel: "DATE  __________" },
+  workoutLog: {
+    dateLabel: "DATE  __________",
+    focus: "Push day",
+    duration: "55 min",
+    exercises: [
+      { id: "ex-1", name: "Bench press", sets: "4", reps: "6", load: "70 kg" },
+      { id: "ex-2", name: "Overhead press", sets: "3", reps: "8", load: "40 kg" },
+      { id: "ex-3", name: "Dips", sets: "3", reps: "10", load: "Body" },
+    ],
+  },
   weatherJournal: { dateLabel: "LOCATION  __________" },
-  mealPlan: { dateLabel: "DATE  __________" },
-  meetingNotes: { dateLabel: "DATE  __________" },
+  mealPlan: {
+    dateLabel: "DATE  __________",
+    meals: [
+      { id: "meal-1", name: "Breakfast", dishes: [{ id: "d-1", text: "Yoghurt, berries, granola" }] },
+      { id: "meal-2", name: "Lunch", dishes: [{ id: "d-2", text: "Leftover roast chicken", detail: "Take the small tub" }] },
+      { id: "meal-3", name: "Dinner", dishes: [{ id: "d-3", text: "Pasta with courgette" }, { id: "d-4", text: "Green salad" }] },
+    ],
+    prep: [
+      { id: "p-1", text: "Defrost", checked: true },
+      { id: "p-2", text: "Pack", checked: false },
+      { id: "p-3", text: "Chop", checked: false },
+      { id: "p-4", text: "Soak", checked: false },
+    ],
+  },
+  meetingNotes: {
+    dateLabel: "DATE  __________",
+    topic: "Printer firmware",
+    attendees: "Sam, Alex",
+    decisions: [
+      { id: "dec-1", text: "Ship the roll-width switch behind a setting." },
+      { id: "dec-2", text: "Hold the new font until after the demo." },
+    ],
+    actions: [
+      { id: "act-1", text: "Write the migration note", owner: "Sam", due: "Fri", done: false },
+      { id: "act-2", text: "Re-run the paper tests", owner: "Alex", due: "Mon", done: true },
+    ],
+  },
   packingList: { dateLabel: "LEAVING  __________" },
   delivery: {
     carrier: "UPS · 1Z 849 03",

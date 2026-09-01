@@ -480,25 +480,106 @@ test("configures weather once, saves its snapshot, and refreshes it manually", a
   await library.getByText("Daily weather", { exact: true }).first().click();
   await library.getByLabel("City or postal code").fill("Brooklyn");
   await library.getByLabel("Temperature").selectOption("celsius");
-  await library.getByRole("button", { name: "Configure and add" }).click();
+  await library.getByRole("button", { name: "Add block", exact: true }).click();
 
   await expect(page.getByRole("button", { name: "Select weather block" })).toBeVisible();
   await expect(page.getByText("Brooklyn, New York")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Refresh weather" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Refresh data" })).toBeVisible();
   expect(forecastRequests).toBe(1);
-  await page.getByRole("button", { name: "Refresh weather" }).click();
+  await page.getByRole("button", { name: "Refresh data" }).click();
   await expect.poll(() => forecastRequests).toBe(2);
+
+  // The unit is editable after insert; switching it refetches rather than sitting disabled.
+  await page.getByLabel("Temperature").selectOption("fahrenheit");
+  await page.getByRole("button", { name: "Apply and fetch" }).click();
+  await expect.poll(() => forecastRequests).toBe(3);
 });
 
-test("keeps preview-only concepts reviewable but not insertable or favoriteable", async ({ page }) => {
+test("keeps blocks with no data source off real paper", async ({ page }) => {
   await page.goto("/app");
   await page.getByRole("tab", { name: "Library" }).click();
   await page.getByRole("button", { name: "Browse Block Library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
-  await library.locator(".library-card").filter({ hasText: "Surf window" }).getByRole("button").first().click();
+  await library.locator(".library-card").filter({ hasText: "Delivery route" }).getByRole("button").first().click();
   await expect(library.getByRole("link", { name: "Review in playground" })).toBeVisible();
-  await expect(library.getByRole("button", { name: /Surf window.*favorites/ })).toHaveCount(0);
+  await expect(library.getByRole("button", { name: /Delivery route.*favorites/ })).toHaveCount(0);
   await expect(library.getByRole("button", { name: "Add block", exact: true })).toHaveCount(0);
+});
+
+test("configures a block that needs a city before it can be added", async ({ page }) => {
+  await page.route("https://geocoding-api.open-meteo.com/**", (route) => route.fulfill({ json: {
+    results: [{ name: "Lisbon", admin1: "Lisbon District", country: "Portugal", latitude: 38.72, longitude: -9.14, timezone: "Europe/Lisbon" }],
+  } }));
+  await page.route("https://air-quality-api.open-meteo.com/**", (route) => route.fulfill({ json: {
+    current: { us_aqi: 33, pm2_5: 5.3, uv_index: 0 },
+  } }));
+
+  await page.goto("/app");
+  await page.getByRole("tab", { name: "Library" }).click();
+  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  const library = page.getByRole("dialog", { name: "Block Library" });
+  await library.locator(".library-card").filter({ hasText: "Air quality" }).getByRole("button").first().click();
+
+  // The form is required, so an empty city names what is missing rather than throwing on insert.
+  const city = library.getByLabel("City or postal code");
+  await expect(city).toBeVisible();
+  await city.fill("");
+  await expect(library.getByRole("button", { name: /is needed/ })).toBeDisabled();
+
+  await city.fill("Lisbon");
+  await library.getByRole("button", { name: "Add block", exact: true }).click();
+  await expect(page.getByText("Air quality added", { exact: true })).toBeVisible();
+  await expect(page.locator(".receipt-svg")).toContainText("AIR QUALITY · LISBON");
+});
+
+test("moves a live block to another place and keeps the old data when the fetch fails", async ({ page }) => {
+  await page.route("https://geocoding-api.open-meteo.com/**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("name") ?? "";
+    if (query.toLowerCase().includes("nowhere")) return route.fulfill({ json: {} });
+    return route.fulfill({ json: { results: [{ name: "Lisbon", admin1: "Lisbon District", country: "Portugal", latitude: 38.72, longitude: -9.14, timezone: "Europe/Lisbon" }] } });
+  });
+  await page.route("https://air-quality-api.open-meteo.com/**", (route) => route.fulfill({ json: {
+    current: { us_aqi: 33, pm2_5: 5.3, uv_index: 0 },
+  } }));
+
+  await page.goto("/app");
+  await page.getByRole("tab", { name: "Library" }).click();
+  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  const library = page.getByRole("dialog", { name: "Block Library" });
+  await library.locator(".library-card").filter({ hasText: "Air quality" }).getByRole("button").first().click();
+  await library.getByLabel("City or postal code").fill("Lisbon");
+  await library.getByRole("button", { name: "Add block", exact: true }).click();
+  await expect(page.locator(".receipt-svg")).toContainText("AIR QUALITY · LISBON");
+
+  // A place that cannot be found must change nothing at all.
+  await page.getByLabel("City or postal code").fill("Nowhereville");
+  await page.getByRole("button", { name: "Apply and fetch" }).click();
+  await expect(page.locator(".inspector-inline-error")).toContainText("No location found");
+  await expect(page.locator(".receipt-svg")).toContainText("AIR QUALITY · LISBON");
+});
+
+test("lets an agent edit one line of a block without rewriting it", async ({ page }) => {
+  await page.goto("/app?webmcp=shim");
+  await page.getByRole("tab", { name: "Library" }).click();
+  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  const library = page.getByRole("dialog", { name: "Block Library" });
+  await library.locator(".library-card").filter({ hasText: "Meeting notes" }).getByRole("button").first().click();
+  await library.getByRole("button", { name: "Add block", exact: true }).click();
+  await expect(page.getByLabel("Meeting topic")).toBeVisible();
+
+  const position = await page.evaluate(async () => {
+    const state = await (window as unknown as ShimWindow).__webmcpShim.call("get_receipt", {});
+    return state.content[0].text.split("\n").findIndex((line) => /^\s*\d+\s+meeting/.test(line));
+  });
+
+  await page.evaluate(async (at) => (window as unknown as ShimWindow).__webmcpShim.call("edit_receipt", { operations: [
+    { op: "addItem", at, group: "actions", text: "Book the airport train", fields: { owner: "Pete", due: "Wed" } },
+  ] }), position);
+
+  // The agent's line lands in the right section, with its named attributes.
+  await expect(page.getByLabel("Action 1", { exact: true })).toHaveValue("Book the airport train");
+  await expect(page.getByLabel("Owner of action 1")).toHaveValue("Pete");
+  await expect(page.locator(".receipt-svg")).toContainText("Book the airport train");
 });
 
 test("reviews printable blocks, widths, local data, and the catalog", async ({ page }) => {
@@ -511,8 +592,10 @@ test("reviews printable blocks, widths, local data, and the catalog", async ({ p
 
   await page.goto("/blocks");
   await expect(page.getByRole("heading", { name: "Blocks are the fun part." })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Focus .* preview$/ })).toHaveCount(21);
-  await expect(page.locator(".prototype-card .paper-surface")).toHaveCount(21);
+  await expect(page.getByRole("button", { name: /^Focus .* preview$/ })).toHaveCount(20);
+  await expect(page.locator(".prototype-card .paper-surface")).toHaveCount(20);
+  // The three with no data source are shown, but under their own heading.
+  await expect(page.getByRole("heading", { name: "Design studies" })).toBeVisible();
 
   await page.getByRole("button", { name: "58 mm", exact: true }).click();
   await expect(page.getByText("420 dots").first()).toBeVisible();
@@ -542,5 +625,5 @@ test("compares all thermal chart primitives at both paper widths", async ({ page
   await expect(page.locator('[data-chart-study][width="420"]')).toHaveCount(5);
   await expect(page.getByRole("heading", { name: "Labeled dot matrix" })).toBeVisible();
   await page.getByRole("link", { name: /Back to blocks/i }).click();
-  await expect(page.getByRole("heading", { name: "Twenty printable pieces" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /\d+ printable pieces/ })).toBeVisible();
 });

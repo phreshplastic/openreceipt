@@ -17,6 +17,11 @@ function lines(text: string, width: number, style: TextStyle, x: number, y: numb
   };
 }
 
+/** "Daily weather · Lisbon" — keeps the block's identity while naming which one this is. */
+function titled(name: string, place: string | undefined) {
+  return place ? `${name} \u00b7 ${place}` : name;
+}
+
 function label(text: string, x: number, y: number, anchor: "start" | "middle" | "end" = "start") {
   return `<text x="${x}" y="${y + thermalType.label.size}" text-anchor="${anchor}" ${textAttributes(thermalType.label)}>${escapeXml(text.toUpperCase())}</text>`;
 }
@@ -38,7 +43,7 @@ function shortTeam(value: string) {
 }
 
 function renderWeather(data: PrototypeDataMap["weather"], width: number): Part {
-  let markup = label("Daily weather", 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.updated)}</text>`;
+  let markup = label(titled("Daily weather", data.place), 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.updated)}</text>`;
   const heading = lines(data.condition, width, thermalType.heading, 0, 30, { weight: 760, max: 1 });
   const summary = lines(data.summary, width, thermalType.small, 0, 68, { max: 2 });
   const timelineTop = 68 + summary.height + 20;
@@ -67,7 +72,7 @@ function renderWeather(data: PrototypeDataMap["weather"], width: number): Part {
 
 function renderAir(data: PrototypeDataMap["air"], width: number): Part {
   const leadWidth = width >= 480 ? 178 : 138;
-  let markup = label("Air quality", 0, 0) + `<text x="0" y="79" ${textAttributes({ ...thermalType.numeric, size: 58, lineHeight: 62 }, 790)}>${data.aqi}</text>`;
+  let markup = label(titled("Air quality", data.place), 0, 0) + `<text x="0" y="79" ${textAttributes({ ...thermalType.numeric, size: 58, lineHeight: 62 }, 790)}>${data.aqi}</text>`;
   markup += `<text x="${leadWidth}" y="52" ${textAttributes(thermalType.heading, 760)}>${escapeXml(data.label)}</text>`;
   markup += `<text x="${leadWidth}" y="78" ${textAttributes(thermalType.small)}>${escapeXml(data.outlook)}</text>`;
   const railY = 104;
@@ -127,6 +132,7 @@ function renderGames(data: PrototypeDataMap["games"], width: number): Part {
 function renderMarkets(data: PrototypeDataMap["markets"], width: number): Part {
   let markup = label("Market pulse", 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.base.toUpperCase())}</text>`;
   const lead = data.rows[0];
+  if (!lead) return { markup: markup + `<text x="0" y="58" ${textAttributes(thermalType.small, 520)}>No rates came back on this refresh.</text>`, height: 74 };
   const leadValue = lead.value >= 10 ? lead.value.toFixed(2) : lead.value.toFixed(4);
   markup += `<text x="0" y="58" ${textAttributes(thermalType.heading, 780)}>${escapeXml(lead.symbol)}</text><text x="${width}" y="58" text-anchor="end" ${textAttributes(thermalType.heading, 680)}>${leadValue}</text>`;
   markup += `<text x="${width}" y="83" text-anchor="end" ${textAttributes(thermalType.small, 700)}>${lead.change >= 0 ? "▲" : "▼"} ${Math.abs(lead.change).toFixed(2)}%</text>`;
@@ -222,7 +228,9 @@ function renderHome(data: PrototypeDataMap["home"], width: number): Part {
   const heading = lines(data.headline, width, thermalType.heading, 0, 29, { weight: 760, max: 1 });
   markup += heading.markup;
   let y = 29 + heading.height + 14;
-  data.rows.filter((row) => row.label !== "Energy today").forEach((row) => {
+  // The last row drives the chart footer; anything before it is a plain reading.
+  const energy = data.rows.at(-1);
+  data.rows.slice(0, -1).forEach((row) => {
     markup += rule(y, width);
     const marker = row.state === "attention" ? `<rect x="0" y="${y + 12}" width="12" height="12" fill="#000"/>` : `<circle cx="6" cy="${y + 18}" r="5" fill="none" stroke="#000" stroke-width="2"/>`;
     markup += marker + `<text x="25" y="${y + 27}" ${textAttributes(thermalType.body, row.state === "attention" ? 690 : 520)}>${escapeXml(row.label)}</text>`;
@@ -230,8 +238,7 @@ function renderHome(data: PrototypeDataMap["home"], width: number): Part {
     y += 48;
   });
   markup += rule(y, width);
-  const energy = data.rows.find((row) => row.label === "Energy today");
-  markup += label("Energy today", 0, y + 14) + `<text x="${width}" y="${y + 26}" text-anchor="end" ${textAttributes(thermalType.body, 690)}>${escapeXml(energy?.value ?? "")}</text>`;
+  markup += label(energy?.label ?? "Energy today", 0, y + 14) + `<text x="${width}" y="${y + 26}" text-anchor="end" ${textAttributes(thermalType.body, 690)}>${escapeXml(energy?.value ?? "")}</text>`;
   const chart = renderThermalChart({ kind: "line", width, height: 58, values: data.energyHistory, curve: "step", guides: 2 });
   markup += `<g transform="translate(0 ${y + 42})">${chart.markup}</g>`;
   return { markup, height: y + 101 };
@@ -279,40 +286,35 @@ function renderDailyPlan(data: PrototypeDataMap["dailyPlan"], width: number): Pa
   return { markup, height: y + 89 };
 }
 
-function renderGroupedChecklist(data: PrototypeDataMap["groupedChecklist"], width: number): Part {
-  let markup = label("Grouped checklist", 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.dateLabel)}</text>`;
-  markup += `<text x="0" y="57" ${textAttributes(thermalType.heading, 780)}>Get it done</text>`;
-  let y = 79;
-  ["Must", "Should", "Could"].forEach((group) => {
-    markup += sectionTag(group, 0, y);
-    y += 34;
-    for (let index = 0; index < 3; index += 1) {
-      markup += emptyBox(0, y + 2) + `<line x1="31" y1="${y + 18}" x2="${width}" y2="${y + 18}" stroke="#000"/>`;
-      y += 34;
-    }
-    y += 11;
-  });
-  markup += rule(y, width, 2) + `<text x="0" y="${y + 25}" ${textAttributes(thermalType.label, 600)}>DONE</text><text x="${width}" y="${y + 25}" text-anchor="end" ${textAttributes(thermalType.section, 680)}>____ / 9</text>`;
-  return { markup, height: y + 30 };
-}
-
 function renderWorkoutLog(data: PrototypeDataMap["workoutLog"], width: number): Part {
   let markup = label("Workout log", 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.dateLabel)}</text>`;
-  markup += `<text x="0" y="57" ${textAttributes(thermalType.heading, 780)}>Training session</text>`;
-  markup += `<text x="0" y="88" ${textAttributes(thermalType.label, 600)}>FOCUS</text><line x1="52" y1="86" x2="${width * .58}" y2="86" stroke="#000"/><text x="${width * .63}" y="88" ${textAttributes(thermalType.label, 600)}>TIME</text><line x1="${width * .76}" y1="86" x2="${width}" y2="86" stroke="#000"/>`;
+  markup += `<text x="0" y="57" ${textAttributes(thermalType.heading, 780)}>${escapeXml(data.focus || "Training session")}</text>`;
+  markup += `<text x="0" y="88" ${textAttributes(thermalType.label, 600)}>FOCUS</text>`;
+  markup += data.focus
+    ? `<text x="52" y="88" ${textAttributes(thermalType.small, 520)}>${escapeXml(data.focus)}</text>`
+    : `<line x1="52" y1="86" x2="${width * .58}" y2="86" stroke="#000"/>`;
+  markup += `<text x="${width * .63}" y="88" ${textAttributes(thermalType.label, 600)}>TIME</text>`;
+  markup += data.duration
+    ? `<text x="${width * .76}" y="88" ${textAttributes(thermalType.small, 520)}>${escapeXml(data.duration)}</text>`
+    : `<line x1="${width * .76}" y1="86" x2="${width}" y2="86" stroke="#000"/>`;
   const top = 108;
   const columns = [0, width * .49, width * .65, width * .79, width];
-  const headings = ["Exercise", "Sets", "Reps", "Load"];
   markup += `<rect x="0" y="${top}" width="${width}" height="31" fill="#000"/>`;
-  headings.forEach((heading, index) => { markup += `<text x="${columns[index] + 7}" y="${top + 20}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="720" letter-spacing=".5" fill="#fff">${heading.toUpperCase()}</text>`; });
+  ["Exercise", "Sets", "Reps", "Load"].forEach((heading, index) => { markup += `<text x="${columns[index] + 7}" y="${top + 20}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="720" letter-spacing=".5" fill="#fff">${heading.toUpperCase()}</text>`; });
   let y = top + 31;
-  for (let row = 0; row < 5; row += 1) {
+  // Always leave a couple of blank lines: a plan you cannot add to at the rack is no use.
+  const rows = [...data.exercises, ...Array.from({ length: Math.max(2, 5 - data.exercises.length) }, () => undefined)];
+  for (const exercise of rows) {
     markup += `<rect x="0" y="${y}" width="${width}" height="39" fill="#fff" stroke="#000"/>`;
     columns.slice(1, -1).forEach((x) => { markup += `<line x1="${x}" y1="${y}" x2="${x}" y2="${y + 39}" stroke="#000"/>`; });
+    if (exercise) {
+      const cells = [exercise.name, exercise.sets ?? "", exercise.reps ?? "", exercise.load ?? ""];
+      cells.forEach((cell, index) => { if (cell) markup += `<text x="${columns[index] + 7}" y="${y + 26}" ${textAttributes(thermalType.small, index ? 520 : 620)}>${escapeXml(cell)}</text>`; });
+    }
     y += 39;
   }
   markup += `<text x="0" y="${y + 30}" ${textAttributes(thermalType.label, 600)}>FINISH</text>`;
-  [["Warm up", 60], ["Cool down", width * .43], ["Notes", width * .76]].forEach(([text, x]) => { markup += emptyBox(Number(x), y + 15, 16) + `<text x="${Number(x) + 23}" y="${y + 28}" ${textAttributes(thermalType.label, 560)}>${String(text).toUpperCase()}</text>`; });
+  ([["Warm up", 60], ["Cool down", width * .43], ["Notes", width * .76]] as const).forEach(([text, x]) => { markup += emptyBox(Number(x), y + 15, 16) + `<text x="${Number(x) + 23}" y="${y + 28}" ${textAttributes(thermalType.label, 560)}>${String(text).toUpperCase()}</text>`; });
   return { markup, height: y + 37 };
 }
 
@@ -343,30 +345,69 @@ function renderMealPlan(data: PrototypeDataMap["mealPlan"], width: number): Part
   let markup = label("Meal plan", 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.dateLabel)}</text>`;
   markup += `<text x="0" y="57" ${textAttributes(thermalType.heading, 780)}>What are we eating?</text>`;
   let y = 82;
-  ["Breakfast", "Lunch", "Dinner"].forEach((meal) => {
-    markup += sectionTag(meal, 0, y) + `<line x1="0" y1="${y + 53}" x2="${width}" y2="${y + 53}" stroke="#000"/><line x1="0" y1="${y + 82}" x2="${width}" y2="${y + 82}" stroke="#000"/>`;
-    y += 98;
-  });
+  for (const meal of data.meals) {
+    markup += sectionTag(meal.name, 0, y);
+    let cursor = y + 40;
+    for (const dish of meal.dishes) {
+      const written = lines(dish.text, width - 8, thermalType.body, 0, cursor, { weight: 560, max: 2 });
+      markup += written.markup;
+      cursor += written.height;
+      if (dish.detail) {
+        const note = lines(dish.detail, width - 8, thermalType.small, 0, cursor - 4, { weight: 460, max: 1 });
+        markup += note.markup;
+        cursor += note.height;
+      }
+      cursor += 5;
+    }
+    // Blank meals keep their writing lines, so a half-planned week still prints usefully.
+    const blanks = Math.max(0, 2 - meal.dishes.length);
+    for (let index = 0; index < blanks; index += 1) { markup += `<line x1="0" y1="${cursor + 19}" x2="${width}" y2="${cursor + 19}" stroke="#000"/>`; cursor += 32; }
+    y = cursor + 16;
+  }
   markup += rule(y, width, 2) + label("Prep before 5", 0, y + 13);
-  [["Defrost", 0], ["Pack", width * .34], ["Chop", width * .62], ["Soak", width * .84]].forEach(([text, x]) => { markup += emptyBox(Number(x), y + 37, 15) + `<text x="${Number(x) + 21}" y="${y + 49}" ${textAttributes(thermalType.label, 540)}>${String(text).toUpperCase()}</text>`; });
+  data.prep.slice(0, 4).forEach((item, index) => {
+    const x = index * width / Math.max(1, Math.min(4, data.prep.length));
+    markup += (item.checked
+      ? `<rect x="${x}" y="${y + 37}" width="15" height="15" rx="1" fill="#000"/><path d="M${x + 3.5} ${y + 44.5} l3 3 l5 -6" fill="none" stroke="#fff" stroke-width="2"/>`
+      : emptyBox(x, y + 37, 15))
+      + `<text x="${x + 21}" y="${y + 49}" ${textAttributes(thermalType.label, 540)}>${escapeXml(item.text.toUpperCase())}</text>`;
+  });
   return { markup, height: y + 58 };
 }
 
 function renderMeetingNotes(data: PrototypeDataMap["meetingNotes"], width: number): Part {
+  const fill = (value: string | undefined, x: number, y: number) => value
+    ? `<text x="${x}" y="${y + 2}" ${textAttributes(thermalType.small, 520)}>${escapeXml(value)}</text>`
+    : `<line x1="${x}" y1="${y}" x2="${width}" y2="${y}" stroke="#000"/>`;
   let markup = label("Meeting notes", 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.dateLabel)}</text>`;
-  markup += `<text x="0" y="55" ${textAttributes(thermalType.label, 600)}>TOPIC</text><line x1="50" y1="53" x2="${width}" y2="53" stroke="#000"/><text x="0" y="83" ${textAttributes(thermalType.label, 600)}>WITH</text><line x1="50" y1="81" x2="${width}" y2="81" stroke="#000"/>`;
+  markup += `<text x="0" y="55" ${textAttributes(thermalType.label, 600)}>TOPIC</text>` + fill(data.topic, 50, 53);
+  markup += `<text x="0" y="83" ${textAttributes(thermalType.label, 600)}>WITH</text>` + fill(data.attendees, 50, 81);
   let y = 103;
   markup += sectionTag("Decisions", 0, y);
   y += 39;
-  for (let index = 0; index < 3; index += 1) { markup += `<line x1="0" y1="${y + 19}" x2="${width}" y2="${y + 19}" stroke="#000"/>`; y += 35; }
+  for (const decision of data.decisions) {
+    const written = lines(decision.text, width, thermalType.body, 0, y, { weight: 520, max: 2 });
+    markup += written.markup;
+    y += written.height + 8;
+  }
+  for (let index = data.decisions.length; index < 3; index += 1) { markup += `<line x1="0" y1="${y + 19}" x2="${width}" y2="${y + 19}" stroke="#000"/>`; y += 35; }
   markup += sectionTag("Actions", 0, y + 2);
   y += 41;
   const ownerX = width * .7;
   const dueX = width * .87;
   markup += `<text x="31" y="${y + 12}" ${textAttributes(thermalType.label, 560)}>NEXT MOVE</text><text x="${ownerX}" y="${y + 12}" ${textAttributes(thermalType.label, 560)}>OWNER</text><text x="${dueX}" y="${y + 12}" ${textAttributes(thermalType.label, 560)}>DUE</text>`;
   y += 21;
-  for (let index = 0; index < 3; index += 1) {
-    markup += emptyBox(0, y + 9, 16) + `<rect x="24" y="${y}" width="${width - 24}" height="36" fill="#fff" stroke="#000"/><line x1="${ownerX}" y1="${y}" x2="${ownerX}" y2="${y + 36}" stroke="#000"/><line x1="${dueX}" y1="${y}" x2="${dueX}" y2="${y + 36}" stroke="#000"/>`;
+  const actions = [...data.actions, ...Array.from({ length: Math.max(1, 3 - data.actions.length) }, () => undefined)];
+  for (const action of actions) {
+    markup += (action?.done
+      ? `<rect x="0" y="${y + 9}" width="16" height="16" rx="1" fill="#000"/><path d="M3.5 ${y + 17} l3.5 3.5 l6 -7" fill="none" stroke="#fff" stroke-width="2"/>`
+      : emptyBox(0, y + 9, 16));
+    markup += `<rect x="24" y="${y}" width="${width - 24}" height="36" fill="#fff" stroke="#000"/><line x1="${ownerX}" y1="${y}" x2="${ownerX}" y2="${y + 36}" stroke="#000"/><line x1="${dueX}" y1="${y}" x2="${dueX}" y2="${y + 36}" stroke="#000"/>`;
+    if (action) {
+      markup += lines(action.text, ownerX - 36, thermalType.small, 31, y + 6, { weight: 560, max: 1 }).markup;
+      if (action.owner) markup += `<text x="${ownerX + 6}" y="${y + 24}" ${textAttributes(thermalType.label, 560)}>${escapeXml(action.owner.slice(0, 8).toUpperCase())}</text>`;
+      if (action.due) markup += `<text x="${dueX + 5}" y="${y + 24}" ${textAttributes(thermalType.label, 560)}>${escapeXml(action.due.slice(0, 6).toUpperCase())}</text>`;
+    }
     y += 36;
   }
   markup += sectionTag("Parking lot", 0, y + 15) + `<line x1="0" y1="${y + 65}" x2="${width}" y2="${y + 65}" stroke="#000"/><line x1="0" y1="${y + 97}" x2="${width}" y2="${y + 97}" stroke="#000"/>`;
@@ -470,7 +511,6 @@ const renderers: { [K in PrototypeBlockId]: (data: PrototypeDataMap[K], width: n
   home: renderHome,
   habit: renderHabit,
   dailyPlan: renderDailyPlan,
-  groupedChecklist: renderGroupedChecklist,
   workoutLog: renderWorkoutLog,
   weatherJournal: renderWeatherJournal,
   mealPlan: renderMealPlan,
