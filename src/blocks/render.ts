@@ -397,6 +397,33 @@ function renderPackingList(data: PrototypeDataMap["packingList"], width: number)
   return { markup, height: y + 50 };
 }
 
+function renderChecklistGroups(data: PrototypeDataMap["checklistGroups"], width: number): Part {
+  let markup = label("Checklist", 0, 0);
+  if (data.note) markup += `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.note.toUpperCase())}</text>`;
+  const title = lines(data.title, width, thermalType.heading, 0, 31, { weight: 780, max: 2 });
+  markup += title.markup;
+  let y = 31 + title.height + 18;
+  let total = 0;
+  let done = 0;
+  const textLeft = 31;
+  data.groups.forEach((group) => {
+    markup += sectionTag(group.name, 0, y);
+    y += 34;
+    group.items.forEach((item) => {
+      total += 1;
+      if (item.checked) done += 1;
+      const wrapped = lines(item.text, width - textLeft, thermalType.body, textLeft, y, { max: 2 });
+      markup += emptyBox(0, y + 3, 17);
+      if (item.checked) markup += `<path d="M4 ${y + 12} L8 ${y + 16} L16 ${y + 6}" fill="none" stroke="#000" stroke-width="3" stroke-linecap="square"/>`;
+      markup += wrapped.markup;
+      y += Math.max(30, wrapped.height + 8);
+    });
+    y += 12;
+  });
+  markup += rule(y, width, 2) + `<text x="0" y="${y + 25}" ${textAttributes(thermalType.label, 600)}>PACKED</text><text x="${width}" y="${y + 25}" text-anchor="end" ${textAttributes(thermalType.section, 680)}>${done} / ${total}</text>`;
+  return { markup, height: y + 30 };
+}
+
 function renderDelivery(data: PrototypeDataMap["delivery"], width: number): Part {
   let markup = label(data.carrier, 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>TRACKING</text>`;
   const heading = lines(data.status, width, thermalType.heading, 0, 31, { weight: 770, max: 1 });
@@ -451,6 +478,7 @@ const renderers: { [K in PrototypeBlockId]: (data: PrototypeDataMap[K], width: n
   packingList: renderPackingList,
   delivery: renderDelivery,
   countdown: renderCountdown,
+  checklistGroups: renderChecklistGroups,
 };
 
 export function renderPrototypePart<K extends PrototypeBlockId>(id: K, data: PrototypeDataMap[K], width: number): PrototypePart {

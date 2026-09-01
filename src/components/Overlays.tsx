@@ -24,7 +24,7 @@ export function SettingsModal({ settings, webMcpAvailable, documentMeta, onChang
 export function ApprovalPanel({ title, reason, revision, width, height, paperWidthMm, policy, onApprove, onReject }: { title: string; reason?: string; revision: number; width: number; height: number; paperWidthMm: number; policy: AppSettings["printPolicy"]; onApprove(): void; onReject(): void }) {
   return <aside className="approval-panel" role="dialog" aria-modal="false" aria-labelledby="approval-title">
     <header><span className="approval-mark">Print request</span><button type="button" className="icon-button" onClick={onReject} aria-label="Keep editing"><X size={15} /></button></header>
-    <h2 id="approval-title">Codex wants to print “{title}”.</h2>
+    <h2 id="approval-title">An agent wants to print “{title}”.</h2>
     {reason && <p>{reason}</p>}
     <dl>
       <div><dt>Draft</dt><dd>Revision {revision}</dd></div>

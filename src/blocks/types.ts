@@ -18,7 +18,8 @@ export type PrototypeBlockId =
   | "meetingNotes"
   | "packingList"
   | "delivery"
-  | "countdown";
+  | "countdown"
+  | "checklistGroups";
 
 export type PrototypeCategory = "Daily" | "Live data" | "Write-in" | "Getting around" | "Home & life";
 export type PaperWidthDots = 576 | 420;
@@ -114,6 +115,12 @@ export type DeliveryData = {
   checkpoints: Array<{ label: string; complete: boolean }>;
 };
 
+export type ChecklistGroupsData = {
+  title: string;
+  note?: string;
+  groups: Array<{ name: string; items: Array<{ text: string; checked: boolean }> }>;
+};
+
 export type CountdownData = {
   label: string;
   event: string;
@@ -143,6 +150,7 @@ export type PrototypeDataMap = {
   packingList: WriteInData;
   delivery: DeliveryData;
   countdown: CountdownData;
+  checklistGroups: ChecklistGroupsData;
 };
 
 export type FeedSnapshot = {

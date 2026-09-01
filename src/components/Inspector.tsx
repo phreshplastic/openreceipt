@@ -128,10 +128,59 @@ function CatalogBlockEditor({ block, refreshing, onChange, onRefresh }: { block:
     <InspectorSection label="Habits"><div className="habit-editor">{block.data.rows.map((row, rowIndex) => <div className="habit-editor-row" key={row.id}><div><input aria-label={`Habit ${rowIndex + 1}`} value={row.label} onChange={(event) => onChange({ ...block, data: { ...block.data, rows: block.data.rows.map((item) => item.id === row.id ? { ...item, label: event.target.value } : item) } })} /><button type="button" aria-label={`Remove habit ${rowIndex + 1}`} onClick={() => onChange({ ...block, data: { ...block.data, rows: block.data.rows.filter((item) => item.id !== row.id) } })}><Trash2 size={12} /></button></div><div className="habit-days" aria-label={`${row.label} week`}>{row.values.map((value, dayIndex) => <button type="button" key={dayIndex} aria-label={`${row.label}, day ${dayIndex + 1}: ${value === 2 ? "done" : value === 1 ? "empty" : "skipped"}`} onClick={() => onChange({ ...block, data: { ...block.data, rows: block.data.rows.map((item) => item.id === row.id ? { ...item, values: item.values.map((day, index) => index === dayIndex ? (day === 1 ? 2 : day === 2 ? 0 : 1) as 0 | 1 | 2 : day) } : item) } })}>{value === 2 ? "●" : value === 1 ? "○" : "·"}</button>)}</div></div>)}<button type="button" className="add-line" disabled={block.data.rows.length >= 10} onClick={() => onChange({ ...block, data: { ...block.data, rows: [...block.data.rows, { id: createId(), label: "New habit", values: [1, 1, 1, 1, 1, 1, 1] }] } })}><Plus size={14} />Add habit</button></div></InspectorSection>
   </>;
 
-  const fields = [
-    ["Title", "title"], ["Date", "dateLabel"], ["Priorities", "prioritiesLabel"], ["Schedule", "scheduleLabel"], ["Notes", "rememberLabel"],
-  ] as const;
-  return <InspectorSection label="Labels"><div className="inspector-control-stack">{fields.map(([label, key]) => <label className="inspector-control-row" key={key}><span>{label}</span><input value={block.data[key]} onChange={(event) => onChange({ ...block, data: { ...block.data, [key]: event.target.value } })} /></label>)}</div></InspectorSection>;
+  if (block.kind === "checklistGroups") {
+    const groups = block.data.groups;
+    const setGroups = (next: typeof groups) => onChange({ ...block, data: { ...block.data, groups: next } });
+    return <>
+      <InspectorSection label="Heading"><div className="inspector-control-stack">
+        <input className="inspector-wide-input" aria-label="List title" value={block.data.title} onChange={(event) => onChange({ ...block, data: { ...block.data, title: event.target.value } })} />
+        <input className="inspector-wide-input" aria-label="List note" placeholder="Note" value={block.data.note ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, note: event.target.value || undefined } })} />
+      </div></InspectorSection>
+      {groups.map((group, groupIndex) => <InspectorSection label={`Group ${groupIndex + 1}`} key={groupIndex}><div className="inspector-control-stack">
+        <div className="catalog-detail-row">
+          <input aria-label={`Group name ${groupIndex + 1}`} value={group.name} onChange={(event) => setGroups(groups.map((item, index) => index === groupIndex ? { ...item, name: event.target.value } : item))} />
+          <button type="button" aria-label={`Remove group ${groupIndex + 1}`} disabled={groups.length <= 1} onClick={() => setGroups(groups.filter((_, index) => index !== groupIndex))}><Trash2 size={13} /></button>
+        </div>
+        {group.items.map((item, itemIndex) => <div className="catalog-detail-row" key={itemIndex}>
+          <button type="button" aria-label={`${item.text}: ${item.checked ? "packed" : "not packed"}`} onClick={() => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: entry.items.map((line, position) => position === itemIndex ? { ...line, checked: !line.checked } : line) } : entry))}>{item.checked ? "\u25a0" : "\u25a1"}</button>
+          <input aria-label={`Item ${itemIndex + 1} in ${group.name}`} value={item.text} onChange={(event) => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: entry.items.map((line, position) => position === itemIndex ? { ...line, text: event.target.value } : line) } : entry))} />
+          <button type="button" aria-label={`Remove item ${itemIndex + 1} in ${group.name}`} disabled={group.items.length <= 1} onClick={() => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: entry.items.filter((_, position) => position !== itemIndex) } : entry))}><Trash2 size={13} /></button>
+        </div>)}
+        <button type="button" className="add-line" disabled={group.items.length >= 20} onClick={() => setGroups(groups.map((entry, index) => index === groupIndex ? { ...entry, items: [...entry.items, { text: "New item", checked: false }] } : entry))}><Plus size={14} />Add item</button>
+      </div></InspectorSection>)}
+      <InspectorSection label="Groups"><button type="button" className="add-line" disabled={groups.length >= 6} onClick={() => setGroups([...groups, { name: "New group", items: [{ text: "New item", checked: false }] }])}><Plus size={14} />Add group</button></InspectorSection>
+    </>;
+  }
+
+  if (block.kind === "countdown") {
+    const milestones = block.data.milestones;
+    return <>
+      <InspectorSection label="Event"><div className="inspector-control-stack">
+        <input className="inspector-wide-input" aria-label="Countdown event" value={block.data.event} onChange={(event) => onChange({ ...block, data: { ...block.data, event: event.target.value } })} />
+        <input className="inspector-wide-input" aria-label="Countdown date" value={block.data.date} onChange={(event) => onChange({ ...block, data: { ...block.data, date: event.target.value } })} />
+        <label className="inspector-control-row"><span>Days</span><input type="number" min={0} value={block.data.days} onChange={(event) => onChange({ ...block, data: { ...block.data, days: Math.max(0, Math.round(Number(event.target.value) || 0)) } })} /></label>
+      </div></InspectorSection>
+      <InspectorSection label="Milestones"><div className="inspector-control-stack">{milestones.map((milestone, index) => <div className="catalog-detail-row" key={index}>
+        <button type="button" aria-label={`${milestone.label}: ${milestone.complete ? "done" : "not done"}`} onClick={() => onChange({ ...block, data: { ...block.data, milestones: milestones.map((item, position) => position === index ? { ...item, complete: !item.complete } : item) } })}>{milestone.complete ? "\u25a0" : "\u25a1"}</button>
+        <input aria-label={`Milestone ${index + 1}`} value={milestone.label} onChange={(event) => onChange({ ...block, data: { ...block.data, milestones: milestones.map((item, position) => position === index ? { ...item, label: event.target.value } : item) } })} />
+        <button type="button" aria-label={`Remove milestone ${index + 1}`} disabled={milestones.length <= 1} onClick={() => onChange({ ...block, data: { ...block.data, milestones: milestones.filter((_, position) => position !== index) } })}><Trash2 size={13} /></button>
+      </div>)}<button type="button" className="add-line" disabled={milestones.length >= 5} onClick={() => onChange({ ...block, data: { ...block.data, milestones: [...milestones, { label: "Next", complete: false }] } })}><Plus size={14} />Add milestone</button></div></InspectorSection>
+    </>;
+  }
+
+  if (block.kind === "news" || block.kind === "air" || block.kind === "markets") return <>
+    <InspectorSection label="Live source">
+      <div className={`catalog-status ${block.stale ? "stale" : ""}`}><span className="status-dot" /><div><strong>{block.kind === "air" ? block.config.location.name : block.kind === "markets" ? `Base ${block.data.base}` : "Top stories"}</strong><small>{block.stale ? "Saved copy \u00b7 refresh failed" : `Updated ${new Date(block.refreshedAt).toLocaleString()}`}</small></div></div>
+      <button type="button" className="button secondary catalog-refresh" disabled={refreshing} onClick={() => void onRefresh()}><RotateCw size={14} className={refreshing ? "spinning" : ""} />{refreshing ? "Refreshing\u2026" : "Refresh data"}</button>
+      {block.refreshError && <p className="inspector-inline-error">{block.refreshError}</p>}
+    </InspectorSection>
+  </>;
+
+  const fields = block.kind === "dailyPlan"
+    ? ([["Title", "title"], ["Date", "dateLabel"], ["Priorities", "prioritiesLabel"], ["Schedule", "scheduleLabel"], ["Notes", "rememberLabel"]] as const)
+    : ([["Date", "dateLabel"]] as const);
+  const data = block.data as Record<string, string | undefined>;
+  return <InspectorSection label="Labels"><div className="inspector-control-stack">{fields.map(([label, key]) => <label className="inspector-control-row" key={key}><span>{label}</span><input value={data[key] ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, [key]: event.target.value } } as CatalogReceiptBlock)} /></label>)}</div></InspectorSection>;
 }
 
 export function Inspector({ block, canRemove, mode, favoriteIds, paperWidth, refreshingId, page, settings, bridgeOnline, printStatus, webMcpAvailable, onModeChange, onChange, onRemove, onBrowseLibrary, onInsertFavorite, onRefreshCatalog, onPageChange, onSettingsChange }: Props) {

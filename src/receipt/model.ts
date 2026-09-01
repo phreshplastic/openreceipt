@@ -141,25 +141,103 @@ const habitCatalogBlockSchema = z.object({
   data: z.object({ title: z.string().max(120), period: z.string().max(120), rows: z.array(habitRowSchema).min(1).max(10) }),
 });
 
-const dailyPlanCatalogBlockSchema = z.object({
+const writeInKinds = ["dailyPlan", "groupedChecklist", "workoutLog", "weatherJournal", "mealPlan", "meetingNotes", "packingList"] as const;
+
+const writeInDataSchema = z.object({
+  dateLabel: z.string().max(120),
+  title: z.string().max(120).optional(),
+  prioritiesLabel: z.string().max(80).optional(),
+  scheduleLabel: z.string().max(80).optional(),
+  rememberLabel: z.string().max(80).optional(),
+});
+
+const writeInCatalogBlockSchemas = writeInKinds.map((kind) => z.object({
   id,
   type: z.literal("catalog"),
-  kind: z.literal("dailyPlan"),
+  kind: z.literal(kind),
   definitionVersion: z.literal(1),
-  data: z.object({
+  data: kind === "dailyPlan" ? z.object({
     dateLabel: z.string().max(120),
     title: z.string().max(120),
     prioritiesLabel: z.string().max(80),
     scheduleLabel: z.string().max(80),
     rememberLabel: z.string().max(80),
+  }) : writeInDataSchema,
+}));
+
+const checklistGroupsCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("checklistGroups"),
+  definitionVersion: z.literal(1),
+  data: z.object({
+    title: z.string().min(1).max(120),
+    note: z.string().max(60).optional(),
+    groups: z.array(z.object({
+      name: z.string().min(1).max(40),
+      items: z.array(z.object({ text: z.string().min(1).max(160), checked: z.boolean().default(false) })).min(1).max(20),
+    })).min(1).max(6),
   }),
+});
+
+const countdownCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("countdown"),
+  definitionVersion: z.literal(1),
+  data: z.object({
+    label: z.string().max(40),
+    event: z.string().min(1).max(60),
+    date: z.string().min(1).max(60),
+    days: z.number().int().min(0).max(9_999),
+    milestones: z.array(z.object({ label: z.string().min(1).max(20), complete: z.boolean().default(false) })).min(1).max(5),
+  }),
+});
+
+const newsCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("news"),
+  definitionVersion: z.literal(1),
+  data: z.object({ stories: z.array(z.object({ title: z.string().max(300), source: z.string().max(80), score: z.number(), age: z.string().max(40) })).max(8) }),
+  refreshedAt: z.string().datetime(),
+  stale: z.boolean().default(false),
+  refreshError: z.string().max(300).optional(),
+});
+
+const airCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("air"),
+  definitionVersion: z.literal(1),
+  config: z.object({ location: locationSchema }),
+  data: z.object({ aqi: z.number(), label: z.string().max(80), pm25: z.number(), uv: z.number(), outlook: z.string().max(300) }),
+  refreshedAt: z.string().datetime(),
+  stale: z.boolean().default(false),
+  refreshError: z.string().max(300).optional(),
+});
+
+const marketsCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("markets"),
+  definitionVersion: z.literal(1),
+  data: z.object({ base: z.string().max(20), rows: z.array(z.object({ symbol: z.string().max(20), value: z.number(), change: z.number(), history: z.array(z.number()).min(2).max(40) })).max(8) }),
+  refreshedAt: z.string().datetime(),
+  stale: z.boolean().default(false),
+  refreshError: z.string().max(300).optional(),
 });
 
 export const catalogReceiptBlockSchema = z.discriminatedUnion("kind", [
   weatherCatalogBlockSchema,
   agendaCatalogBlockSchema,
   habitCatalogBlockSchema,
-  dailyPlanCatalogBlockSchema,
+  checklistGroupsCatalogBlockSchema,
+  countdownCatalogBlockSchema,
+  newsCatalogBlockSchema,
+  airCatalogBlockSchema,
+  marketsCatalogBlockSchema,
+  ...writeInCatalogBlockSchemas,
 ]);
 
 export const receiptBlockSchema = z.union([coreReceiptBlockSchema, catalogReceiptBlockSchema]);

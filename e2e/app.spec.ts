@@ -273,88 +273,124 @@ test("keeps a long receipt scrollable on a narrow editor", async ({ page }) => {
   await expect(mobileFormatter).toBeVisible();
 });
 
-test("shows agent edits on the shared receipt and offers one-click undo", async ({ page }) => {
-  await page.addInitScript(() => {
-    const tools: Record<string, { execute(input?: unknown): unknown }> = {};
-    (window as typeof window & { __receiptTools: typeof tools }).__receiptTools = tools;
-    (document as Document & { modelContext: { registerTool(tool: { name: string; execute(input?: unknown): unknown }): void } }).modelContext = {
-      registerTool(tool) { tools[tool.name] = tool; },
-    };
-  });
-  await page.goto("/app");
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __receiptTools: Record<string, unknown> }).__receiptTools).length)).toBe(7);
-  const original = await page.locator('.receipt-svg g[data-block-id] text').first().textContent();
-  await page.evaluate(async () => {
-    const tools = (window as typeof window & { __receiptTools: Record<string, { execute(input?: unknown): unknown }> }).__receiptTools;
-    const state = tools.get_receipt.execute() as { revision: number; document: { blocks: Array<Record<string, unknown>> } };
-    const heading = state.document.blocks.find((block) => block.type === "heading")!;
-    await tools.apply_receipt_operations.execute({ expectedRevision: state.revision, operations: [{ type: "replace", id: heading.id, block: { ...heading, text: "Made by the agent" } }] });
-  });
-  await expect(page.locator(".agent-activity").getByText(/(?:Agent|Codex) updated 1 block/, { exact: true })).toBeVisible();
-  await expect(page.locator(".agent-cursor")).toBeVisible();
-  await expect(page.locator(".receipt-block-hit.agent-changed").first()).toBeVisible();
-  await page.locator(".agent-activity").getByRole("button", { name: "Undo" }).click();
-  await expect(page.locator('.receipt-svg g[data-block-id] text').first()).toHaveText(original || "");
+type ShimWindow = Window & { __webmcpShim: { tools: Map<string, unknown>; call(name: string, input?: unknown): Promise<{ content: Array<{ text: string }>; structuredContent: Record<string, unknown> }> }; __printPromise?: Promise<unknown> };
 
-  const catalog = await page.evaluate(async () => {
-    const tools = (window as typeof window & { __receiptTools: Record<string, { execute(input?: unknown): unknown }> }).__receiptTools;
-    return await tools.list_block_catalog.execute() as { catalog: Array<{ id: string }> };
-  });
-  expect(catalog.catalog.map((entry) => entry.id)).toEqual(["weather", "agenda", "habit", "dailyPlan"]);
-  await page.evaluate(async () => {
-    const tools = (window as typeof window & { __receiptTools: Record<string, { execute(input?: unknown): unknown }> }).__receiptTools;
-    const state = tools.get_receipt.execute() as { revision: number };
-    await tools.apply_receipt_operations.execute({ expectedRevision: state.revision, operations: [{ type: "insertCatalogBlock", kind: "agenda", index: 1 }] });
-  });
-  await expect(page.getByRole("button", { name: "Select agenda block" })).toBeVisible();
+/** The production build only installs the local WebMCP host when it is asked for. */
+const shimUrl = (path: string) => `${path}?webmcp=shim`;
+const shimReady = (page: import("@playwright/test").Page) =>
+  expect.poll(() => page.evaluate(() => (window as unknown as ShimWindow).__webmcpShim?.tools.size ?? 0)).toBe(10);
+
+test("turns a described situation into a designed receipt", async ({ page }) => {
+  await page.goto(shimUrl("/app"));
+  await shimReady(page);
+
+  // The app supplies the taste: the agent asks which blocks belong on a trip receipt.
+  const recipes = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("list_receipt_recipes", { situation: "I'm flying to Lisbon on an international flight Thursday" }));
+  expect(recipes.structuredContent.matched).toContain("travel_prep");
+
+  await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("draft_receipt", {
+    title: "Lisbon · four days",
+    blocks: [
+      { type: "heading", text: "Lisbon, four days", size: "display" },
+      { type: "countdown", event: "Wheels up", date: "Thursday 8:20 AM", days: 3, milestones: ["Booked", "Packed", "Go"] },
+      { type: "facts", rows: [{ label: "Flight", value: "TP 204", emphasis: true }, { label: "Seat", value: "14A" }] },
+      { type: "groups", title: "Packing", note: "Carry-on only", groups: [
+        { name: "Carry-on", items: ["Passport", "EU adapter"] },
+        { name: "Before the door", items: ["Bins out"] },
+      ] },
+    ],
+  }));
+
+  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Lisbon · four days");
+  await expect(page.locator(".receipt-svg")).toContainText("DAYS TO GO");
+  await expect(page.locator(".receipt-svg")).toContainText("TP 204");
+  await expect(page.locator(".receipt-svg")).toContainText("Passport");
+  await expect(page.locator(".agent-activity")).toBeVisible();
+  await expect(page.locator(".agent-cursor")).toBeVisible();
+  await expect(page.locator(".agent-activity").getByRole("button", { name: "Undo" })).toBeVisible();
+
+  // The agent can read back what will physically print.
+  const preview = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("preview_receipt", {}));
+  expect(preview.content[0].text).toContain("[ ] Passport");
+  expect(preview.structuredContent.paperLengthMm).toBeGreaterThan(0);
+
+  // One item changes without rewriting the block the human may be editing.
+  await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("edit_receipt", { operations: [{ op: "checkItem", at: 4, item: "passport" }] }));
+  const outline = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("get_receipt", {}));
+  expect(outline.content[0].text).toContain("1/3");
+
+  // A dry run reports the change without committing it.
+  const before = outline.structuredContent.revision;
+  const dry = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("edit_receipt", { dryRun: true, operations: [{ op: "remove", at: 1 }] }));
+  expect(dry.structuredContent.status).toBe("dry_run");
+  const after = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("get_receipt", {}));
+  expect(after.structuredContent.revision).toBe(before);
+
+  // Undo steps back exactly one change: the item that was just checked.
+  const undone = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("undo_agent_edit", {}));
+  expect(undone.content[0].text).toContain("0/3");
+  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Lisbon · four days");
+});
+
+test("lists the block vocabulary an agent can draw on", async ({ page }) => {
+  await page.goto(shimUrl("/app"));
+  await shimReady(page);
+  const blocks = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("list_receipt_blocks", {}));
+  const types = (blocks.structuredContent.blocks as Array<{ type: string }>).map((entry) => entry.type);
+  expect(types).toEqual(expect.arrayContaining(["groups", "countdown", "weather", "facts", "form"]));
+  expect(blocks.content[0].text).toContain("(live)");
+});
+
+test("registers its tools away from the editor too", async ({ page }) => {
+  await page.goto(shimUrl("/"));
+  await shimReady(page);
+  const status = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("get_app_status", {}));
+  expect(status.content[0].text).toContain("Editor:");
+  await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("open_receipt_editor", {}));
+  await expect(page.getByRole("textbox", { name: "Receipt title" })).toBeVisible();
 });
 
 test("binds agent print approval to one visible revision", async ({ page }) => {
   const now = new Date().toISOString();
-  await page.addInitScript(() => {
-    const tools: Record<string, { execute(input?: unknown): unknown }> = {};
-    const target = window as typeof window & { __receiptTools: typeof tools; __printPromise?: Promise<unknown> };
-    target.__receiptTools = tools;
-    (document as Document & { modelContext: { registerTool(tool: { name: string; execute(input?: unknown): unknown }): void } }).modelContext = {
-      registerTool(tool) { tools[tool.name] = tool; },
-    };
-  });
   await page.route("**/api/v1/print-requests", (route) => route.fulfill({ json: { id: "agent-print", status: "queued", checksum: "test", createdAt: now, updatedAt: now } }));
   await page.route("**/api/v1/print-requests/agent-print", (route) => route.fulfill({ json: { id: "agent-print", status: "succeeded", checksum: "test", createdAt: now, updatedAt: now } }));
-  await page.goto("/app");
-  await expect.poll(() => page.evaluate(() => Object.keys((window as typeof window & { __receiptTools: Record<string, unknown> }).__receiptTools).length)).toBe(7);
+  await page.goto(shimUrl("/app"));
+  await shimReady(page);
 
-  await page.evaluate(async () => {
-    const tools = (window as typeof window & { __receiptTools: Record<string, { execute(input?: unknown): unknown }> }).__receiptTools;
-    const state = tools.get_receipt.execute() as { revision: number };
-    await tools.draft_reminder.execute({ expectedRevision: state.revision, title: "Take recycling out", message: "Put the blue bin by the door tonight.", when: "Tonight · 8:00 PM", checklist: ["Flatten boxes", "Take out the bin"] });
-  });
+  await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("draft_receipt", {
+    title: "Take recycling out",
+    blocks: [
+      { type: "heading", text: "Take recycling out", size: "display" },
+      { type: "text", text: "Put the blue bin by the door tonight.", size: "large" },
+      { type: "list", items: ["Flatten boxes", "Take out the bin"] },
+    ],
+  }));
   await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Take recycling out");
   await expect(page.locator(".receipt-svg")).toContainText("Put the blue bin by the door tonight.");
 
-  await page.evaluate(() => {
-    const target = window as typeof window & { __receiptTools: Record<string, { execute(input?: unknown): unknown }>; __printPromise?: Promise<unknown> };
-    const state = target.__receiptTools.get_receipt.execute() as { revision: number };
-    target.__printPromise = target.__receiptTools.request_receipt_print.execute({ expectedRevision: state.revision, reason: "Print the reminder by the door." }) as Promise<unknown>;
+  await page.evaluate(async () => {
+    const target = window as unknown as ShimWindow;
+    const state = await target.__webmcpShim.call("get_receipt", {});
+    target.__printPromise = target.__webmcpShim.call("request_receipt_print", { expectedRevision: state.structuredContent.revision, reason: "Print the reminder by the door." });
   });
-  const approval = page.getByRole("dialog", { name: /Codex wants to print/i });
+  const approval = page.getByRole("dialog", { name: /agent wants to print/i });
   await expect(approval).toBeVisible();
   await expect(approval.getByText(/Revision \d+/)).toBeVisible();
-  await expect(page.locator(".agent-cursor")).toBeVisible();
 
+  // Any human edit cancels the approval, so an approved draft cannot drift.
   await page.getByRole("textbox", { name: "Receipt title" }).fill("Changed while reviewing");
   await expect(approval).toHaveCount(0);
-  const stale = await page.evaluate(() => (window as typeof window & { __printPromise?: Promise<unknown> }).__printPromise);
-  expect(stale).toMatchObject({ status: "stale" });
+  const stale = await page.evaluate(() => (window as unknown as ShimWindow).__printPromise) as { structuredContent: Record<string, unknown> };
+  expect(stale.structuredContent).toMatchObject({ status: "stale" });
 
-  await page.evaluate(() => {
-    const target = window as typeof window & { __receiptTools: Record<string, { execute(input?: unknown): unknown }>; __printPromise?: Promise<unknown> };
-    const state = target.__receiptTools.get_receipt.execute() as { revision: number };
-    target.__printPromise = target.__receiptTools.request_receipt_print.execute({ expectedRevision: state.revision, reason: "The revised reminder is ready." }) as Promise<unknown>;
+  await page.evaluate(async () => {
+    const target = window as unknown as ShimWindow;
+    const state = await target.__webmcpShim.call("get_receipt", {});
+    target.__printPromise = target.__webmcpShim.call("request_receipt_print", { expectedRevision: state.structuredContent.revision, reason: "The revised reminder is ready." });
   });
   await page.getByRole("button", { name: "Approve and print" }).click();
-  const printed = await page.evaluate(() => (window as typeof window & { __printPromise?: Promise<unknown> }).__printPromise);
-  expect(printed).toMatchObject({ status: "succeeded", revision: expect.any(Number), jobId: "agent-print" });
+  const printed = await page.evaluate(() => (window as unknown as ShimWindow).__printPromise) as { structuredContent: Record<string, unknown> };
+  expect(printed.structuredContent).toMatchObject({ status: "succeeded", jobId: "agent-print" });
 });
 
 test("favorites a library block and keeps it close in the inspector and Add menu", async ({ page }) => {
@@ -459,9 +495,9 @@ test("keeps preview-only concepts reviewable but not insertable or favoriteable"
   await page.getByRole("tab", { name: "Library" }).click();
   await page.getByRole("button", { name: "Browse Block Library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
-  await library.locator(".library-card").filter({ hasText: "Air quality" }).getByRole("button").first().click();
+  await library.locator(".library-card").filter({ hasText: "Surf window" }).getByRole("button").first().click();
   await expect(library.getByRole("link", { name: "Review in playground" })).toBeVisible();
-  await expect(library.getByRole("button", { name: /Air quality.*favorites/ })).toHaveCount(0);
+  await expect(library.getByRole("button", { name: /Surf window.*favorites/ })).toHaveCount(0);
   await expect(library.getByRole("button", { name: "Add block", exact: true })).toHaveCount(0);
 });
 
@@ -475,8 +511,8 @@ test("reviews printable blocks, widths, local data, and the catalog", async ({ p
 
   await page.goto("/blocks");
   await expect(page.getByRole("heading", { name: "Blocks are the fun part." })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Focus .* preview$/ })).toHaveCount(20);
-  await expect(page.locator(".prototype-card .paper-surface")).toHaveCount(20);
+  await expect(page.getByRole("button", { name: /^Focus .* preview$/ })).toHaveCount(21);
+  await expect(page.locator(".prototype-card .paper-surface")).toHaveCount(21);
 
   await page.getByRole("button", { name: "58 mm", exact: true }).click();
   await expect(page.getByText("420 dots").first()).toBeVisible();

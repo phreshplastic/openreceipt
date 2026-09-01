@@ -155,6 +155,13 @@ export const blockCatalog: BlockPrototype[] = [
     description: "A big number for something worth anticipating.",
     designNote: "The oversized day count provides delight while the milestone rail keeps it useful.",
   },
+  {
+    id: "checklistGroups",
+    name: "Grouped list",
+    category: "Write-in",
+    description: "A filled checklist sorted into named groups, with a packed count.",
+    designNote: "Inverted group tags let the eye jump between sections on a narrow roll without any rules or color.",
+  },
 ];
 
 export const prototypeCategories = ["Daily", "Live data", "Write-in", "Getting around", "Home & life"] as const;

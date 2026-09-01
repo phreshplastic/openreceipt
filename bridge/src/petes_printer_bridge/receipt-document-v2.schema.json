@@ -802,6 +802,480 @@
                   },
                   "kind": {
                     "type": "string",
+                    "const": "checklistGroups"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "title": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "note": {
+                        "type": "string",
+                        "maxLength": 60
+                      },
+                      "groups": {
+                        "minItems": 1,
+                        "maxItems": 6,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 40
+                            },
+                            "items": {
+                              "minItems": 1,
+                              "maxItems": 20,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "text": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160
+                                  },
+                                  "checked": {
+                                    "default": false,
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "text",
+                                  "checked"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "items"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "title",
+                      "groups"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "countdown"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "event": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "date": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 60
+                      },
+                      "days": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9999
+                      },
+                      "milestones": {
+                        "minItems": 1,
+                        "maxItems": 5,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 20
+                            },
+                            "complete": {
+                              "default": false,
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "label",
+                            "complete"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "event",
+                      "date",
+                      "days",
+                      "milestones"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "news"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "stories": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "title": {
+                              "type": "string",
+                              "maxLength": 300
+                            },
+                            "source": {
+                              "type": "string",
+                              "maxLength": 80
+                            },
+                            "score": {
+                              "type": "number"
+                            },
+                            "age": {
+                              "type": "string",
+                              "maxLength": 40
+                            }
+                          },
+                          "required": [
+                            "title",
+                            "source",
+                            "score",
+                            "age"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "stories"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refreshedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "stale": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "refreshError": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data",
+                  "refreshedAt",
+                  "stale"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "air"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "config": {
+                    "type": "object",
+                    "properties": {
+                      "location": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "latitude": {
+                            "type": "number",
+                            "minimum": -90,
+                            "maximum": 90
+                          },
+                          "longitude": {
+                            "type": "number",
+                            "minimum": -180,
+                            "maximum": 180
+                          },
+                          "timezone": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "latitude",
+                          "longitude",
+                          "timezone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "location"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "aqi": {
+                        "type": "number"
+                      },
+                      "label": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "pm25": {
+                        "type": "number"
+                      },
+                      "uv": {
+                        "type": "number"
+                      },
+                      "outlook": {
+                        "type": "string",
+                        "maxLength": 300
+                      }
+                    },
+                    "required": [
+                      "aqi",
+                      "label",
+                      "pm25",
+                      "uv",
+                      "outlook"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refreshedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "stale": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "refreshError": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "config",
+                  "data",
+                  "refreshedAt",
+                  "stale"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "markets"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "base": {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      "rows": {
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "symbol": {
+                              "type": "string",
+                              "maxLength": 20
+                            },
+                            "value": {
+                              "type": "number"
+                            },
+                            "change": {
+                              "type": "number"
+                            },
+                            "history": {
+                              "minItems": 2,
+                              "maxItems": 40,
+                              "type": "array",
+                              "items": {
+                                "type": "number"
+                              }
+                            }
+                          },
+                          "required": [
+                            "symbol",
+                            "value",
+                            "change",
+                            "history"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "base",
+                      "rows"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "refreshedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "stale": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "refreshError": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data",
+                  "refreshedAt",
+                  "stale"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
                     "const": "dailyPlan"
                   },
                   "definitionVersion": {
@@ -838,6 +1312,360 @@
                       "prioritiesLabel",
                       "scheduleLabel",
                       "rememberLabel"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "groupedChecklist"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "prioritiesLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "scheduleLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rememberLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
+                    "required": [
+                      "dateLabel"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "workoutLog"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "prioritiesLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "scheduleLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rememberLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
+                    "required": [
+                      "dateLabel"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "weatherJournal"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "prioritiesLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "scheduleLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rememberLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
+                    "required": [
+                      "dateLabel"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "mealPlan"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "prioritiesLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "scheduleLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rememberLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
+                    "required": [
+                      "dateLabel"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "meetingNotes"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "prioritiesLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "scheduleLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rememberLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
+                    "required": [
+                      "dateLabel"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "const": "packingList"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "dateLabel": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "prioritiesLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "scheduleLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      },
+                      "rememberLabel": {
+                        "type": "string",
+                        "maxLength": 80
+                      }
+                    },
+                    "required": [
+                      "dateLabel"
                     ],
                     "additionalProperties": false
                   }

@@ -191,7 +191,7 @@ export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockId
     </PaperSurface>
 
     <div className="receipt-chrome-layer">
-      {agentActivity && agentCursorStyle && <div className={`agent-cursor phase-${agentActivity.phase}`} style={agentCursorStyle} aria-hidden="true"><MousePointer2 size={18} fill="currentColor" /><span>Codex</span></div>}
+      {agentActivity && agentCursorStyle && <div className={`agent-cursor phase-${agentActivity.phase}`} style={agentCursorStyle} aria-hidden="true"><MousePointer2 size={18} fill="currentColor" /><span>Agent</span></div>}
       {selectedGeometry && <button
         type="button"
         draggable

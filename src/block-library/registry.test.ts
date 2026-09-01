@@ -12,6 +12,9 @@ const weather = structuredClone(samplePrototypeData.weather);
 const dependencies: CatalogDependencies = {
   geocode: vi.fn(async () => location),
   weather: vi.fn(async () => weather),
+  air: vi.fn(async () => structuredClone(samplePrototypeData.air)),
+  markets: vi.fn(async () => structuredClone(samplePrototypeData.markets)),
+  news: vi.fn(async () => structuredClone(samplePrototypeData.news)),
   now: () => now,
 };
 
@@ -80,7 +83,7 @@ describe("Block Library preferences", () => {
   });
 
   it("drops preview-only and malformed favorite IDs", () => {
-    storage.setItem("petes-printer:block-library:v1", JSON.stringify({ version: 1, favoriteIds: ["weather", "air", "weather", 42] }));
+    storage.setItem("petes-printer:block-library:v1", JSON.stringify({ version: 1, favoriteIds: ["weather", "surf", "weather", 42] }));
     expect(loadBlockLibraryPreferences(storage).favoriteIds).toEqual(["weather"]);
   });
 });

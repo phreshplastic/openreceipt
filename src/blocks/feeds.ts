@@ -220,13 +220,13 @@ async function fetchJson(url: string, fetcher: Fetcher, outerSignal: AbortSignal
   const controller = new AbortController();
   const abort = () => controller.abort(outerSignal?.reason);
   outerSignal?.addEventListener("abort", abort, { once: true });
-  const timeout = window.setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), timeoutMs);
+  const timeout: ReturnType<typeof setTimeout> = setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), timeoutMs);
   try {
     const response = await fetcher(url, { signal: controller.signal });
     if (!response.ok) throw new Error(`Feed request failed (${response.status}).`);
     return await response.json() as unknown;
   } finally {
-    window.clearTimeout(timeout);
+    clearTimeout(timeout);
     outerSignal?.removeEventListener("abort", abort);
   }
 }
@@ -253,6 +253,22 @@ async function loadNews(fetcher: Fetcher, signal: AbortSignal | undefined, timeo
   return transformNews(items, now);
 }
 
+export async function loadTopStories(options: LoadOptions = {}): Promise<NewsData> {
+  return loadNews(options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000, options.now ?? new Date());
+}
+
+export async function loadAir(location: PreviewLocation, options: LoadOptions = {}): Promise<AirData> {
+  const timezone = encodeURIComponent(location.timezone || "auto");
+  return transformAir(await fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${location.latitude}&longitude=${location.longitude}&current=us_aqi,pm2_5,uv_index&timezone=${timezone}`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000));
+}
+
+export async function loadMarkets(options: LoadOptions = {}): Promise<MarketsData> {
+  const now = options.now ?? new Date();
+  const startDate = new Date(now);
+  startDate.setUTCDate(startDate.getUTCDate() - 10);
+  return transformMarkets(await fetchJson(`https://api.frankfurter.dev/v2/rates?base=USD&quotes=EUR,GBP,JPY&from=${isoDate(startDate)}&to=${isoDate(now)}`, options.fetcher ?? fetch, options.signal, options.timeoutMs ?? 5_000));
+}
+
 export async function loadBlockFeeds(location = newYorkLocation, options: LoadOptions = {}): Promise<FeedSnapshot> {
   const fetcher = options.fetcher ?? fetch;
   const now = options.now ?? new Date();
@@ -261,17 +277,13 @@ export async function loadBlockFeeds(location = newYorkLocation, options: LoadOp
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > Date.now()) return structuredClone(cached.snapshot);
   const snapshot = createSampleSnapshot(location);
-  const timezone = encodeURIComponent(location.timezone || "auto");
   const end = isoDate(now);
-  const startDate = new Date(now);
-  startDate.setUTCDate(startDate.getUTCDate() - 10);
-  const start = isoDate(startDate);
   const jobs: Array<[PrototypeBlockId, () => Promise<unknown>]> = [
     ["weather", async () => loadWeather(location, "fahrenheit", { ...options, fetcher, timeoutMs })],
-    ["air", async () => transformAir(await fetchJson(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${location.latitude}&longitude=${location.longitude}&current=us_aqi,pm2_5,uv_index&timezone=${timezone}`, fetcher, options.signal, timeoutMs))],
+    ["air", async () => loadAir(location, { ...options, fetcher, timeoutMs })],
     ["surf", async () => transformSurf(await fetchJson("https://marine-api.open-meteo.com/v1/marine?latitude=40.583&longitude=-73.815&hourly=wave_height,wave_period,wave_direction&timezone=America%2FNew_York&forecast_hours=18&length_unit=metric", fetcher, options.signal, timeoutMs))],
     ["games", async () => transformGames(await fetchJson(`https://www.thesportsdb.com/api/v1/json/123/eventsday.php?d=${end}&s=Basketball`, fetcher, options.signal, timeoutMs))],
-    ["markets", async () => transformMarkets(await fetchJson(`https://api.frankfurter.dev/v2/rates?base=USD&quotes=EUR,GBP,JPY&from=${start}&to=${end}`, fetcher, options.signal, timeoutMs))],
+    ["markets", async () => loadMarkets({ ...options, fetcher, timeoutMs, now })],
     ["news", async () => loadNews(fetcher, options.signal, timeoutMs, now)],
     ["earthquakes", async () => transformEarthquakes(await fetchJson("https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_day.geojson", fetcher, options.signal, timeoutMs), now)],
   ];

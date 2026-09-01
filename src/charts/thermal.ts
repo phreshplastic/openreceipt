@@ -55,7 +55,7 @@ function renderLine(spec: Extract<ThermalChartSpec, { kind: "line" }>) {
   const lastX = x(spec.values.length - 1) ?? spec.width;
   const lastY = y(spec.values.at(-1)!);
   const endDot = spec.endDot === false ? "" : `<circle cx="${lastX}" cy="${lastY}" r="4" fill="#fff" stroke="#000" stroke-width="3"/>`;
-  return `${guides}${fill}<path data-chart-series pathLength="1" d="${path}" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${endDot}`;
+  return `${guides}${fill}<path data-chart-series="line" pathLength="1" d="${path}" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${endDot}`;
 }
 
 function renderBars(spec: Extract<ThermalChartSpec, { kind: "bars" }>) {

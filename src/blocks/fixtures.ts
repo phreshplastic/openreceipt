@@ -132,6 +132,15 @@ export const samplePrototypeData: PrototypeDataMap = {
       { label: "Go", complete: false },
     ],
   },
+  checklistGroups: {
+    title: "Lisbon, four days",
+    note: "Thu departure",
+    groups: [
+      { name: "Carry-on", items: [{ text: "Passport", checked: true }, { text: "Charger and adapter", checked: false }, { text: "Headphones", checked: false }] },
+      { name: "Clothes", items: [{ text: "Rain shell", checked: false }, { text: "Walking shoes", checked: true }] },
+      { name: "Before the door", items: [{ text: "Bins out", checked: false }, { text: "Thermostat down", checked: false }] },
+    ],
+  },
 };
 
 export function createSampleSnapshot(location = newYorkLocation): FeedSnapshot {

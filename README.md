@@ -5,10 +5,10 @@ Pete’s Printer is a local-first receipt canvas shared by a human, browser agen
 ## What ships in v1
 
 - A landing page, three-step local setup, and receipt-first editor.
-- Heading, text, checklist, key/value, table, and divider blocks.
+- Heading, text, checklist, key/value, table, and divider blocks, plus grouped lists, countdowns, agendas, habit grids, live weather, air quality, markets, news, and seven blank write-in forms.
 - Exact SVG preview and monochrome PNG rasterization from the same document state.
 - Blank and checklist templates without a template-management system.
-- Seven WebMCP tools for reading, drafting reminders, editing, browsing blocks, templating, previewing, and requesting print.
+- Ten agent tools — situations, vocabulary, one-shot drafting, positional and item-level editing, a plain-text print preview, undo, and permission-gated printing — served identically over WebMCP in the browser and over conventional MCP headlessly.
 - Confirm-each-print, approved-template, and autonomous-agent policies; confirmation is the default.
 - A loopback-only FastAPI application with revision conflicts, scoped tokens, durable events, server-side approvals, checksum/idempotency protection, dummy output, and Epson TM-L90 USB delivery.
 
@@ -69,12 +69,73 @@ petes-printer --list-tokens
 petes-printer --revoke-token TOKEN_ID
 ```
 
-The canonical endpoints are `/api/v1/receipt`, `/api/v1/settings`, `/api/v1/events`, and `/api/v1/print-requests`. Settings remain browser-session-only. Grant `print:approve` separately when a future MCP host should be able to submit a decision after chat confirmation; `print:direct` is reserved for the compatibility print-job route.
+The canonical endpoints are `/api/v1/receipt`, `/api/v1/settings`, `/api/v1/events`, and `/api/v1/print-requests`. Settings remain browser-session-only. Grant `print:approve` separately when an MCP host should be able to submit a decision after confirming in chat rather than in the browser; `print:direct` is reserved for the compatibility print-job route.
 
-## WebMCP
+## Agents
 
-The app registers `get_receipt`, `list_block_catalog`, `draft_reminder`, `apply_receipt_operations`, `load_receipt_template`, `preview_receipt`, and `request_receipt_print` only while `/app` is visible. Every mutation and print request is revision-bound; printing uses an immutable snapshot, and editing during approval invalidates the request. WebMCP is progressive enhancement, so browsers without `document.modelContext` keep the full human interface.
+The same ten tools are registered in the browser through WebMCP and served headlessly through a conventional MCP server. Both bind one definition in `src/agent/tools.ts`, so a tool behaves identically wherever it is called from.
 
-A future Base API or conventional MCP server should be a thin adapter over this local HTTP interface. Headless rasterization and those adapters remain deliberately deferred, so they won’t create a second editing model or bypass the local print policy.
+| Tool | What it is for |
+| --- | --- |
+| `get_app_status` | Editor URL, setup state, printer health, print policy, last print |
+| `get_receipt` | Compact outline by default; `detail: text` for a stand-in of the print, `json` for the document |
+| `list_receipt_blocks` | The block vocabulary, with when each one earns its place |
+| `list_receipt_recipes` | Situations — the blocks a trip or a morning brief wants, and what to ask first |
+| `draft_receipt` | Composes a whole receipt in one call from flat, id-free blocks |
+| `edit_receipt` | Positional block edits plus item- and row-level changes |
+| `preview_receipt` | Dot dimensions, paper length in millimetres, warnings, and the text that will print |
+| `undo_agent_edit` | Steps back the last change |
+| `request_receipt_print` | Consequential; may wait for an explicit tap of approval |
+| `open_receipt_editor` | Brings the visible editor up so a person can look first |
+
+Every mutation and print request is revision-bound: printing uses an immutable snapshot, and any human edit during approval invalidates the request. Tools carry `readOnlyHint`, and anything that can surface third-party feed text carries `untrustedContentHint`.
+
+### How a person talks a receipt into existence
+
+The agent brings the intelligence; the app brings the taste. When someone describes a situation rather than naming blocks, `list_receipt_recipes` returns the blocks that belong on that paper and the details worth confirming first.
+
+| Someone says | What happens |
+| --- | --- |
+| "I'm flying to Lisbon Thursday, international" | `list_receipt_recipes` → `travel_prep` → confirm the gaps → `draft_receipt`: countdown, flight facts, Lisbon's forecast, packing grouped by carry-on / clothes / before-the-door |
+| "print my morning" | `daily_brief` → forecast, agenda, habit grid, one line of news |
+| "remind me to call mom at 6" | `reminder` → one `draft_receipt` call |
+| "mark the passport as packed" | `edit_receipt` `checkItem` — one item, no block rewrite |
+| "how long will that be?" | `preview_receipt` → paper length and overflow warnings |
+| "actually, undo that" | `undo_agent_edit` |
+| "looks good, print it" | `request_receipt_print` |
+
+### WebMCP in the browser
+
+Tools register on every route against `document.modelContext`, falling back to `navigator.modelContext` for the Chrome 149–156 origin trial while the API finishes migrating. Browsers without either keep the full human interface — WebMCP is progressive enhancement.
+
+To drive the tools without an origin trial, append `?webmcp=shim` (on by default in `npm run dev`). That installs a local host and a panel for calling any tool by hand, and it is what the end-to-end tests drive.
+
+### Headless MCP
+
+`mcp/server.ts` is a thin adapter over the same tools, talking to the bridge over its HTTP API and rendering with the browser's own SVG renderer, so headless output matches the screen. It also serves the verbal cues as MCP prompts (`travel_receipt`, `daily_brief`, `reminder`, `packing_list`, `meeting_notes`, `grocery_run`) and exposes `receipt://current` and `receipt://recipes` as resources.
+
+```bash
+npm run build:mcp
+petes-printer --create-token mcp \
+  --scope receipt:read --scope receipt:write \
+  --scope print:request --scope print:status
+```
+
+```json
+{
+  "mcpServers": {
+    "petes-printer": {
+      "command": "node",
+      "args": ["/absolute/path/to/printer-webmcp/dist-mcp/server.mjs"],
+      "env": {
+        "PETES_PRINTER_URL": "http://127.0.0.1:8731",
+        "PETES_PRINTER_TOKEN": "pp_..."
+      }
+    }
+  }
+}
+```
+
+The handoff needs no new machinery: the server writes to the bridge, and any open editor tab picks the draft up over its existing event stream. Ask it to print and the browser raises its approval panel; the tool returns a job id straight away rather than holding the call open, and `get_print_job_status` reports where the job ended up.
 
 Pete’s Printer is available under the [MIT License](LICENSE).

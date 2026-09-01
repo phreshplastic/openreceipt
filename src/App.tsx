@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ApprovalPanel, ReceiptConflictPanel } from "./components/Overlays";
 import { decidePrintRequest, ensureBrowserSession, getCanonicalSettings, getCapabilities, listPrintRequests, submitPrintJob, submitPrintRequest, updateCanonicalSettings, waitForPrintJob, type PaperProfile, type PrintJob } from "./bridge/client";
-import { listBlockCatalog, loadBlockLibraryPreferences, prepareReceiptCommands, saveBlockLibraryPreferences, toggleFavorite as toggleBlockFavorite, type BlockLibraryPreferences, type ReceiptCommand } from "./block-library";
-import { createReceiptState, createDefaultDocument, createFromTemplate, createReminderDocument, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptOperation, type ReceiptState, type ReminderDraft } from "./receipt";
+import { loadBlockLibraryPreferences, prepareReceiptCommands, saveBlockLibraryPreferences, toggleFavorite as toggleBlockFavorite, type BlockLibraryPreferences, type ReceiptCommand } from "./block-library";
+import { createReceiptState, createDefaultDocument, createFromTemplate, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
 import { PrintCoordinator, type PrintApprovalDecision, type PrintResult, type PrintSnapshot } from "./printing/coordinator";
 import { EditorPage } from "./pages/EditorPage";
 import { BlocksPage } from "./pages/BlocksPage";
@@ -13,7 +13,7 @@ import { SetupPage } from "./pages/SetupPage";
 import { decideAgentPrint } from "./state/permissions";
 import { loadReceipt, loadSettings, saveReceipt, saveSettings, type AppSettings } from "./state/storage";
 import { ReceiptSession, type ReceiptConflict, type ReceiptSyncStatus } from "./state/receiptSession";
-import { registerWebMcpTools, type AgentActivity } from "./webmcp/register";
+import { registerWebMcpTools, type AgentActivity, type AgentAppStatus, type AgentBackend } from "./webmcp/register";
 
 type ApprovalRequest = {
   snapshot: PrintSnapshot;
@@ -27,7 +27,7 @@ export type PrintStage = "idle" | "rendering" | "feeding" | "complete" | "failed
 export type EditorActivity = AgentActivity & { id: number; blockIds: string[] };
 
 function AppContent() {
-  const location = useLocation();
+  const navigate = useNavigate();
   const [receiptController] = useState(() => new ReceiptController(loadReceipt(createReceiptState(createDefaultDocument()))));
   const [receipt, setReceipt] = useState(() => receiptController.state);
   const [settings, setSettings] = useState(loadSettings);
@@ -59,7 +59,7 @@ function AppContent() {
       externalApprovalRef.current = undefined;
       setExternalApproval(undefined);
     }
-    receiptSessionRef.current?.publish(next, { kind: actor, label: actor === "webmcp" ? "Codex" : "Browser" }, summary);
+    receiptSessionRef.current?.publish(next, { kind: actor, label: actor === "webmcp" ? "Agent" : "Browser" }, summary);
     return next;
   }, []);
   const commitSettings = useCallback(async (next: AppSettings) => {
@@ -172,9 +172,11 @@ function AppContent() {
     else clearActivity();
     return next;
   }, [announceAgentChange, clearActivity, publishReceipt, receiptController]);
-  const draftReminder = useCallback((expectedRevision: number, reminder: ReminderDraft) => {
-    const document = createReminderDocument(receiptRef.current.document, reminder);
-    return publishReceipt(receiptController.commitPrepared(expectedRevision, document), "webmcp", "Agent drafted a reminder");
+  const agentCommit = useCallback((expectedRevision: number, document: ReceiptDocument, summary: string) =>
+    publishReceipt(receiptController.commitPrepared(expectedRevision, document), "webmcp", summary), [publishReceipt, receiptController]);
+  const agentUndo = useCallback(() => {
+    if (!receiptController.history.canUndo) return undefined;
+    return publishReceipt(receiptController.undo(), "webmcp", "The agent undid its last change");
   }, [publishReceipt, receiptController]);
   const loadTemplate = useCallback((templateId: string, expectedRevision = receiptRef.current.revision) => loadTemplateWithSource(templateId, expectedRevision, "human"), [loadTemplateWithSource]);
   const undo = useCallback(() => { clearActivity(); return publishReceipt(receiptController.undo()); }, [clearActivity, publishReceipt, receiptController]);
@@ -188,7 +190,7 @@ function AppContent() {
     if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
     setPrintStage("feeding");
     setPrintStatus("Sending to printer…");
-    let queued = await submitPrintRequest(snapshot, rendered, raster, { kind: requester, label: requester === "webmcp" ? "Codex" : "Browser" }, reason, crypto.randomUUID(), signal);
+    let queued = await submitPrintRequest(snapshot, rendered, raster, { kind: requester, label: requester === "webmcp" ? "Agent" : "Browser" }, reason, crypto.randomUUID(), signal);
     if (queued.status === "awaiting_approval") {
       queued = await decidePrintRequest(queued.id, "approve", { kind: "human", label: "Browser" }, signal);
     }
@@ -240,7 +242,7 @@ function AppContent() {
         setApproval(request);
       }),
       execute: async (snapshot, signal, request) => {
-        announceAgentActivity({ phase: "printing", message: "Codex is printing the approved receipt", blockIds: snapshot.document.blocks.map((block) => block.id) });
+        announceAgentActivity({ phase: "printing", message: "The agent is printing the approved receipt", blockIds: snapshot.document.blocks.map((block) => block.id) });
         return sendDocument(snapshot, request.requester ?? "human", request.reason, signal);
       },
     });
@@ -289,24 +291,35 @@ function AppContent() {
     return runPrintRequest(snapshot, decideAgentPrint(settingsRef.current, current) === "confirm", reason, signal, "webmcp");
   }, [runPrintRequest]);
 
+  // The status an agent can read is volatile; keep it behind a ref so a sync tick never
+  // tears down and re-registers the whole toolset.
+  const agentStatusRef = useRef<AgentAppStatus>({ editorUrl: "/app", configured: false, bridgeOnline: false, printPolicy: "confirm" });
   useEffect(() => {
-    if (location.pathname !== "/app") {
-      return;
-    }
-    const registration = registerWebMcpTools({
+    agentStatusRef.current = {
+      editorUrl: `${window.location.origin}/app`,
+      configured: settings.configured,
+      bridgeOnline,
+      printPolicy: settings.printPolicy,
+      syncStatus,
+      lastPrint: printStatus ? { status: printStage, message: printStatus } : undefined,
+    };
+  }, [bridgeOnline, printStage, printStatus, settings.configured, settings.printPolicy, syncStatus]);
+
+  useEffect(() => {
+    const backend: AgentBackend = {
       getState: () => receiptRef.current,
-      applyOperations: (expectedRevision, commands) => applyCommands(expectedRevision, commands, "agent"),
-      draftReminder,
-      listCatalog: listBlockCatalog,
-      loadTemplate: (templateId, expectedRevision) => loadTemplateWithSource(templateId, expectedRevision, "agent"),
-      preview: () => {
-        const rendered = renderReceiptSvg(receiptRef.current.document);
-        document.getElementById("receipt-preview")?.scrollIntoView({ block: "center" });
-        return { revision: receiptRef.current.revision, width: rendered.width, height: rendered.height, blockCount: receiptRef.current.document.blocks.length };
-      },
+      commit: agentCommit,
       requestPrint: requestAgentPrint,
+      status: () => agentStatusRef.current,
+      undo: agentUndo,
+      focusPreview: () => {
+        navigate("/app");
+        window.requestAnimationFrame(() => document.getElementById("receipt-preview")?.scrollIntoView({ block: "center" }));
+      },
+      openEditor: () => navigate("/app"),
       onActivity: announceAgentActivity,
-    });
+    };
+    const registration = registerWebMcpTools(backend);
     let disposed = false;
     void registration.ready.then((ready) => { if (!disposed) setWebMcpAvailable(ready); });
     return () => {
@@ -314,7 +327,7 @@ function AppContent() {
       registration.dispose();
       printCoordinatorRef.current?.cancel("The editor was closed.");
     };
-  }, [announceAgentActivity, applyCommands, draftReminder, loadTemplateWithSource, location.pathname, requestAgentPrint]);
+  }, [agentCommit, agentUndo, announceAgentActivity, navigate, requestAgentPrint]);
 
   useEffect(() => {
     const controller = new AbortController();
