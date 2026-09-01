@@ -33,4 +33,30 @@ describe("receipt renderer", () => {
       expect(block.y + block.height).toBeLessThanOrEqual(rendered.height);
     }
   });
+
+  it("keeps trailing leading outside text-block selection geometry", () => {
+    const document = createDefaultDocument();
+    const rendered = renderReceiptSvg(document);
+    const [heading, text] = rendered.blocks;
+
+    expect(heading.height).toBe(36);
+    expect(text.y - (heading.y + heading.height)).toBe(18);
+    expect(text.height).toBe(20);
+  });
+
+  it("renders explicit text emphasis without changing the document font", () => {
+    const document = createDefaultDocument();
+    const text = createBlock("text");
+    if (text.type !== "text") throw new Error("Expected a text block");
+    text.text = "Styled on paper";
+    text.weight = "bold";
+    text.italic = true;
+    text.underline = true;
+    document.blocks = [text];
+
+    const rendered = renderReceiptSvg(document);
+    expect(rendered.svg).toContain('font-weight="720"');
+    expect(rendered.svg).toContain('font-style="italic"');
+    expect(rendered.svg).toContain('text-decoration="underline"');
+  });
 });

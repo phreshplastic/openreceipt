@@ -101,9 +101,9 @@ class PrinterManager:
                 transport.close()
             except Exception:
                 pass
-            return self.store.set_status(job_id, "failed", f"Printer unavailable before transmission: {str(error)[:500]}")
+            return self._set_status(job_id, "failed", f"Printer unavailable before transmission: {str(error)[:500]}")
 
-        self.store.set_status(job_id, "sending")
+        self._set_status(job_id, "sending")
         try:
             artifact = Path(job["artifact_path"]).read_bytes()
             transport.print_image(artifact, job["feed_lines"], job["cut_mode"])
@@ -113,5 +113,10 @@ class PrinterManager:
                 transport.close()
             except Exception:
                 pass
-            return self.store.set_status(job_id, "unknown", f"Transmission failed after sending began: {str(error)[:500]}")
-        return self.store.set_status(job_id, "succeeded")
+            return self._set_status(job_id, "unknown", f"Transmission failed after sending began: {str(error)[:500]}")
+        return self._set_status(job_id, "succeeded")
+
+    def _set_status(self, job_id: str, status: str, error: str | None = None) -> dict:
+        job = self.store.set_status(job_id, status, error)
+        self.store.add_event("print_request.updated", {"id": job_id, "status": status, "error": error})
+        return job

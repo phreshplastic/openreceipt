@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Brand } from "../components/Brand";
 import { getCapabilities, saveConfiguration, type BridgeCapabilities, type PaperProfile } from "../bridge/client";
 
-type Props = { onComplete(profile: PaperProfile): void; onTestPrint(profile: PaperProfile): Promise<void> };
+type Props = { onComplete(profile: PaperProfile): Promise<void>; onTestPrint(profile: PaperProfile): Promise<void> };
 
 export function SetupPage({ onComplete, onTestPrint }: Props) {
   const navigate = useNavigate();
@@ -30,7 +30,7 @@ export function SetupPage({ onComplete, onTestPrint }: Props) {
     return () => controller.abort();
   }, []);
   const profile = capabilities?.profiles.find((item) => item.id === profileId) ?? { id: "80mm-576", label: "80 mm · 576 dots", paperWidthMm: 80, printableWidthDots: 576, paddingDots: 28 } as PaperProfile;
-  const configure = async () => { setMessage("Saving printer…"); try { await saveConfiguration(profileId); onComplete(profile); navigate("/app"); } catch (error) { setMessage(error instanceof Error ? error.message : "Setup failed."); } };
+  const configure = async () => { setMessage("Saving printer…"); try { await saveConfiguration(profileId); await onComplete(profile); navigate("/app"); } catch (error) { setMessage(error instanceof Error ? error.message : "Setup failed."); } };
   const test = async () => { setMessage("Sending a connection slip…"); try { await saveConfiguration(profileId); await onTestPrint(profile); setMessage("Connection slip sent."); } catch (error) { setMessage(error instanceof Error ? error.message : "The test print failed."); } };
 
   return <main className="setup-page"><header className="setup-top"><Brand compact /><button className="text-button" onClick={() => navigate("/")}><ArrowLeft size={14} />Back</button></header><section className="setup-card">

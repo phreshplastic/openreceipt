@@ -12,6 +12,7 @@ requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",
+  "jsonschema>=4.23,<5",
   "Pillow>=12,<13",
   "platformdirs>=4.3,<5",
   "pydantic>=2.10,<3",
@@ -28,6 +29,9 @@ petes-printer = "petes_printer_bridge.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+petes_printer_bridge = ["*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

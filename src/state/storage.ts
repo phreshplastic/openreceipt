@@ -5,6 +5,12 @@ const SETTINGS_KEY = "petes-printer:settings:v1";
 
 export type PrintPolicyMode = "confirm" | "approved" | "autonomous";
 
+export const printPolicies: { id: PrintPolicyMode; name: string; description: string }[] = [
+  { id: "confirm", name: "Confirm each print", description: "Agent requests wait for your approval." },
+  { id: "approved", name: "Approved automations", description: "Trusted templates may print on their own." },
+  { id: "autonomous", name: "Allow agent printing", description: "Agent requests print immediately." },
+];
+
 export type AppSettings = {
   configured: boolean;
   printPolicy: PrintPolicyMode;
