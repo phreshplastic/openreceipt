@@ -1,0 +1,114 @@
+{
+  "name": "OpenReceipt",
+  "updated": "2026-09-01",
+  "meta": {
+    "title": "OpenReceipt — AI Thermal Printer and Receipt Editor",
+    "description": "Design receipts by hand or with an AI agent, preview every printer dot, and print locally on an Epson TM-L90 with OpenReceipt."
+  },
+  "hero": {
+    "heading": "A printer your agent can reach.",
+    "copy": "Reminders, lists, and more on convenient thermal receipts",
+    "publicCta": "Try it in your browser",
+    "publicHref": "/guides/epson-tm-l90-ai-printer-setup"
+  },
+  "steps": [
+    {
+      "title": "Start with a draft",
+      "copy": "Ask your agent to create the receipt. It shows up ready to edit."
+    },
+    {
+      "title": "Edit it together",
+      "copy": "Make changes directly or ask your agent. You’re both working on the same paper."
+    },
+    {
+      "title": "Print it locally",
+      "copy": "When it looks right, print it from your own machine and take it with you."
+    }
+  ],
+  "tools": [
+    {
+      "name": "draft_receipt",
+      "copy": "Start from a situation, not a blank page."
+    },
+    {
+      "name": "edit_receipt",
+      "copy": "Change one line without rewriting the rest."
+    },
+    {
+      "name": "preview_receipt",
+      "copy": "Read back exactly what will print."
+    },
+    {
+      "name": "request_receipt_print",
+      "copy": "Always waits for your approval."
+    }
+  ],
+  "faqs": [
+    {
+      "question": "Do I need a thermal printer?",
+      "answer": "No. The editor works entirely in the browser. Printing currently needs an Epson TM-L90 on 80 or 58 mm paper and the small local bridge running on your machine."
+    },
+    {
+      "question": "What is WebMCP?",
+      "answer": "WebMCP lets a web page expose its tools to AI agents. A compatible agent can read the receipt, draft and edit blocks, preview the print, and ask for approval — the same operations you have in the editor."
+    },
+    {
+      "question": "Can an agent print by itself?",
+      "answer": "It can request a print, but every job waits for your approval, bound to the exact revision you reviewed. Any edit you make cancels a pending request."
+    },
+    {
+      "question": "Does anything leave my machine?",
+      "answer": "Your receipts, settings, and print jobs stay on this machine. Blocks like weather or news fetch public APIs only when you add them, and say so."
+    },
+    {
+      "question": "Is OpenReceipt free?",
+      "answer": "Yes. OpenReceipt is MIT-licensed software that currently runs from source on the machine beside the printer."
+    },
+    {
+      "question": "Which printers are supported?",
+      "answer": "OpenReceipt currently ships one physically tested adapter: the Epson TM-L90 over native USB, with 80 mm (576-dot) and 58 mm (420-dot) paper profiles. The workshop explains other ESC/POS paths without claiming they work in this app."
+    }
+  ],
+  "guides": [
+    {
+      "slug": "best-thermal-printer-for-ai-projects",
+      "title": "What kind of printer should you get for an AI project?",
+      "description": "Choose between a desk receipt printer, a small 58 mm printer, a kitchen impact printer, or a label printer—and see where OpenReceipt works today.",
+      "media": {
+        "src": "/generated/landing-hero.svg",
+        "alt": "OpenReceipt output rendered at the Epson TM-L90’s exact dot width",
+        "caption": "A deterministic 80 mm morning brief rendered at the Epson TM-L90’s 576-dot width."
+      }
+    },
+    {
+      "slug": "epson-tm-l90-ai-printer-setup",
+      "title": "Set up an Epson TM-L90 with OpenReceipt",
+      "description": "Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local helper, and make your first print.",
+      "media": {
+        "src": "/generated/tm-l90.png",
+        "alt": "Epson TM-L90 thermal printer used with OpenReceipt",
+        "caption": "The Epson TM-L90 used to test OpenReceipt’s native USB path."
+      }
+    },
+    {
+      "slug": "58mm-vs-80mm-thermal-paper",
+      "title": "How to choose thermal paper: width, weight, and phenol-free rolls",
+      "description": "Choose between 58 mm and 80 mm thermal paper, understand paper weight and printer limits, and find rolls made without BPA or BPS.",
+      "media": {
+        "src": "/generated/landing-meeting-notes.svg",
+        "alt": "Thermal meeting-notes output showing structured rows and action owners",
+        "caption": "A meeting-notes example; structured rows and action owners benefit from the 80 mm profile."
+      }
+    },
+    {
+      "slug": "how-ai-agents-print-with-webmcp",
+      "title": "How an AI agent gets a receipt onto paper",
+      "description": "Follow a receipt from an AI conversation to the local preview, one-revision approval, and thermal printer through WebMCP or MCP.",
+      "media": {
+        "src": "/generated/landing-checklists.svg",
+        "alt": "Checklist receipt output previewed before an AI agent requests printing",
+        "caption": "An original checklist output generated through the same receipt renderer an agent previews before requesting a print."
+      }
+    }
+  ]
+}

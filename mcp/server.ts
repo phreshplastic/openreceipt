@@ -35,7 +35,7 @@ export function createServer(backend: BridgeBackend) {
   const server = new McpServer({ name: NAME, version: VERSION }, {
     capabilities: { tools: {}, prompts: {}, resources: {} },
     instructions: [
-      "Pete's Printer turns a described situation into a receipt on an 80mm thermal printer.",
+      "OpenReceipt turns a described situation into a receipt on an 80mm thermal printer.",
       "When someone describes a moment rather than naming blocks — travelling, a morning, a shopping trip — call list_receipt_recipes first, ask only for details you genuinely need, then draft_receipt in one call.",
       "After drafting, tell them the editor URL from get_app_status so they can see and adjust it. Printing is consequential: it may wait for them to tap approve in that browser tab.",
     ].join(" "),
@@ -157,7 +157,7 @@ async function serveHttp(backend: BridgeBackend, port: number) {
   });
 
   await new Promise<void>((resolve) => node.listen(port, "127.0.0.1", resolve));
-  process.stderr.write(`Pete's Printer MCP listening on http://127.0.0.1:${port}\n`);
+  process.stderr.write(`OpenReceipt MCP listening on http://127.0.0.1:${port}\n`);
 }
 
 export async function main(argv = process.argv.slice(2)) {

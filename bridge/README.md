@@ -1,4 +1,4 @@
-# Pete's Printer bridge
+# OpenReceipt bridge
 
 The bridge serves the compiled web app on localhost and is the canonical local application for the active receipt, settings, durable events, approvals, and immutable print jobs. It sends validated monochrome PNG artifacts to an Epson TM-L90 and refuses non-loopback bind addresses.
 
