@@ -11,12 +11,12 @@ class StrictModel(BaseModel):
 
 
 class BridgeConfiguration(StrictModel):
-    adapter: Literal["epson-tm-l90-usb"] = "epson-tm-l90-usb"
+    adapter: Literal["epson-tm-l90-usb", "virtual"] = "epson-tm-l90-usb"
     profile_id: Literal["80mm-576", "58mm-420"] = "80mm-576"
 
 
 class ConfigurationRequest(StrictModel):
-    adapter: Literal["epson-tm-l90-usb"]
+    adapter: Literal["epson-tm-l90-usb", "virtual"] = "epson-tm-l90-usb"
     profileId: Literal["80mm-576", "58mm-420"]
 
 
@@ -60,6 +60,20 @@ class ReceiptCommitRequest(StrictModel):
     summary: str | None = Field(default=None, max_length=240)
 
 
+class PrinterProfile(StrictModel):
+    completed: bool = False
+    ownerFirstName: str = Field(default="", max_length=40)
+    identityId: Literal[
+        "owners-printer-western",
+        "kitchen-dispatch",
+        "masthead-press",
+        "mono-ticket",
+        "oval-badge",
+        "block-modern",
+    ] = "owners-printer-western"
+    useCaseIds: list[Literal["reminders", "groceries", "todos", "daily-briefings"]] = Field(default_factory=list, max_length=4)
+
+
 class SettingsUpdateRequest(StrictModel):
     mutationId: UUID
     expectedRevision: int = Field(ge=0)
@@ -68,6 +82,7 @@ class SettingsUpdateRequest(StrictModel):
     trustedTemplateIds: list[str] = Field(default_factory=list, max_length=100)
     defaultLocation: str = Field(default="", max_length=120)
     defaultUnit: Literal["fahrenheit", "celsius"] = "celsius"
+    printerProfile: PrinterProfile = Field(default_factory=PrinterProfile)
     actor: Actor
 
 

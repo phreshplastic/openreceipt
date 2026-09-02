@@ -1,5 +1,6 @@
 import type { ReceiptDocumentV2, RasterizedReceipt, ReceiptState, RenderedReceipt } from "../receipt";
 import type { SharedSettings } from "../state/storage";
+import type { PrinterProfile } from "../onboarding/profile";
 
 export type PaperProfile = {
   id: "80mm-576" | "58mm-420";
@@ -9,9 +10,11 @@ export type PaperProfile = {
   paddingDots: number;
 };
 
+export type PrinterAdapter = "epson-tm-l90-usb" | "virtual";
+
 export type BridgeCapabilities = {
   connected: boolean;
-  adapter: "epson-tm-l90-usb" | "dummy";
+  adapter: PrinterAdapter;
   model: string;
   transport: "usb" | "dummy";
   cutModes: ("full" | "partial")[];
@@ -19,6 +22,11 @@ export type BridgeCapabilities = {
   configuredProfileId: string;
   detail?: string;
 };
+
+/** Dummy/file output reports connected, but that is not an Epson TM-L90 on USB. */
+export function usbPrinterConnected(capabilities: Pick<BridgeCapabilities, "connected" | "transport">): boolean {
+  return capabilities.connected && capabilities.transport === "usb";
+}
 
 export type PrintJobStatus = "awaiting_approval" | "queued" | "sending" | "succeeded" | "failed" | "unknown" | "rejected" | "stale" | "cancelled";
 
@@ -39,7 +47,7 @@ export type PrintJob = {
 
 export type ApiActor = { kind: "human" | "webmcp" | "api" | "mcp" | "system"; label?: string; clientId?: string };
 export type CanonicalReceipt = ReceiptState & { checksum: string; createdAt: string; updatedAt: string };
-export type CanonicalSettings = { revision: number; initialized: boolean; configured: boolean; printPolicy: "confirm" | "approved" | "autonomous"; trustedTemplateIds: string[]; defaultLocation: string; defaultUnit: "fahrenheit" | "celsius"; updatedAt: string };
+export type CanonicalSettings = { revision: number; initialized: boolean; configured: boolean; printPolicy: "confirm" | "approved" | "autonomous"; trustedTemplateIds: string[]; defaultLocation: string; defaultUnit: "fahrenheit" | "celsius"; printerProfile: PrinterProfile; updatedAt: string };
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public current?: unknown) {
@@ -80,11 +88,11 @@ export async function getCapabilities(signal?: AbortSignal) {
   return readJson<BridgeCapabilities>(await fetch("/api/v1/capabilities", { signal, cache: "no-store" }));
 }
 
-export async function saveConfiguration(profileId: PaperProfile["id"]) {
+export async function saveConfiguration(profileId: PaperProfile["id"], adapter: PrinterAdapter = "epson-tm-l90-usb") {
   return readJson<BridgeCapabilities>(await apiFetch("/api/v1/configuration", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ adapter: "epson-tm-l90-usb", profileId }),
+    body: JSON.stringify({ adapter, profileId }),
   }, true));
 }
 

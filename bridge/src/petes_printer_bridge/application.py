@@ -96,6 +96,7 @@ class LocalApplication:
             "trustedTemplateIds": json.loads(row["trusted_template_ids_json"]),
             "defaultLocation": row["default_location"],
             "defaultUnit": row["default_unit"],
+            "printerProfile": json.loads(row["printer_profile_json"]),
             "updatedAt": row["updated_at"],
         }
 
@@ -110,6 +111,7 @@ class LocalApplication:
             trusted_template_ids=request.trustedTemplateIds,
             default_location=request.defaultLocation,
             default_unit=request.defaultUnit,
+            printer_profile=request.printerProfile.model_dump(mode="json"),
             actor=request.actor.model_dump(exclude_none=True),
         )
 

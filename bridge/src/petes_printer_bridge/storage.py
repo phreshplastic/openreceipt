@@ -75,6 +75,7 @@ class BridgeStore:
                   trusted_template_ids_json text not null,
                   default_location text not null default '',
                   default_unit text not null default 'celsius',
+                  printer_profile_json text not null default '{}',
                   updated_at text not null
                 );
                 create table if not exists mutations (
@@ -114,6 +115,7 @@ class BridgeStore:
             settings_additions = {
                 "default_location": "text not null default ''",
                 "default_unit": "text not null default 'celsius'",
+                "printer_profile_json": "text not null default '{}'",
             }
             for name, kind in settings_additions.items():
                 if name not in settings_columns:
@@ -129,11 +131,11 @@ class BridgeStore:
             self.connection.execute(
                 """insert or ignore into app_settings
                 (id, revision, initialized, configured, print_policy, trusted_template_ids_json,
-                 default_location, default_unit, updated_at)
-                values (1, 0, 0, 0, 'confirm', '[]', '', 'celsius', ?)""",
+                 default_location, default_unit, printer_profile_json, updated_at)
+                values (1, 0, 0, 0, 'confirm', '[]', '', 'celsius', '{}', ?)""",
                 (now_iso(),),
             )
-            self.connection.execute("pragma user_version = 3")
+            self.connection.execute("pragma user_version = 4")
 
     def configuration(self) -> BridgeConfiguration:
         with self.lock:
@@ -303,6 +305,7 @@ class BridgeStore:
         trusted_template_ids: list[str],
         default_location: str,
         default_unit: str,
+        printer_profile: dict[str, Any],
         actor: dict[str, Any],
     ) -> tuple[dict[str, Any], bool]:
         with self.lock, self.connection:
@@ -317,10 +320,11 @@ class BridgeStore:
             revision = expected_revision + 1
             timestamp = now_iso()
             trusted_json = json.dumps(sorted(set(trusted_template_ids)), separators=(",", ":"))
+            profile_json = json.dumps(printer_profile, separators=(",", ":"))
             self.connection.execute(
                 """update app_settings set revision=?, initialized=1, configured=?, print_policy=?,
-                trusted_template_ids_json=?, default_location=?, default_unit=?, updated_at=? where id=1""",
-                (revision, int(configured), print_policy, trusted_json, default_location, default_unit, timestamp),
+                trusted_template_ids_json=?, default_location=?, default_unit=?, printer_profile_json=?, updated_at=? where id=1""",
+                (revision, int(configured), print_policy, trusted_json, default_location, default_unit, profile_json, timestamp),
             )
             result = {
                 "revision": revision,
@@ -330,6 +334,7 @@ class BridgeStore:
                 "trustedTemplateIds": json.loads(trusted_json),
                 "defaultLocation": default_location,
                 "defaultUnit": default_unit,
+                "printerProfile": json.loads(profile_json),
                 "updatedAt": timestamp,
             }
             self.connection.execute(

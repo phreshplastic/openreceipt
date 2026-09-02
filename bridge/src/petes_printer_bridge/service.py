@@ -29,16 +29,22 @@ class PrinterManager:
         self.store = store
         self.transport_factory = transport_factory
 
+    def _use_virtual_transport(self) -> bool:
+        if os.environ.get("PETES_PRINTER_TRANSPORT", "usb") == "dummy":
+            return True
+        return self.store.configuration().adapter == "virtual"
+
     def _transport(self) -> PrintTransport:
         if self.transport_factory:
             return self.transport_factory()
-        if os.environ.get("PETES_PRINTER_TRANSPORT", "usb") == "dummy":
+        if self._use_virtual_transport():
             return create_dummy_transport(self.store.data_directory / "last-print.bin")
         return create_usb_transport()
 
     def capabilities(self, probe: bool = True) -> dict:
         configuration = self.store.configuration()
-        transport_name = "dummy" if os.environ.get("PETES_PRINTER_TRANSPORT", "usb") == "dummy" else "usb"
+        virtual = self._use_virtual_transport()
+        transport_name = "dummy" if virtual else "usb"
         connected = False
         detail = "Printer probe was skipped."
         if probe:
@@ -56,8 +62,8 @@ class PrinterManager:
                     pass
         return {
             "connected": connected,
-            "adapter": "dummy" if transport_name == "dummy" else configuration.adapter,
-            "model": "Epson TM-L90" if transport_name == "usb" else "Dummy file transport",
+            "adapter": configuration.adapter if not virtual else "virtual",
+            "model": "Epson TM-L90" if transport_name == "usb" else "Virtual printer (file output)",
             "transport": transport_name,
             "cutModes": ["full", "partial"],
             "profiles": PROFILES,
@@ -65,8 +71,8 @@ class PrinterManager:
             "detail": detail,
         }
 
-    def configure(self, profile_id: str) -> dict:
-        self.store.save_configuration(BridgeConfiguration(profile_id=profile_id))
+    def configure(self, profile_id: str, adapter: str = "epson-tm-l90-usb") -> dict:
+        self.store.save_configuration(BridgeConfiguration(adapter=adapter, profile_id=profile_id))
         return self.capabilities()
 
     @staticmethod
