@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ApprovalPanel, ReceiptConflictPanel } from "./components/Overlays";
-import { decidePrintRequest, ensureBrowserSession, getCanonicalSettings, getCapabilities, listPrintRequests, submitPrintJob, submitPrintRequest, updateCanonicalSettings, waitForPrintJob, type PaperProfile, type PrintJob } from "./bridge/client";
+import { decidePrintRequest, ensureBrowserSession, getCanonicalSettings, getCapabilities, listPrintRequests, submitPrintJob, submitPrintRequest, updateCanonicalSettings, usbPrinterConnected, waitForPrintJob, type PaperProfile, type PrintJob } from "./bridge/client";
 import { loadBlockLibraryPreferences, prepareReceiptCommands, saveBlockLibraryPreferences, toggleFavorite as toggleBlockFavorite, type BlockLibraryPreferences, type ReceiptCommand } from "./block-library";
-import { createReceiptState, createDefaultDocument, createFromTemplate, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
+import { createReceiptState, createDefaultDocument, createFromTemplate, createLogoBlock, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
+import { documentSeed } from "./onboarding/profile";
 import { PrintCoordinator, type PrintApprovalDecision, type PrintResult, type PrintSnapshot } from "./printing/coordinator";
+import type { PrintDestination } from "./printing/destination";
+import { playDemoPrint, PRINT_DONE_HOLD_MS } from "./printing/preview";
 import { EditorPage } from "./pages/EditorPage";
 import { BlocksPage } from "./pages/BlocksPage";
 import { ChartLabPage } from "./pages/ChartLabPage";
 import { LandingPage } from "./pages/LandingPage";
+import { HeroExperimentPage } from "./pages/HeroExperimentPage";
+import { GuidePage, GuidesPage } from "./pages/GuidesPage";
 import { SetupPage } from "./pages/SetupPage";
 import { decideAgentPrint } from "./state/permissions";
 import { acceptSharedSettings, loadReceipt, loadSettings, saveReceipt, saveSettings, shareableSettings, type AppSettings } from "./state/storage";
 import { ReceiptSession, type ReceiptConflict, type ReceiptSyncStatus } from "./state/receiptSession";
 import { registerWebMcpTools, type AgentActivity, type AgentAppStatus, type AgentBackend } from "./webmcp/register";
+import { captionForPhase, polishCaption } from "./agent/captions";
 
 type ApprovalRequest = {
   snapshot: PrintSnapshot;
@@ -28,19 +34,22 @@ export type EditorActivity = AgentActivity & { id: number; blockIds: string[] };
 
 function AppContent() {
   const navigate = useNavigate();
-  const [receiptController] = useState(() => new ReceiptController(loadReceipt(createReceiptState(createDefaultDocument()))));
-  const [receipt, setReceipt] = useState(() => receiptController.state);
   const [settings, setSettings] = useState(loadSettings);
+  const [receiptController] = useState(() => new ReceiptController(loadReceipt(createReceiptState(createDefaultDocument(documentSeed(settings.printerProfile))))));
+  const [receipt, setReceipt] = useState(() => receiptController.state);
   const [blockLibraryPreferences, setBlockLibraryPreferences] = useState(loadBlockLibraryPreferences);
   const [approval, setApproval] = useState<ApprovalRequest>();
   const [printStatus, setPrintStatus] = useState("");
   const [printStage, setPrintStage] = useState<PrintStage>("idle");
   const [bridgeOnline, setBridgeOnline] = useState(false);
+  const [printerConnected, setPrinterConnected] = useState(false);
   const [webMcpAvailable, setWebMcpAvailable] = useState(false);
   const [editorActivity, setEditorActivity] = useState<EditorActivity>();
   const [syncStatus, setSyncStatus] = useState<ReceiptSyncStatus>("connecting");
   const [receiptConflict, setReceiptConflict] = useState<ReceiptConflict>();
   const [externalApproval, setExternalApproval] = useState<PrintJob>();
+  const [recentPrintJobs, setRecentPrintJobs] = useState<PrintJob[]>([]);
+  const [pendingSetupPrint, setPendingSetupPrint] = useState<PrintSnapshot>();
   const receiptRef = useRef(receipt);
   const settingsRef = useRef(settings);
   const approvalRef = useRef<ApprovalRequest | undefined>(undefined);
@@ -63,8 +72,11 @@ function AppContent() {
     return next;
   }, []);
   const commitSettings = useCallback(async (next: AppSettings) => {
+    settingsRef.current = next;
+    setSettings(next);
+    saveSettings(next);
     if (!receiptSessionRef.current?.isOnline) {
-      setPrintStatus("Settings need the local API; your current policy is unchanged.");
+      setPrintStatus("Settings saved on this device; the local API will catch up when it reconnects.");
       return;
     }
     try {
@@ -86,17 +98,19 @@ function AppContent() {
   const announceAgentActivity = useCallback((activity: AgentActivity) => {
     if (activityTimer.current) window.clearTimeout(activityTimer.current);
     setEditorActivity({ id: Date.now(), blockIds: activity.blockIds ?? [], ...activity });
-    if (activity.phase !== "waitingForApproval" && activity.phase !== "printing") {
-      const duration = activity.phase === "reading" ? 1800 : 6000;
-      activityTimer.current = window.setTimeout(() => setEditorActivity(undefined), duration);
-    }
+    const persist = activity.phase === "waitingForApproval" || activity.phase === "printing" || activity.phase === "drafting" || activity.phase === "editing";
+    if (persist) return;
+    const duration = activity.phase === "reading" ? 1800 : 5000;
+    activityTimer.current = window.setTimeout(() => setEditorActivity(undefined), duration);
   }, []);
   const announceAgentChange = useCallback((blockIds: string[], message: string) => announceAgentActivity({ phase: "complete", blockIds, message }), [announceAgentActivity]);
-  const refreshExternalApprovals = useCallback(async () => {
+  const refreshPrintActivity = useCallback(async () => {
     try {
-      const { items } = await listPrintRequests("awaiting_approval");
-      externalApprovalRef.current = items[0];
-      setExternalApproval(items[0]);
+      const { items } = await listPrintRequests();
+      const awaiting = items.find((job) => job.status === "awaiting_approval");
+      externalApprovalRef.current = awaiting;
+      setExternalApproval(awaiting);
+      setRecentPrintJobs(items.slice(0, 12));
     } catch {
       externalApprovalRef.current = undefined;
       setExternalApproval(undefined);
@@ -129,7 +143,7 @@ function AppContent() {
         if (event?.actor && event.actor.kind !== "human") {
           announceAgentActivity({
             phase: "complete",
-            message: event.summary || `${event.actor.label || "Agent"} updated the receipt`,
+            message: polishCaption(event.summary || `${event.actor.label || "Agent"} updated the receipt`),
             blockIds: event.changedBlockIds ?? [],
           });
         }
@@ -139,16 +153,16 @@ function AppContent() {
         setSyncStatus(status);
         if (status === "saved") void refreshCanonicalSettings();
       },
-      onEvent: () => void refreshExternalApprovals(),
+      onEvent: () => void refreshPrintActivity(),
     });
     receiptSessionRef.current = session;
-    void session.start().then(() => void refreshExternalApprovals());
+    void session.start().then(() => void refreshPrintActivity());
 
     return () => {
       session.dispose();
       if (receiptSessionRef.current === session) receiptSessionRef.current = undefined;
     };
-  }, [announceAgentActivity, receiptController, refreshCanonicalSettings, refreshExternalApprovals]);
+  }, [announceAgentActivity, receiptController, refreshCanonicalSettings, refreshPrintActivity]);
 
   const applyOperations = useCallback((expectedRevision: number, operations: ReceiptOperation[]) => {
     clearActivity();
@@ -157,18 +171,18 @@ function AppContent() {
   const applyCommands = useCallback(async (expectedRevision: number, commands: ReceiptCommand[], source: "human" | "agent" = "human") => {
     const before = receiptRef.current;
     const document = await prepareReceiptCommands(before, expectedRevision, commands);
-    const next = publishReceipt(receiptController.commitPrepared(expectedRevision, document), source === "agent" ? "webmcp" : "human", source === "agent" ? "Agent edited the receipt" : undefined);
+    const next = publishReceipt(receiptController.commitPrepared(expectedRevision, document), source === "agent" ? "webmcp" : "human", source === "agent" ? "Updated the receipt" : undefined);
     if (source === "agent") {
       const previous = new Map(before.document.blocks.map((block) => [block.id, JSON.stringify(block)]));
       const blockIds = next.document.blocks.filter((block) => previous.get(block.id) !== JSON.stringify(block)).map((block) => block.id);
-      announceAgentChange(blockIds, `Agent updated ${blockIds.length || "the receipt"}${blockIds.length ? ` block${blockIds.length === 1 ? "" : "s"}` : ""}`);
+      announceAgentChange(blockIds, "Updated the receipt");
     } else clearActivity();
     return next;
   }, [announceAgentChange, clearActivity, publishReceipt, receiptController]);
-  const loadTemplateWithSource = useCallback((templateId: string, expectedRevision: number, source: "human" | "agent") => {
-    const { template, document } = createFromTemplate(templateId);
-    const next = publishReceipt(receiptController.loadTemplate(expectedRevision, document, template.id, template.revision), source === "agent" ? "webmcp" : "human", `${source === "agent" ? "Agent" : "Browser"} loaded ${template.name}`);
-    if (source === "agent") announceAgentChange(next.document.blocks.map((block) => block.id), `Agent loaded ${template.name}`);
+  const loadTemplateWithSource = useCallback((templateId: string, expectedRevision: number, source: "human" | "agent", documentOverride?: ReceiptDocument) => {
+    const { template, document } = createFromTemplate(templateId, documentSeed(settingsRef.current.printerProfile));
+    const next = publishReceipt(receiptController.loadTemplate(expectedRevision, documentOverride ?? document, template.id, template.revision), source === "agent" ? "webmcp" : "human", `${source === "agent" ? "Agent" : "Browser"} loaded ${template.name}`);
+    if (source === "agent") announceAgentChange(next.document.blocks.map((block) => block.id), polishCaption(`Loaded ${template.name}`));
     else clearActivity();
     return next;
   }, [announceAgentChange, clearActivity, publishReceipt, receiptController]);
@@ -176,9 +190,12 @@ function AppContent() {
     publishReceipt(receiptController.commitPrepared(expectedRevision, document), "webmcp", summary), [publishReceipt, receiptController]);
   const agentUndo = useCallback(() => {
     if (!receiptController.history.canUndo) return undefined;
-    return publishReceipt(receiptController.undo(), "webmcp", "The agent undid its last change");
+    return publishReceipt(receiptController.undo(), "webmcp", "Undid the last change");
   }, [publishReceipt, receiptController]);
-  const loadTemplate = useCallback((templateId: string, expectedRevision = receiptRef.current.revision) => loadTemplateWithSource(templateId, expectedRevision, "human"), [loadTemplateWithSource]);
+  const loadTemplate = useCallback((templateId: string, document?: ReceiptDocument) => loadTemplateWithSource(templateId, receiptRef.current.revision, "human", document), [loadTemplateWithSource]);
+  const loadDocument = useCallback((document: ReceiptDocument) =>
+    publishReceipt(receiptController.commitPrepared(receiptRef.current.revision, document), "human", "Opened a saved receipt"), [publishReceipt, receiptController]);
+
   const undo = useCallback(() => { clearActivity(); return publishReceipt(receiptController.undo()); }, [clearActivity, publishReceipt, receiptController]);
   const redo = useCallback(() => { clearActivity(); return publishReceipt(receiptController.redo()); }, [clearActivity, publishReceipt, receiptController]);
 
@@ -196,6 +213,7 @@ function AppContent() {
     }
     setPrintStatus("Printing…");
     const complete = await waitForPrintJob(queued.id, 30_000, signal);
+    void refreshPrintActivity();
     if (complete.status === "succeeded") {
       setPrintStage("complete");
       setPrintStatus("Printed");
@@ -211,7 +229,7 @@ function AppContent() {
     setPrintStage("unknown");
     setPrintStatus(message);
     return { status: "unknown", jobId: complete.id, checksum: complete.checksum, message } as const;
-  }, []);
+  }, [refreshPrintActivity]);
 
   useEffect(() => {
     const coordinator = new PrintCoordinator({
@@ -242,7 +260,11 @@ function AppContent() {
         setApproval(request);
       }),
       execute: async (snapshot, signal, request) => {
-        announceAgentActivity({ phase: "printing", message: "The agent is printing the approved receipt", blockIds: snapshot.document.blocks.map((block) => block.id) });
+        if (request.requester === "webmcp") {
+          announceAgentActivity({ phase: "printing", message: captionForPhase("printing") });
+        } else {
+          clearActivity();
+        }
         return sendDocument(snapshot, request.requester ?? "human", request.reason, signal);
       },
     });
@@ -251,7 +273,7 @@ function AppContent() {
       coordinator.cancel("Print coordination ended.");
       if (printCoordinatorRef.current === coordinator) printCoordinatorRef.current = undefined;
     };
-  }, [announceAgentActivity, sendDocument]);
+  }, [announceAgentActivity, clearActivity, sendDocument]);
 
   const runPrintRequest = useCallback(async (snapshot: PrintSnapshot, requiresApproval: boolean, reason?: string, signal?: AbortSignal, requester: "human" | "webmcp" = "human") => {
     const coordinator = printCoordinatorRef.current;
@@ -264,20 +286,42 @@ function AppContent() {
     }
     return result;
   }, []);
-  const printCurrent = useCallback(async () => {
+  useEffect(() => {
+    if (printStage !== "complete") return;
+    const timer = window.setTimeout(() => setPrintStage("idle"), PRINT_DONE_HOLD_MS);
+    return () => window.clearTimeout(timer);
+  }, [printStage]);
+  const printCurrent = useCallback(async (destination: PrintDestination = "printer") => {
+    clearActivity();
     const current = receiptRef.current;
-    return runPrintRequest({ revision: current.revision, document: structuredClone(current.document) }, false);
-  }, [runPrintRequest]);
+    if (destination === "demo") {
+      setPrintStatus("");
+      const result = await playDemoPrint(current.document, { onStage: setPrintStage });
+      return {
+        status: "succeeded",
+        revision: current.revision,
+        message: result.opened ? "Opened a preview in this browser." : "Downloaded a preview because the browser blocked a new tab.",
+      } as PrintResult;
+    }
+    const snapshot = { revision: current.revision, document: structuredClone(current.document) };
+    if (!settingsRef.current.configured || !bridgeOnline) {
+      setPendingSetupPrint(snapshot);
+      return { status: "cancelled", revision: snapshot.revision, message: "Printer setup is needed before printing." } as PrintResult;
+    }
+    return runPrintRequest(snapshot, false);
+  }, [bridgeOnline, clearActivity, runPrintRequest]);
   const refreshBridge = useCallback(async (silent = false) => {
     if (!silent) { setPrintStage("idle"); setPrintStatus("Checking printer…"); }
     const controller = new AbortController();
     try {
       const capabilities = await getCapabilities(controller.signal);
       setBridgeOnline(capabilities.connected);
+      setPrinterConnected(usbPrinterConnected(capabilities));
       if (!silent) setPrintStatus(capabilities.connected ? "" : "Printer bridge is offline");
       return capabilities.connected;
     } catch {
       setBridgeOnline(false);
+      setPrinterConnected(false);
       if (!silent) setPrintStatus("Printer bridge is unavailable");
       return false;
     }
@@ -331,25 +375,40 @@ function AppContent() {
 
   useEffect(() => {
     const controller = new AbortController();
-    getCapabilities(controller.signal).then((value) => setBridgeOnline(value.connected)).catch(() => setBridgeOnline(false));
+    getCapabilities(controller.signal).then((value) => {
+      setBridgeOnline(value.connected);
+      setPrinterConnected(usbPrinterConnected(value));
+    }).catch(() => {
+      setBridgeOnline(false);
+      setPrinterConnected(false);
+    });
     return () => controller.abort();
   }, []);
 
-  const completeSetup = async (profile: PaperProfile, defaults: { location: string; unit: "fahrenheit" | "celsius" }) => {
-    await commitSettings({ ...settingsRef.current, configured: true, printPolicy: "confirm", defaultLocation: defaults.location.trim(), defaultUnit: defaults.unit });
-    applyOperations(receiptRef.current.revision, [{ type: "setPage", page: { paperWidthMm: profile.paperWidthMm, printableWidthDots: profile.printableWidthDots, paddingDots: profile.paddingDots } }]);
+  const completeSetup = async (profile: PaperProfile) => {
+    await commitSettings({ ...settingsRef.current, configured: true, printPolicy: "confirm" });
+    const next = applyOperations(receiptRef.current.revision, [{ type: "setPage", page: { paperWidthMm: profile.paperWidthMm, printableWidthDots: profile.printableWidthDots, paddingDots: profile.paddingDots } }]);
     setBridgeOnline(true);
+    return next;
+  };
+
+  const completeSetupAndPrint = async (profile: PaperProfile) => {
+    const next = await completeSetup(profile);
+    setPendingSetupPrint(undefined);
+    await runPrintRequest({ revision: next.revision, document: structuredClone(next.document) }, false);
   };
 
   const testPrint = async (profile: PaperProfile) => {
-    const document = createDefaultDocument();
+    const seed = documentSeed(settingsRef.current.printerProfile);
+    const document = createDefaultDocument(seed);
     document.title = "Printer connection";
     document.page = { paperWidthMm: profile.paperWidthMm, printableWidthDots: profile.printableWidthDots, paddingDots: profile.paddingDots };
     document.blocks = [
+      createLogoBlock(seed),
       { id: crypto.randomUUID(), type: "heading", text: "CONNECTION GOOD", level: "display", weight: "bold", italic: false, underline: false, align: "left" },
       { id: crypto.randomUUID(), type: "text", text: `${profile.paperWidthMm} mm · ${profile.printableWidthDots} dots`, size: "body", weight: "regular", italic: false, underline: false, align: "left" },
       { id: crypto.randomUUID(), type: "divider", style: "dashed" },
-      { id: crypto.randomUUID(), type: "text", text: "Pete’s Printer is ready.", size: "small", weight: "medium", italic: false, underline: false, align: "left" },
+      { id: crypto.randomUUID(), type: "text", text: "OpenReceipt is ready.", size: "small", weight: "medium", italic: false, underline: false, align: "left" },
       { id: crypto.randomUUID(), type: "divider", style: "solid" },
       { id: crypto.randomUUID(), type: "text", text: "READY TO MAKE SOMETHING", size: "small", weight: "medium", italic: false, underline: false, align: "center" },
     ];
@@ -375,14 +434,17 @@ function AppContent() {
       }
     } catch (error) {
       setPrintStatus(error instanceof Error ? error.message : "The print request could not be decided.");
-      await refreshExternalApprovals();
+      await refreshPrintActivity();
     }
   };
 
   return <><Routes>
     <Route path="/" element={<LandingPage configured={settings.configured} />} />
-    <Route path="/setup" element={<SetupPage defaults={{ location: settings.defaultLocation, unit: settings.defaultUnit }} onComplete={completeSetup} onTestPrint={testPrint} />} />
-    <Route path="/app" element={<EditorPage state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} bridgeOnline={bridgeOnline} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(false)} print={printCurrent} />} />
+    <Route path="/hero" element={<HeroExperimentPage configured={settings.configured} />} />
+    <Route path="/guides" element={<GuidesPage />} />
+    <Route path="/guides/:slug" element={<GuidePage />} />
+    <Route path="/setup" element={<SetupPage onComplete={async (profile) => { await completeSetup(profile); }} onTestPrint={testPrint} />} />
+    <Route path="/app" element={<EditorPage runtimeMode="local" state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} printJobs={recentPrintJobs} printerConnected={printerConnected} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} loadDocument={loadDocument} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(true)} print={printCurrent} />} />
     <Route path="/blocks" element={<BlocksPage />} />
     <Route path="/blocks/charts" element={<ChartLabPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
@@ -390,6 +452,7 @@ function AppContent() {
     {receiptConflict && <ReceiptConflictPanel local={receiptConflict.local} shared={receiptConflict.shared} onUseShared={() => void receiptSessionRef.current?.resolveConflict("shared")} onKeepLocal={() => void receiptSessionRef.current?.resolveConflict("local")} />}
     {approval && <ApprovalPanel title={approval.snapshot.document.title} reason={approval.reason} revision={approval.snapshot.revision} width={approval.width} height={approval.height} paperWidthMm={approval.snapshot.document.page.paperWidthMm} policy={approval.policy} onApprove={() => approval.resolve("approve")} onReject={() => approval.resolve("reject")} />}
     {!approval && externalApproval?.document && <ApprovalPanel title={externalApproval.document.title} reason={externalApproval.reason ?? undefined} revision={externalApproval.receiptRevision ?? 0} width={externalApproval.width ?? externalApproval.document.page.printableWidthDots} height={externalApproval.height ?? 0} paperWidthMm={externalApproval.document.page.paperWidthMm} policy={settings.printPolicy} onApprove={() => void decideExternalApproval("approve")} onReject={() => void decideExternalApproval("reject")} />}
+    {pendingSetupPrint && <SetupPage intent="print" onComplete={completeSetupAndPrint} onTestPrint={testPrint} onCancel={() => setPendingSetupPrint(undefined)} />}
   </>;
 }
 
