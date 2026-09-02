@@ -113,6 +113,37 @@ describe("ReceiptSession", () => {
     session.dispose();
   });
 
+  it("keeps a recent human edit over a live agent event without opening the chooser", async () => {
+    const initial = createReceiptState(createDefaultDocument());
+    let remote = canonical(initial);
+    const listeners = new Map<string, EventListener>();
+    const source = {
+      addEventListener: (name: string, listener: EventListenerOrEventListenerObject) => listeners.set(name, listener as EventListener),
+      close: vi.fn(), onerror: null,
+    } as unknown as EventSource;
+    const conflict = vi.fn();
+    const accepted: ReceiptState[] = [];
+    const commit = vi.fn(async (state: ReceiptState, expected: number | null) => { void expected; return canonical(state); });
+    const session = new ReceiptSession(initial, {
+      onShared: (state) => accepted.push(state), onConflict: conflict, onStatus: vi.fn(),
+    }, {
+      ensureSession: vi.fn(async () => "csrf"), readReceipt: vi.fn(async () => remote),
+      commitReceipt: commit, createEvents: () => source,
+    });
+    await session.start();
+    session.publish(createReceiptState({ ...initial.document, title: "Mine" }, 1));
+    remote = canonical(createReceiptState({ ...initial.document, title: "Agent" }, 2));
+    listeners.get("receipt.updated")?.(new MessageEvent("receipt.updated", { data: JSON.stringify({
+      mutationId: crypto.randomUUID(), actor: { kind: "mcp", label: "Agent" }, summary: "Added Lisbon weather", revision: 2,
+    }), lastEventId: "9" }));
+    await settle();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(conflict.mock.calls.every(([value]) => value === undefined)).toBe(true);
+    expect(accepted.at(-1)?.document.title).toBe("Mine");
+    expect(commit.mock.calls.at(-1)?.[0].document.title).toBe("Mine");
+    session.dispose();
+  });
+
   it("applies a clean external event and forwards its agent metadata", async () => {
     const initial = createReceiptState(createDefaultDocument());
     let remote = canonical(initial);

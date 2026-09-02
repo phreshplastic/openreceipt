@@ -3,6 +3,7 @@ import { createReceiptState, type ReceiptState } from "../receipt";
 
 const SYNC_KEY = "petes-printer:receipt-sync:v1";
 const COMMIT_DELAY = 280;
+const HUMAN_PRIORITY_MS = 8_000;
 
 type SyncMetadata = { serverRevision: number | null; dirty: boolean };
 export type ReceiptSyncStatus = "connecting" | "saved" | "saving" | "offline" | "conflict";
@@ -38,6 +39,8 @@ export class ReceiptSession {
   private pendingSummary?: string;
   private mutationIds = new Set<string>();
   private lastEventId = 0;
+  private lastHumanPublishAt = 0;
+  private preferringLocal = false;
 
   constructor(
     initial: ReceiptState,
@@ -76,7 +79,7 @@ export class ReceiptSession {
         await this.flush();
       } else if (this.dirty && this.serverRevision !== null) {
         if (shared.revision === this.serverRevision) await this.flush();
-        else this.raiseConflict(shared);
+        else this.raiseConflict(shared, "startup");
       } else {
         this.acceptShared(shared);
       }
@@ -90,6 +93,7 @@ export class ReceiptSession {
     this.latest = createReceiptState(state.document, state.revision, state.source);
     this.pendingActor = actor;
     this.pendingSummary = summary;
+    if (actor.kind === "human") this.lastHumanPublishAt = Date.now();
     this.dirty = true;
     this.writeMetadata();
     if (this.conflict) {
@@ -147,7 +151,7 @@ export class ReceiptSession {
       this.writeMetadata();
       this.callbacks.onStatus(this.dirty ? "saving" : "saved");
     } catch (error) {
-      if (error instanceof ApiError && error.code === "stale_revision" && error.current) this.raiseConflict(error.current as CanonicalReceipt);
+      if (error instanceof ApiError && error.code === "stale_revision" && error.current) this.raiseConflict(error.current as CanonicalReceipt, "stale");
       else this.goOffline();
     } finally {
       this.committing = false;
@@ -166,10 +170,40 @@ export class ReceiptSession {
     this.callbacks.onStatus("saved");
   }
 
-  private raiseConflict(shared: Pick<CanonicalReceipt, "document" | "revision" | "source">) {
+  private shouldPreferLocal() {
+    return this.pendingActor.kind === "human" && Date.now() - this.lastHumanPublishAt < HUMAN_PRIORITY_MS;
+  }
+
+  private raiseConflict(shared: Pick<CanonicalReceipt, "document" | "revision" | "source">, source: "live" | "stale" | "reconnect" | "startup") {
+    if ((source === "live" || source === "stale") && this.shouldPreferLocal() && !this.preferringLocal) {
+      void this.keepLocal(shared);
+      return;
+    }
+    this.surfaceConflict(shared);
+  }
+
+  private surfaceConflict(shared: Pick<CanonicalReceipt, "document" | "revision" | "source">) {
     this.conflict = { local: this.latest, shared: createReceiptState(shared.document, shared.revision, shared.source) };
     this.callbacks.onConflict(this.conflict);
     this.callbacks.onStatus("conflict");
+  }
+
+  private async keepLocal(shared: Pick<CanonicalReceipt, "document" | "revision" | "source">) {
+    this.preferringLocal = true;
+    this.serverRevision = shared.revision;
+    this.latest = createReceiptState(this.latest.document, shared.revision + 1, this.latest.source);
+    this.dirty = true;
+    this.callbacks.onShared(this.latest);
+    this.writeMetadata();
+    if (this.committing) {
+      this.preferringLocal = false;
+      return;
+    }
+    try {
+      await this.flush();
+    } finally {
+      this.preferringLocal = false;
+    }
   }
 
   private goOffline() {
@@ -187,7 +221,7 @@ export class ReceiptSession {
       if (this.stopped) return;
       this.online = true;
       if (this.dirty && shared.revision === this.serverRevision) await this.flush();
-      else if (this.dirty) this.raiseConflict(shared);
+      else if (this.dirty) this.raiseConflict(shared, "reconnect");
       else this.acceptShared(shared);
       this.openEvents();
     } catch {
@@ -210,7 +244,7 @@ export class ReceiptSession {
     try {
       const shared = await this.dependencies.readReceipt();
       if (this.stopped) return;
-      if (this.dirty) this.raiseConflict(shared);
+      if (this.dirty) this.raiseConflict(shared, "live");
       else {
         this.acceptShared(shared, event);
         this.callbacks.onEvent?.(event);
