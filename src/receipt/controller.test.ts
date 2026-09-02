@@ -20,7 +20,7 @@ describe("receipt controller", () => {
   it("rejects stale edits without changing the input", () => {
     const state = createReceiptState(createDefaultDocument(), 3);
     expect(() => applyReceiptOperations(state, 2, [{ type: "setTitle", title: "Stale" }])).toThrow(StaleReceiptRevisionError);
-    expect(state.document.title).toBe("Untitled receipt");
+    expect(state.document.title).toBe("Today");
   });
 
   it("rejects removing the last block", () => {
@@ -42,7 +42,7 @@ describe("receipt controller", () => {
     expect(controller.state).toMatchObject({ revision: 8, document: { title: "Morning" } });
 
     controller.undo();
-    expect(controller.state).toMatchObject({ revision: 9, document: { title: "Untitled receipt" } });
+    expect(controller.state).toMatchObject({ revision: 9, document: { title: "Today" } });
     expect(controller.history).toEqual({ canUndo: false, canRedo: true });
 
     controller.redo();
