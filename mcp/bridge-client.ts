@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
+import { existsSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
+import { signFontBytes } from "../src/blocks/wordmarks";
 import type { AgentAppStatus, AgentBackend } from "../src/agent";
 import type { PrintResult } from "../src/printing/coordinator";
 import { createReceiptState, type ReceiptState } from "../src/receipt/controller";
@@ -36,6 +40,21 @@ type PrintJobResponse = { id: string; status: string; checksum?: string; error?:
  * this client is just another optimistic writer, and the open tab picks the change up
  * over its existing SSE subscription.
  */
+/**
+ * resvg ignores the @font-face the SVG carries for the browser, and this version reads
+ * fonts only from disk — so the sign face is laid down once beside the process. Same
+ * bytes as the browser embeds, so both paths print the same marks.
+ */
+let signFontFile: string | undefined;
+function signFontPath() {
+  if (signFontFile) return signFontFile;
+  const bytes = Buffer.from(signFontBytes());
+  const file = join(tmpdir(), `petes-printer-sign-${createHash("sha256").update(bytes).digest("hex").slice(0, 12)}.ttf`);
+  if (!existsSync(file)) writeFileSync(file, bytes, { mode: 0o644 });
+  signFontFile = file;
+  return file;
+}
+
 export class BridgeBackend implements AgentBackend {
   private readonly baseUrl: string;
   private readonly token?: string;
@@ -131,7 +150,10 @@ export class BridgeBackend implements AgentBackend {
     }
 
     const rendered = renderReceiptSvg(state.document);
-    const png = new Resvg(rendered.svg, { fitTo: { mode: "width", value: rendered.width } }).render().asPng();
+    const png = new Resvg(rendered.svg, {
+      fitTo: { mode: "width", value: rendered.width },
+      font: { loadSystemFonts: true, fontFiles: [signFontPath()] },
+    }).render().asPng();
     const checksum = createHash("sha256").update(png).digest("hex");
 
     const form = new FormData();

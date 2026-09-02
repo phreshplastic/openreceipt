@@ -1,4 +1,5 @@
 import { renderCatalogReceiptPart } from "../block-library/registry";
+import { signFontFace, usesSignFace } from "../blocks/wordmarks";
 import { receiptDocumentSchema, type ReceiptBlock, type ReceiptDocumentV1, type ReceiptDocumentV2 } from "./model";
 import { escapeXml, estimatedWidth, renderTextPart, textAttributes, thermalType as styles, wrapText, type SvgPart } from "./layout";
 
@@ -129,6 +130,9 @@ export function renderReceiptSvg(input: ReceiptDocumentV1 | ReceiptDocumentV2): 
   });
 
   const height = Math.max(120, Math.ceil(y + padding));
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(document.title)}"><rect width="${width}" height="${height}" fill="#fff"/>${body}</svg>`;
+  // A mark carries its own face, since the raster path draws this SVG in an <img>
+  // where no stylesheet reaches it. Receipts without a mark stay lean.
+  const font = usesSignFace(body) ? signFontFace() : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(document.title)}">${font}<rect width="${width}" height="${height}" fill="#fff"/>${body}</svg>`;
   return { svg, width, height, rendererVersion: RENDERER_VERSION, blocks };
 }

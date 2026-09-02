@@ -450,6 +450,75 @@
                   },
                   "kind": {
                     "type": "string",
+                    "const": "logo"
+                  },
+                  "definitionVersion": {
+                    "type": "number",
+                    "const": 1
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "style": {
+                        "type": "string",
+                        "enum": [
+                          "owners-printer-western",
+                          "kitchen-dispatch",
+                          "masthead-press",
+                          "mono-ticket",
+                          "oval-badge",
+                          "block-modern"
+                        ]
+                      },
+                      "primary": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "size": {
+                        "default": "medium",
+                        "type": "string",
+                        "enum": [
+                          "small",
+                          "medium",
+                          "large"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "style",
+                      "primary",
+                      "size"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "type",
+                  "kind",
+                  "definitionVersion",
+                  "data"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "catalog"
+                  },
+                  "kind": {
+                    "type": "string",
                     "const": "weather"
                   },
                   "definitionVersion": {

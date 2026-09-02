@@ -1,8 +1,9 @@
+import { defaultWordmarkSize, defaultWordmarkStyleId, isWordmarkSize, isWordmarkStyleId, suggestWordmark, wordmarkSizeIds, wordmarkStyles, type WordmarkStyleId } from "../blocks/wordmarks";
 import type { CatalogBlockKind, CatalogReceiptBlock } from "../receipt/model";
 import type { UnitPreference } from "../state/defaults";
 import type { CatalogInsertConfig } from "./registry";
 
-export type UserDefaults = { location: string; unit: UnitPreference };
+export type UserDefaults = { location: string; unit: UnitPreference; ownerFirstName?: string };
 
 type FieldBase = {
   name: string;
@@ -41,6 +42,31 @@ const list = (values: ConfigValues, name: string) => Array.isArray(values[name])
 const count = (values: ConfigValues, name: string) => Math.max(0, Math.round(Number(values[name]) || 0));
 
 const descriptors: ConfigDescriptor[] = [
+  {
+    kind: "logo",
+    mode: "data",
+    summary: "Pick a mark, then say what it reads. Both lines stay editable on the receipt.",
+    fields: [
+      { name: "style", type: "select", label: "Mark", options: wordmarkStyles.map((style) => ({ value: style.id, label: style.name })) },
+      { name: "primary", type: "text", label: "Name", maxLength: 40, required: true },
+      { name: "secondary", type: "text", label: "Line beneath", placeholder: "Optional", maxLength: 40 },
+      { name: "size", type: "select", label: "Size", options: wordmarkSizeIds.map((size) => ({ value: size, label: size[0].toUpperCase() + size.slice(1) })) },
+    ],
+    defaults: (user) => {
+      const suggestion = suggestWordmark(defaultWordmarkStyleId, user.ownerFirstName ?? "");
+      return { style: defaultWordmarkStyleId, primary: suggestion.primary, secondary: suggestion.secondary, size: defaultWordmarkSize };
+    },
+    toInsertConfig: (values, user) => {
+      const style = isWordmarkStyleId(text(values, "style")) ? text(values, "style") as WordmarkStyleId : defaultWordmarkStyleId;
+      const suggestion = suggestWordmark(style, user.ownerFirstName ?? "");
+      const chosenSize = text(values, "size");
+      const size = isWordmarkSize(chosenSize) ? chosenSize : defaultWordmarkSize;
+      return { style, primary: text(values, "primary") || suggestion.primary, secondary: text(values, "secondary") || undefined, size };
+    },
+    fromBlock: (block) => block.kind === "logo"
+      ? { style: block.data.style, primary: block.data.primary, secondary: block.data.secondary ?? "", size: block.data.size ?? defaultWordmarkSize }
+      : {} as Partial<ConfigValues>,
+  },
   {
     kind: "weather",
     mode: "live",
@@ -115,9 +141,9 @@ const descriptors: ConfigDescriptor[] = [
       { name: "days", type: "number", label: "Days left", min: 0, max: 999 },
       { name: "label", type: "text", label: "Eyebrow", placeholder: "Next up", maxLength: 30 },
     ],
-    defaults: () => ({ event: "The big day", date: "", days: 7, label: "Next up" }),
+    defaults: () => ({ event: "Coast trip", date: "Friday, 4 PM", days: 7, label: "Next up" }),
     toInsertConfig: (values) => ({
-      event: text(values, "event") || "The big day",
+      event: text(values, "event") || "Coast trip",
       date: text(values, "date"),
       days: count(values, "days"),
       label: text(values, "label") || undefined,
@@ -152,4 +178,17 @@ export function missingRequiredField(descriptor: ConfigDescriptor, values: Confi
     if (field.type === "list") return list(values, field.name).length === 0;
     return !text(values, field.name);
   });
+}
+
+export type FavoriteInsertPlan =
+  | { action: "library" }
+  | { action: "insert"; config?: CatalogInsertConfig };
+
+/** Favorites and the “For you” shelf insert immediately when defaults can fill the form. */
+export function favoriteInsertPlan(kind: CatalogBlockKind, user: UserDefaults): FavoriteInsertPlan {
+  const descriptor = configDescriptorFor(kind);
+  if (!descriptor) return { action: "insert" };
+  const values = descriptor.defaults(user);
+  if (missingRequiredField(descriptor, values)) return { action: "library" };
+  return { action: "insert", config: descriptor.toInsertConfig(values, user) };
 }

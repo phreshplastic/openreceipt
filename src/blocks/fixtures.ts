@@ -8,6 +8,7 @@ export const newYorkLocation: PreviewLocation = {
 };
 
 export const samplePrototypeData: PrototypeDataMap = {
+  logo: { style: "owners-printer-western", primary: "PETE’S", secondary: "PRINTER", size: "medium" },
   weather: {
     condition: "Partly cloudy",
     summary: "Comfortable through lunch. Light rain may arrive late afternoon.",

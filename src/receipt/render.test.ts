@@ -16,7 +16,9 @@ describe("receipt renderer", () => {
     expect(first).toEqual(second);
     expect(first.width).toBe(printableWidthDots);
     expect(first.blocks).toHaveLength(document.blocks.length);
-    expect(first.svg).not.toMatch(/NaN|undefined/);
+    // Base64 font data is arbitrary letters and can spell "NaN" by chance, so the scan
+    // for bad coordinates looks at the drawing, not the payload riding with it.
+    expect(first.svg.replace(/<defs><style>[\s\S]*?<\/style><\/defs>/g, "")).not.toMatch(/NaN|undefined/);
   });
 
   it("wraps long words and explicit lines", () => {
@@ -36,12 +38,20 @@ describe("receipt renderer", () => {
 
   it("keeps trailing leading outside text-block selection geometry", () => {
     const document = createDefaultDocument();
+    const heading = createBlock("heading");
+    const text = createBlock("text");
+    if (heading.type !== "heading" || text.type !== "text") throw new Error("Expected heading and text blocks");
+    heading.text = "Display heading";
+    heading.level = "display";
+    text.text = "Body copy on the paper.";
+    document.blocks = [heading, text];
     const rendered = renderReceiptSvg(document);
-    const [heading, text] = rendered.blocks;
+    const headingBox = rendered.blocks.find((block) => block.type === "heading")!;
+    const textBox = rendered.blocks.find((block) => block.type === "text")!;
 
-    expect(heading.height).toBe(36);
-    expect(text.y - (heading.y + heading.height)).toBe(18);
-    expect(text.height).toBe(20);
+    expect(headingBox.height).toBe(36);
+    expect(textBox.y - (headingBox.y + headingBox.height)).toBe(18);
+    expect(textBox.height).toBe(20);
   });
 
   it("renders explicit text emphasis without changing the document font", () => {

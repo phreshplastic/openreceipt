@@ -1,6 +1,7 @@
 import { escapeXml, textAttributes, thermalType, wrapText, type TextStyle } from "../receipt/layout";
 import { renderThermalChart } from "../charts/thermal";
 import type { PaperWidthDots, PrototypeBlockId, PrototypeDataMap, RenderedPrototype } from "./types";
+import { renderLogo, signFontFace, usesSignFace } from "./wordmarks";
 
 export type PrototypePart = { markup: string; height: number };
 type Part = PrototypePart;
@@ -499,6 +500,7 @@ function renderCountdown(data: PrototypeDataMap["countdown"], width: number): Pa
 }
 
 const renderers: { [K in PrototypeBlockId]: (data: PrototypeDataMap[K], width: number) => Part } = {
+  logo: renderLogo,
   weather: renderWeather,
   air: renderAir,
   surf: renderSurf,
@@ -530,6 +532,7 @@ export function renderPrototypeBlock<K extends PrototypeBlockId>(id: K, data: Pr
   const contentWidth = width - padding * 2;
   const part = renderPrototypePart(id, data, contentWidth);
   const height = Math.max(120, Math.ceil(part.height + padding * 2));
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(id)} block preview" data-prototype="${id}"><rect width="${width}" height="${height}" fill="#fff"/><g transform="translate(${padding} ${padding})">${part.markup}</g></svg>`;
+  const font = usesSignFace(part.markup) ? signFontFace() : "";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(id)} block preview" data-prototype="${id}">${font}<rect width="${width}" height="${height}" fill="#fff"/><g transform="translate(${padding} ${padding})">${part.markup}</g></svg>`;
   return { svg, width, height };
 }

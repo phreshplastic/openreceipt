@@ -4,10 +4,11 @@ import { geocodeCity, loadAir, loadEarthquakes, loadGames, loadMarkets, loadSurf
 import { samplePrototypeData } from "../blocks/fixtures";
 import { renderPrototypeBlock, renderPrototypePart, type PrototypePart } from "../blocks/render";
 import type { PaperWidthDots, PreviewLocation, PrototypeBlockId } from "../blocks/types";
+import { createLogoData, defaultWordmarkStyleId, isWordmarkSize, isWordmarkStyleId, type WordmarkSize, type WordmarkStyleId } from "../blocks/wordmarks";
 import { catalogReceiptBlockSchema, createId, type CatalogBlockKind, type CatalogReceiptBlock } from "../receipt/model";
 
 export type LibraryAvailability = "available" | "preview";
-export type LibraryDataMode = "Live data" | "Write-in" | "Blank form" | "Design study";
+export type LibraryDataMode = "Wordmark" | "Live data" | "Write-in" | "Blank form" | "Design study";
 
 export type LibraryDefinition = {
   id: PrototypeBlockId;
@@ -22,12 +23,13 @@ export type LibraryDefinition = {
   requiresConfiguration: boolean;
 };
 
+export type LogoInsertConfig = { style: WordmarkStyleId; primary: string; secondary?: string; size?: WordmarkSize };
 export type WeatherInsertConfig = { city: string; unit: "fahrenheit" | "celsius" };
 export type LocationInsertConfig = { city: string };
 export type LeagueInsertConfig = { league: string };
 export type ChecklistGroupsInsertConfig = { title: string; note?: string; groups: Array<{ name: string; items: Array<{ text: string; checked?: boolean }> }> };
 export type CountdownInsertConfig = { event: string; date: string; days: number; label?: string; milestones?: Array<{ label: string; complete?: boolean }> };
-export type CatalogInsertConfig = WeatherInsertConfig | LocationInsertConfig | LeagueInsertConfig | ChecklistGroupsInsertConfig | CountdownInsertConfig | undefined;
+export type CatalogInsertConfig = LogoInsertConfig | WeatherInsertConfig | LocationInsertConfig | LeagueInsertConfig | ChecklistGroupsInsertConfig | CountdownInsertConfig | undefined;
 
 export type CatalogDependencies = {
   geocode(query: string, options?: LoadOptions): Promise<PreviewLocation>;
@@ -49,7 +51,7 @@ type WriteInFormKind = (typeof writeInFormKinds)[number];
 export const designStudyIds = new Set<PrototypeBlockId>(["departures", "home", "delivery"]);
 
 const availableKinds = new Set<CatalogBlockKind>([
-  "weather", "agenda", "habit", "checklistGroups", "countdown", "news", "air", "markets",
+  "logo", "weather", "agenda", "habit", "checklistGroups", "countdown", "news", "air", "markets",
   "mealPlan", "meetingNotes", "workoutLog", "surf", "games", "earthquakes", ...writeInFormKinds,
 ]);
 const liveIds = new Set<PrototypeBlockId>(["weather", "air", "surf", "games", "markets", "news", "earthquakes"]);
@@ -59,6 +61,7 @@ export const libraryDefinitions: LibraryDefinition[] = blockCatalog.map((prototy
   availability: availableKinds.has(prototype.id as CatalogBlockKind) ? "available" : "preview",
   // Say what the block will actually do once it is on paper, not what it looks like here.
   dataMode: !availableKinds.has(prototype.id as CatalogBlockKind) ? "Design study"
+    : prototype.id === "logo" ? "Wordmark"
     : liveIds.has(prototype.id) ? "Live data"
     : (writeInFormKinds as readonly string[]).includes(prototype.id) ? "Blank form"
     : "Write-in",
@@ -125,6 +128,25 @@ function dateLabel(now: Date) {
 export async function createCatalogBlock(kind: CatalogBlockKind, config?: CatalogInsertConfig, dependencies: CatalogDependencies = defaultDependencies): Promise<CatalogReceiptBlock> {
   const now = dependencies.now();
   const live = { refreshedAt: now.toISOString(), stale: false };
+
+  if (kind === "logo") {
+    const logo = config as LogoInsertConfig | undefined;
+    const style: WordmarkStyleId = logo && isWordmarkStyleId(logo.style) ? logo.style : defaultWordmarkStyleId;
+    // With no name to work from the mark still has to say something, so it falls
+    // back to its own suggestion rather than refusing to be added.
+    const suggested = createLogoData(style, "");
+    return catalogReceiptBlockSchema.parse({
+      id: createId(), type: "catalog", kind, definitionVersion: 1,
+      data: {
+        style,
+        primary: logo?.primary?.trim() || suggested.primary,
+        secondary: logo?.secondary?.trim() || undefined,
+        // Carried through rather than left to the schema default, so a size chosen in the
+        // insert form is the size that gets added.
+        size: logo?.size && isWordmarkSize(logo.size) ? logo.size : suggested.size,
+      },
+    });
+  }
 
   if (kind === "weather") {
     const weather = config as WeatherInsertConfig | undefined;

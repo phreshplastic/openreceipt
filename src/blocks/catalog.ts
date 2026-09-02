@@ -2,6 +2,13 @@ import type { BlockPrototype } from "./types";
 
 export const blockCatalog: BlockPrototype[] = [
   {
+    id: "logo",
+    name: "Logo",
+    category: "Identity",
+    description: "A shop sign for the top of the receipt, set in your own name.",
+    designNote: "Six wordmarks cut from one name — an arch, a bar, a masthead, a ticket, a badge, a block — each fitted to the paper it prints on.",
+  },
+  {
     id: "weather",
     name: "Daily weather",
     category: "Daily",
@@ -157,7 +164,7 @@ export const blockCatalog: BlockPrototype[] = [
   },
 ];
 
-export const prototypeCategories = ["Daily", "Live data", "Write-in", "Getting around", "Home & life"] as const;
+export const prototypeCategories = ["Identity", "Daily", "Live data", "Write-in", "Getting around", "Home & life"] as const;
 
 export function getPrototype(id: string) {
   return blockCatalog.find((prototype) => prototype.id === id);

@@ -40,12 +40,35 @@ describe("Block Library registry", () => {
     }
   });
 
+  it("adds a logo at the size chosen in the insert form, not the schema default", async () => {
+    // The size picked in the library form used to be discarded and re-derived from the
+    // schema default, so choosing Large silently produced a medium mark.
+    const large = await createCatalogBlock("logo", { style: "owners-printer-western", primary: "PETE'S", size: "large" }, dependencies);
+    const small = await createCatalogBlock("logo", { style: "owners-printer-western", primary: "PETE'S", size: "small" }, dependencies);
+    const fallback = await createCatalogBlock("logo", { style: "owners-printer-western", primary: "PETE'S" }, dependencies);
+    if (large.kind !== "logo" || small.kind !== "logo" || fallback.kind !== "logo") throw new Error("expected logo blocks");
+
+    expect(large.data.size).toBe("large");
+    expect(small.data.size).toBe("small");
+    expect(fallback.data.size).toBe("medium");
+
+    // And the chosen size has to reach the paper, not just the stored block.
+    const heightOf = (block: typeof large) => {
+      const document = createDefaultDocument();
+      document.blocks = [block];
+      return renderReceiptSvg(document).height;
+    };
+    expect(heightOf(small)).toBeLessThan(heightOf(large));
+  });
+
   it("migrates V1 documents to V2 without changing their core blocks", () => {
+    // A V1 document predates library blocks, so it can only ever have held core ones.
     const current = createDefaultDocument();
-    const legacy = { ...current, schemaVersion: 1 as const };
+    const core = current.blocks.filter((block) => block.type !== "catalog");
+    const legacy = { ...current, schemaVersion: 1 as const, blocks: core };
     const migrated = receiptDocumentSchema.parse(legacy);
     expect(migrated.schemaVersion).toBe(2);
-    expect(migrated.blocks).toEqual(current.blocks);
+    expect(migrated.blocks).toEqual(core);
   });
 
   it("preserves the last weather snapshot and marks a failed refresh stale", async () => {
@@ -61,8 +84,10 @@ describe("Block Library registry", () => {
 
   it("prepares catalog insertion without mutating the receipt and rejects a stale commit", async () => {
     const controller = new ReceiptController(createReceiptState(createDefaultDocument(), 4));
+    const before = controller.state.document.blocks.length;
     const document = await prepareReceiptCommands(controller.state, 4, [{ type: "insertCatalogBlock", kind: "agenda", index: 1 }], dependencies);
-    expect(controller.state.document.blocks).toHaveLength(4);
+    expect(controller.state.document.blocks).toHaveLength(before);
+    expect(document.blocks).toHaveLength(before + 1);
     controller.apply(4, [{ type: "setTitle", title: "Human edit" }]);
     expect(() => controller.commitPrepared(4, document)).toThrow(StaleReceiptRevisionError);
   });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { WordmarkSize, WordmarkStyleId } from "../blocks/wordmarks";
 
 const id = z.string().uuid();
 const align = z.enum(["left", "center", "right"]);
@@ -79,6 +80,36 @@ export const coreReceiptBlockSchema = z.discriminatedUnion("type", [
   tableBlockSchema,
   dividerBlockSchema,
 ]);
+
+/** Kept in step with the wordmark catalog; an id here that it does not know fails to type. */
+const wordmarkStyleIds = [
+  "owners-printer-western",
+  "kitchen-dispatch",
+  "masthead-press",
+  "mono-ticket",
+  "oval-badge",
+  "block-modern",
+] as const satisfies readonly WordmarkStyleId[];
+
+/** Kept in step with the wordmark catalog's size scale; see wordmarks.ts. */
+const wordmarkSizeIds = ["small", "medium", "large"] as const satisfies readonly WordmarkSize[];
+
+const logoCatalogBlockSchema = z.object({
+  id,
+  type: z.literal("catalog"),
+  kind: z.literal("logo"),
+  definitionVersion: z.literal(1),
+  // Both lines may be emptied mid-edit; the mark falls back to a default rather
+  // than rejecting the keystroke that cleared the field.
+  data: z.object({
+    style: z.enum(wordmarkStyleIds),
+    primary: z.string().max(40),
+    secondary: z.string().max(40).optional(),
+    // Old stored receipts have no size key at all; default (not required) so
+    // they still parse and land on the same size they always rendered at.
+    size: z.enum(wordmarkSizeIds).default("medium"),
+  }),
+});
 
 const weatherDataSchema = z.object({
   condition: z.string().max(120),
@@ -324,6 +355,7 @@ const earthquakesCatalogBlockSchema = z.object({
 });
 
 export const catalogReceiptBlockSchema = z.discriminatedUnion("kind", [
+  logoCatalogBlockSchema,
   weatherCatalogBlockSchema,
   agendaCatalogBlockSchema,
   habitCatalogBlockSchema,

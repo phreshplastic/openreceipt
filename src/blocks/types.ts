@@ -1,4 +1,9 @@
+import type { LogoData } from "./wordmarks";
+
+export type { LogoData };
+
 export type PrototypeBlockId =
+  | "logo"
   | "weather"
   | "air"
   | "surf"
@@ -20,7 +25,7 @@ export type PrototypeBlockId =
   | "countdown"
   | "checklistGroups";
 
-export type PrototypeCategory = "Daily" | "Live data" | "Write-in" | "Getting around" | "Home & life";
+export type PrototypeCategory = "Identity" | "Daily" | "Live data" | "Write-in" | "Getting around" | "Home & life";
 export type PaperWidthDots = 576 | 420;
 export type DataState = "live" | "sample" | "sample-fallback" | "loading";
 
@@ -153,6 +158,7 @@ export type CountdownData = {
 };
 
 export type PrototypeDataMap = {
+  logo: LogoData;
   weather: WeatherData;
   air: AirData;
   surf: SurfData;
