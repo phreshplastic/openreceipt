@@ -15,6 +15,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      # The deployed site is a different build from the one `check` produces, so it gets
+      # its own pass: pre-rendering, discovery files, and the initial-JavaScript budget.
+      - run: npm run build:public
+        env:
+          PETES_PRINTER_PUBLIC_URL: https://openreceipt.example
 
   bridge:
     runs-on: ubuntu-latest

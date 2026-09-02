@@ -64,6 +64,22 @@ def commit_receipt(client, headers, document=None, expected=None, proposed=0, mu
     })
 
 
+def test_public_static_site_serves_clean_routes_and_real_404s(tmp_path):
+    web = tmp_path / "web"
+    (web / "guides" / "example").mkdir(parents=True)
+    (web / "index.html").write_text("<h1>Home</h1>")
+    (web / "guides" / "example" / "index.html").write_text("<h1>Guide</h1>")
+    (web / "404.html").write_text("<h1>Missing</h1>")
+    (web / ".public-site").write_text("https://example.test\n")
+
+    app = create_app(tmp_path / "data", web, manager=PrinterManager(BridgeStore(tmp_path / "data"), transport_factory=SuccessfulTransport))
+    with TestClient(app) as client:
+        assert client.get("/guides/example").text == "<h1>Guide</h1>"
+        missing = client.get("/not-a-page")
+        assert missing.status_code == 404
+        assert missing.text == "<h1>Missing</h1>"
+
+
 def test_public_bridge_interface_and_idempotent_replay(tmp_path):
     store = BridgeStore(tmp_path)
     manager = PrinterManager(store, transport_factory=SuccessfulTransport)

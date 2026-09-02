@@ -85,7 +85,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
     @app.put("/api/v1/configuration")
     async def configure(payload: ConfigurationRequest, request: Request):
         auth.authorize(request, set(), unsafe=True, ui_only=True)
-        return await asyncio.to_thread(printer.configure, payload.profileId)
+        return await asyncio.to_thread(printer.configure, payload.profileId, payload.adapter)
 
     @app.get("/api/v1/receipt")
     async def get_receipt(request: Request):
@@ -221,6 +221,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
 
     if web_directory and web_directory.exists():
         assets = web_directory / "assets"
+        public_site = (web_directory / ".public-site").exists()
         if assets.exists():
             app.mount("/assets", StaticFiles(directory=assets), name="assets")
 
@@ -229,6 +230,11 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
             requested = (web_directory / path).resolve()
             if path and requested.is_relative_to(web_directory.resolve()) and requested.is_file():
                 return FileResponse(requested)
+            directory_index = requested / "index.html"
+            if path and requested.is_relative_to(web_directory.resolve()) and directory_index.is_file():
+                return FileResponse(directory_index)
+            if public_site:
+                return FileResponse(web_directory / "404.html", status_code=404)
             return FileResponse(web_directory / "index.html")
     else:
         @app.get("/")
