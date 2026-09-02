@@ -1,0 +1,70 @@
+# AI-assisted video tools for the WebMCP demo
+
+Checked September 1, 2026 against official product documentation, publisher repositories, and the supplied first-person workflow sources. The practical recommendation is a hybrid: real Screen Studio capture, real phone footage of the printer, clean human narration, and a short Remotion assembly. That gets the polish of a feature-launch film without making a new beta editor or generative-video model responsible for the submission.
+
+## Recommended stack for Pete's Printer
+
+1. **Capture the app in Screen Studio.** Record the software flow clean at 1440p or 4K without live narration, then use its automatic/manual zooms, cursor smoothing, layout controls, trimming, and local captions only where they help. Screen Studio is a mature Mac capture tool, supports up to 4K60, and is much faster to polish than a raw Loom recording. [Screen Studio features](https://screen.studio/) and [changelog](https://screen.studio/changelog)
+2. **Shoot the physical payoff for real.** Use an iPhone or similar camera in 4K with locked focus/exposure, stable support, and soft side light. Get a wide printer shot, paper feed, close-up of the mechanism, a hand lifting the receipt, and a final readable hero shot. Keep a clean take of the printer sound. Generating this footage would weaken the proof that the product works.
+3. **Record the voice separately.** Lock a 2:30–2:45 script, record Pete's own voice after the rough visual sequence exists, and clean it with Adobe Podcast Enhance Speech v2 at a restrained strength. It removes noise and echo and exposes separate speech/background controls; it is a low-risk web workflow compared with learning a full audio suite. [Adobe Podcast](https://podcast.adobe.com/) and [Adobe Podcast updates](https://podcast.adobe.com/guides/latest-updates)
+4. **Assemble and animate in Remotion with an agent.** Put the captured clips, printer shots, narration, and a cue-sheet JSON in a separate video project. Use React components for title cards, large UI crops, tool-call labels, the human approval moment, and the final print reveal. Render stills at key frames for review before full exports. Remotion now explicitly supports coding-agent workflows, keeps code as the source of truth, and its official agent skills install with `npx skills add remotion-dev/skills`; Remotion also publishes Claude Code, Codex, and Cursor plugins. [Remotion](https://www.remotion.dev/) and [official Agent Skills](https://github.com/remotion-dev/remotion/blob/main/packages/skills/README.md)
+5. **Use licensed instrumental jazz under the narration.** The safest zero-cost source is YouTube Audio Library with the “Attribution not required” filter; Creative Commons tracks require the exact supplied credit. Eleven Music v2 is an optional bespoke-music route, but only after checking the applicable plan and model-specific terms and saving the license evidence. [YouTube Audio Library terms](https://support.google.com/youtube/answer/3376882), [Eleven Music](https://elevenlabs.io/docs/overview/capabilities/music), and [Eleven Music terms](https://elevenlabs.io/music-terms)
+6. **Ship two caption layers.** Burn in a few designed phrases or tool names in Remotion, then upload a complete, reviewed SRT to YouTube. YouTube says automatic captions can be inaccurate, so they are not a substitute for review. [Remotion captions](https://www.remotion.dev/docs/captions), [YouTube caption upload](https://support.google.com/youtube/answer/2734796), and [automatic-caption limitations](https://support.google.com/youtube/answer/6373554)
+
+This stack should cost roughly one month of Screen Studio plus zero to a few dollars for optional audio generation. Remotion is free for individuals and organizations of up to three people with commercial use allowed; organizations of four or more need a company license. [Remotion license and pricing](https://www.remotion.dev/)
+
+## What to borrow from the Anthropic reference
+
+The supplied [Claude Design launch video](https://www.youtube.com/watch?v=t_LBECIQQqs) is 1:21 and uses the product interface as the motion graphic: full-bleed UI, macro crops, deliberate cursor choreography, rhythmic punch-ins, short montages, and very little editorial text. Pete's Printer should borrow that visual grammar and restrained warm treatment, but it cannot copy Anthropic footage, music, marks, or UI assets. Unlike that music-led reference, this challenge requires audio that explains what was built and how WebMCP was used, so concise narration has to carry the mechanism.
+
+## The Claude Code/Remotion case study
+
+Thariq Shaukat's first-person [“How Fable edited its own launch video” deck](https://thariqs.github.io/cc-video-editing-deck/) is the strongest proof that an agentic, code-driven launch-video workflow is practical. The source material was 17 takes across four scenes, roughly 25 GB of Sony S-Log3 4K footage. Claude Code transcribed and compared takes, recorded clip decisions and time ranges in JSON, used FFmpeg for a frame-accurate rough cut, wrote seven `.cube` LUT options, rebuilt 11 static design frames as animated React/Remotion components, and timed overlays from transcript word timestamps. The final was 3840×2160 at 24 fps, 4,334 frames, three minutes, and was rerendered about ten times over four days.
+
+The workflow's durable idea is that the edit becomes inspectable files—transcript JSON, edit JSON, LUTs, React components, global timing controls, and a cue sheet—rather than a one-off editor project. The deck also shows the human still supplied footage, design direction, selection taste, and visual review. It is not a one-prompt guarantee, and reproducing the full four-day process under this deadline would be risky.
+
+The supplied [Vox summary post](https://x.com/Voxyz_ai/status/2064830154401251508) accurately highlights the broad sequence: prompt-driven take selection, JSON and FFmpeg rough cut, generated LUT choices, Remotion overlays synchronized to word timestamps, and a Figma round trip. One detail needs qualification: the initiating prompt asked for ElevenLabs transcription, but the deck's implementation account says the 17 takes were transcribed locally with Whisper on an M4 Max. The deck, not the repost, should be treated as the source of record.
+
+For a faster starting point, [video-shotcraft](https://github.com/Vincentwei1021/video-shotcraft) is an Apache-2.0 agent skill for Claude Code and Codex built around Remotion. Its current publisher gallery advertises 152 shot recipes and 209 motion previews, and the repository includes the 36.2-second, 10-shot “Ink Press” paper-and-amber template—an unusually apt starting vocabulary for a printer product. Use it as a shot library and structural scaffold, then replace every demonstration screenshot and verify every bundled audio asset's separate attribution record. [Current gallery](https://vincentwei1021.github.io/video-shotcraft/) and [Ink Press template](https://github.com/Vincentwei1021/video-shotcraft/blob/main/template/TEMPLATE.md)
+
+Do **not** use [video-talkcraft](https://github.com/Vincentwei1021/video-talkcraft) for the prize submission without written permission. Its repository says creators own videos produced with the toolkit, but the toolkit itself uses PolyForm Noncommercial 1.0.0 and requires authorization for commercial use; a sponsored prize submission is too ambiguous to treat as safely noncommercial. [Repository license](https://github.com/Vincentwei1021/video-talkcraft/blob/main/LICENSE)
+
+## Tool maturity and where each fits
+
+| Workflow | Status by September 1, 2026 | Use here |
+| --- | --- | --- |
+| [Screen Studio](https://screen.studio/) | Mature and deadline-safe for Mac capture; automatic zoom, cursor treatment, layouts, audio, transcript/captions, and 4K60 export are shipping features. | Primary software capture. |
+| [Loom AI](https://www.loom.com/ai) | Mature for face-and-screen messages, filler-word/silence removal, summaries, and chapters, but the visual result reads more like a walkthrough than a launch film. | Emergency fallback if the composed version runs late. |
+| [Descript](https://www.descript.com/video-editing) | Mature transcript editing, filler removal, Studio Sound, captions, and scene layouts. | Fast narration or talking-head cleanup. |
+| [Descript Underlord](https://feedback.descript.com/changelog/the-new-underlord-now-on-for-everyone-beta) | Public beta; the conversational co-editor can build and revise sequences, add captions, and create social cuts, but output still needs close review. | Try only on duplicate media for a rough cut. |
+| [Premiere text-based editing](https://helpx.adobe.com/premiere/desktop/edit-projects/edit-video-using-text-based-editing/edit-sequences-using-text-based-editing.html) | Mature professional transcript-to-timeline workflow with full manual finishing. | Good if Pete already knows Premiere; too much to learn now. |
+| [Premiere AI Assistant](https://helpx.adobe.com/premiere/desktop/premiere-ai-assistant/overview.html) | Early public beta that can organize media, process transcripts, add markers, and assemble a stringout/first cut. Adobe explicitly says it is not recommended for client work yet. | Experimental helper on a fresh or duplicate project, never the only edit. |
+| [DaVinci Resolve 21](https://www.blackmagicdesign.com/products/davinciresolve/whatsnew) | The core NLE, color, Fusion, and Fairlight tools are mature; Resolve 21 itself is a 2026 major update with new AI search and motion-graphics features. Free version available; Studio is $295. | Strong final color/mix option only if already familiar. |
+| [Remotion](https://www.remotion.dev/) plus its [official agent skills](https://github.com/remotion-dev/remotion/blob/main/packages/skills/README.md) | The renderer and React model are mature; agent-authored aesthetics and timing still require human review. | Primary motion/assembly path because it is deterministic, diffable, and reusable. |
+| [Adobe Podcast Enhance Speech](https://podcast.adobe.com/) | Mature, low-friction dialogue cleanup. | Primary voice cleanup. |
+| [ElevenLabs TTS](https://elevenlabs.io/docs/overview/capabilities/text-to-speech) | Mature synthetic voice with timestamp and forced-alignment APIs; commercial use depends on plan and input rights. | Backup narration or timestamp generation, preferably using Pete's own voice only. |
+| [Runway Edit Studio/Aleph](https://help.runwayml.com/hc/en-us/articles/51683104370451-Creating-with-Edit-Studio) | Shipping generative transformation workflow, but results are nondeterministic and can alter factual details. | Optional abstract transition, not app or printer proof. |
+| [Google Flow](https://labs.google/fx/tools/flow) | Rapidly evolving agentic/generative video suite; Google warns outputs may be inaccurate. | Experimental B-roll only. |
+| [Adobe Firefly video](https://helpx.adobe.com/firefly/web/work-with-audio-and-video/work-with-video/generate-videos-using-text-prompts.html) | Shipping generator with Adobe's clearer commercial-safety posture; creative generation still needs artifact review. | At most one brief abstract bridge if real footage cannot cover it. |
+
+Sora should not be part of the plan: OpenAI discontinued the Sora web/app product on April 26, 2026 and says its API will shut down September 24, 2026. [OpenAI Sora transition notice](https://help.openai.com/en/articles/20001152-what-t)
+
+## Music, voice, and rights caveats
+
+- Eleven Music v2 is now the default web model and improves prompt adherence, composition, and editing, but “cleared for broad commercial use” is conditional. ElevenLabs says self-serve plans permit online and offline commercial use except film, TV, and studio games, while free outputs require attribution and beta outputs cannot be used commercially. Use a paid plan, make an instrumental prompt without naming a living artist, and retain the terms, prompt, output date, and invoice. [Music v2 overview](https://elevenlabs.io/docs/eleven-creative/products/music), [commercial-use FAQ](https://help.elevenlabs.io/hc/en-us/articles/13313564601361-Can-I-publish-the-content-I-generate-on-the-platform), and [model-specific terms](https://elevenlabs.io/music-terms)
+- ElevenLabs' general paid-plan commercial license does not cure rights problems in the input. Pete must own any voice sample and music reference he uploads. [ElevenLabs publishing FAQ](https://help.elevenlabs.io/hc/en-us/articles/13313564601361-Can-I-publish-the-content-I-generate-on-the-platform)
+- Keep a tiny rights ledger with the music title, author, source URL, license/plan, download date, required attribution, footage owner, and any generative prompt. Save the license evidence beside the final export.
+- Do not use Anthropic/Claude marks, clips, screenshots, or music. Copy the pacing and framing language, not the assets. Hide avoidable third-party marks in browser chrome and demo data.
+
+## Compressed production workflow
+
+The safest schedule is a deterministic edit with a single fallback path:
+
+1. Cut a paper storyboard to 2:30–2:45 and make the first 15 seconds reach the agent-to-physical-print payoff.
+2. Record the complete software path in Screen Studio and the five essential physical printer shots on a phone.
+3. Build a narration-first Remotion timeline, using Shotcraft only for selected camera moves, cards, and the paper/ink visual vocabulary.
+4. Add the real printer sound, then licensed jazz at a low level; use generated music only if the license record is settled before editing.
+5. Review key-frame stills, render the full film, check every factual UI claim and physical continuity, then upload and review the SRT and YouTube copyright checks.
+6. If Remotion timing is not stable by the internal cutoff, export a simpler Screen Studio/Loom hybrid rather than moving the whole project into an unfamiliar beta editor.
+
+The call is Remotion plus real capture, with Loom or a simple NLE cut as the fallback; the only condition that should flip that choice is Pete already being substantially faster in Premiere or Resolve than in React.
