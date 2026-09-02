@@ -1,0 +1,99 @@
+{
+  "project": "Pete's Printer WebMCP Challenge demo",
+  "source": "../docs/demo-video-screenplay.md",
+  "format": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "targetDurationSeconds": 162,
+    "maximumDurationSeconds": 165
+  },
+  "treatment": {
+    "reference": "Restrained launch-film pacing with full-bleed UI, macro crops, warm paper and ink colors, deliberate cursor choreography, and sparse editorial text.",
+    "evidenceRule": "Real capture supplies all interface behavior, WebMCP calls, approval, printer operation, and finished paper.",
+    "audioRule": "Pete's narration stays effortless to hear; jazz remains low; real printer sound leads the opening and physical payoff."
+  },
+  "sequences": [
+    {
+      "id": "cold-open",
+      "start": 0,
+      "end": 8,
+      "primaryAssets": ["physical-cold-open", "physical-tear", "printer-sfx"],
+      "copy": ["A website, an agent, and a real printer."],
+      "proof": "Show the finished physical result before explaining it."
+    },
+    {
+      "id": "product-premise",
+      "start": 8,
+      "end": 22,
+      "primaryAssets": ["physical-wide"],
+      "copy": ["Pete's Printer", "Make a little something."],
+      "proof": "Establish the browser, local printer, and human context in one frame."
+    },
+    {
+      "id": "shared-receipt",
+      "start": 22,
+      "end": 36,
+      "primaryAssets": ["screen-editor"],
+      "copy": ["One shared receipt"],
+      "proof": "Show a real direct edit on the dot-accurate receipt canvas."
+    },
+    {
+      "id": "webmcp-connection",
+      "start": 36,
+      "end": 54,
+      "primaryAssets": ["screen-agent-prompt"],
+      "copy": ["list_receipt_recipes", "WebMCP connected"],
+      "proof": "Keep the named structured tool call readable."
+    },
+    {
+      "id": "structured-draft",
+      "start": 54,
+      "end": 75,
+      "primaryAssets": ["screen-draft"],
+      "copy": ["draft_receipt", "Situation -> finished paper"],
+      "proof": "Show the real Lisbon countdown, flight facts, weather, and grouped packing."
+    },
+    {
+      "id": "granular-collaboration",
+      "start": 75,
+      "end": 96,
+      "primaryAssets": ["screen-granular-edit"],
+      "copy": ["get_receipt -> edit_receipt", "Granular, revision-checked edits"],
+      "proof": "Show one line changing while the rest of the document remains stable."
+    },
+    {
+      "id": "physical-preview",
+      "start": 96,
+      "end": 110,
+      "primaryAssets": ["screen-preview"],
+      "copy": ["preview_receipt"],
+      "copyFromCapture": ["actualDotWidth", "actualPaperLengthMm"],
+      "proof": "Use captured output values; never leave placeholder measurements in the final."
+    },
+    {
+      "id": "human-approval",
+      "start": 110,
+      "end": 129,
+      "primaryAssets": ["screen-approval"],
+      "copy": ["request_receipt_print", "Human approval required"],
+      "proof": "Hold long enough to read revision, dimensions, destination, and cancellation behavior."
+    },
+    {
+      "id": "approve-and-print",
+      "start": 129,
+      "end": 147,
+      "primaryAssets": ["screen-approve-feed", "physical-full-print", "printer-sfx"],
+      "copy": ["Exact preview -> local USB print"],
+      "proof": "Match-cut the real approval to the real printer producing the same receipt."
+    },
+    {
+      "id": "physical-resolution",
+      "start": 147,
+      "end": 162,
+      "primaryAssets": ["physical-match", "physical-use"],
+      "copy": ["Pete's Printer", "Make a little something.", "Built with WebMCP"],
+      "proof": "End on readable paper in a believable place of use."
+    }
+  ]
+}
