@@ -30,6 +30,7 @@ export const blockVocabulary: BlockVocabularyEntry[] = [
   { type: "games", live: true, whenToUse: "Today's fixtures for one sport.", needs: "league? Basketball|Soccer|Baseball|Ice Hockey" },
   { type: "quakes", live: true, whenToUse: "Magnitude 4.5+ worldwide in the past day.", needs: "nothing" },
   { type: "form", live: false, whenToUse: "A blank ruled form to fill in with a pen; carries no content.", needs: "form: dailyPlan|packingList|weatherJournal (blank) or mealPlan|meetingNotes|workoutLog (fill with addItem)" },
+  { type: "logo", live: false, whenToUse: "The shop sign at the top of a receipt. One per receipt, first block. Leave the existing one alone unless asked.", needs: "name; tagline?; mark? owners-printer-western|kitchen-dispatch|masthead-press|mono-ticket|oval-badge|block-modern" },
 ];
 
 export const blockVocabularyByType = new Map(blockVocabulary.map((entry) => [entry.type, entry]));

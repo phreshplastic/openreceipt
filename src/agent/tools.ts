@@ -2,15 +2,26 @@ import { z } from "zod";
 import type { CatalogDependencies } from "../block-library";
 import type { PrintResult } from "../printing/coordinator";
 import { receiptDocumentSchema, type ReceiptBlock, type ReceiptDocument } from "../receipt/model";
+import { keepSign } from "../receipt/templates";
 import { addChild, blockLabel, collectionFor, removeChild, viewCollection, writeChild } from "../receipt/collections";
 import type { ReceiptState } from "../receipt/controller";
 import { refreshCatalogBlock } from "../block-library";
+import {
+  agentFocusBlockIds,
+  captionForDraft,
+  captionForDraftProgress,
+  captionForOperations,
+  captionForPhase,
+  captionForPrint,
+  captionForRename,
+  changedBlockIds,
+  type AgentPhase,
+} from "./captions";
 import { clampOutput, describeBlock, diffReceipts, measureReceipt, outlineReceipt, renderReceiptText } from "./outline";
 import { recipes, suggestRecipes } from "./recipes";
 import { blockVocabulary, collectionFields } from "./vocabulary";
 import { compileDraftBlock, compileDraftBlocks, draftBlockSchema } from "./schema";
 
-export type AgentPhase = "reading" | "drafting" | "editing" | "waitingForApproval" | "printing" | "complete" | "error";
 export type AgentActivity = { phase: AgentPhase; message: string; blockIds?: string[] };
 
 export type AgentAppStatus = {
@@ -95,6 +106,10 @@ const receiptInput = z.object({ detail: z.enum(["outline", "text", "json"]).opti
 const recipesInput = z.object({ situation: z.string().max(400).optional() }).strict();
 const printInput = z.object({ expectedRevision: revision, reason: z.string().min(1).max(240).optional() }).strict();
 const openInput = z.object({ highlight: z.array(z.string()).max(20).optional() }).strict();
+const renameInput = z.object({
+  title: z.string().min(1).max(160),
+  expectedRevision: revision.optional(),
+}).strict();
 
 /** Resolves a 1-based position against the current block list. */
 function blockAt(document: ReceiptDocument, at: number): ReceiptBlock {
@@ -207,7 +222,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
   return [
     {
       name: "get_app_status",
-      title: "Check Pete's Printer",
+      title: "Check OpenReceipt",
       description: "Reports the editor URL, whether setup is done, whether the printer bridge is reachable, the current print policy, and the last print result. Call this first when you are not sure the app is ready.",
       inputSchema: emptyInput,
       readOnly: true,
@@ -238,7 +253,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
       untrustedContent: true,
       async execute(input, signal) {
         const { detail = "outline" } = receiptInput.parse(input ?? {});
-        notify({ phase: "reading", message: "The agent is reading the receipt" });
+        notify({ phase: "reading", message: captionForPhase("reading") });
         const state = await backend.getState(signal);
         const body = detail === "json" ? JSON.stringify(state.document) : detail === "text" ? renderReceiptText(state.document) : outlineReceipt(state.document, state.revision);
         const clamped = clampOutput(body);
@@ -295,22 +310,25 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     {
       name: "draft_receipt",
       title: "Draft a receipt",
-      description: "Replaces the whole receipt with a new one, composed from the block vocabulary. This is the main tool: one call turns a described situation into finished paper. It never prints. Pass dryRun to see the result and its paper length without changing anything.",
+      description: "Replaces the whole receipt with a new one, composed from the block vocabulary. This is the main tool: one call turns a described situation into finished paper. Give it a short distinctive title — that name is how the person finds it on the drafts shelf, and it is not the heading printed on the paper. It never prints. Pass dryRun to see the result and its paper length without changing anything.",
       inputSchema: draftInput,
       readOnly: false,
       untrustedContent: true,
       async execute(input, signal) {
         const parsed = draftInput.parse(input);
         const state = await requireState(parsed.expectedRevision, signal);
-        notify({ phase: "drafting", message: "The agent is drafting a receipt" });
-        const blocks = await compileDraftBlocks(parsed.blocks, backend.dependencies);
-        const next = receiptDocumentSchema.parse({ ...state.document, title: parsed.title, blocks }) as ReceiptDocument;
+        notify({ phase: "drafting", message: captionForPhase("drafting") });
+        const blocks = await compileDraftBlocks(parsed.blocks, backend.dependencies, (block) => {
+          notify({ phase: "drafting", message: captionForDraftProgress(block) });
+        });
+        const next = receiptDocumentSchema.parse({ ...state.document, title: parsed.title, blocks: keepSign(state.document, blocks) }) as ReceiptDocument;
+        const drafted = captionForDraft(parsed.title);
         if (parsed.dryRun) {
-          notify({ phase: "complete", message: "The agent previewed a draft" });
+          notify({ phase: "complete", message: "Previewed a draft" });
           return reportChange(state.document, next, undefined, true);
         }
-        const committed = await backend.commit(state.revision, next, `Drafted “${parsed.title}”.`, signal);
-        notify({ phase: "complete", message: `The agent drafted “${parsed.title}”`, blockIds: committed.document.blocks.map((block) => block.id) });
+        const committed = await backend.commit(state.revision, next, drafted, signal);
+        notify({ phase: "complete", message: drafted, blockIds: agentFocusBlockIds(committed.document.blocks, changedBlockIds(state.document, committed.document)) });
         return reportChange(state.document, committed.document, committed.revision, false);
       },
     },
@@ -325,15 +343,34 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
       async execute(input, signal) {
         const parsed = editInput.parse(input);
         const state = await requireState(parsed.expectedRevision, signal);
-        notify({ phase: "editing", message: "The agent is editing the receipt" });
+        notify({ phase: "editing", message: captionForPhase("editing") });
         const next = await applyEditOperations(structuredClone(state.document), parsed.operations, backend.dependencies);
+        const edited = captionForOperations(parsed.operations);
         if (parsed.dryRun) {
-          notify({ phase: "complete", message: "The agent previewed an edit" });
+          notify({ phase: "complete", message: "Previewed an edit" });
           return reportChange(state.document, next, undefined, true);
         }
-        const summary = parsed.operations.map((operation) => operation.op).join(", ");
-        const committed = await backend.commit(state.revision, next, `Applied ${summary}.`, signal);
-        notify({ phase: "complete", message: `The agent applied ${parsed.operations.length} change${parsed.operations.length === 1 ? "" : "s"}`, blockIds: committed.document.blocks.map((block) => block.id) });
+        const committed = await backend.commit(state.revision, next, edited, signal);
+        notify({ phase: "complete", message: edited, blockIds: agentFocusBlockIds(committed.document.blocks, changedBlockIds(state.document, committed.document)) });
+        return reportChange(state.document, committed.document, committed.revision, false);
+      },
+    },
+
+    {
+      name: "rename_receipt",
+      title: "Name the receipt",
+      description: "Sets the receipt's title — the name in the editor header and the drafts list, not the heading printed on the paper. Use this whenever you draft something new or the current name is generic (Today, Untitled). A clear title is how a person tells receipts apart.",
+      inputSchema: renameInput,
+      readOnly: false,
+      untrustedContent: false,
+      async execute(input, signal) {
+        const parsed = renameInput.parse(input);
+        const state = await requireState(parsed.expectedRevision, signal);
+        notify({ phase: "editing", message: "Naming the receipt" });
+        const next = receiptDocumentSchema.parse({ ...state.document, title: parsed.title }) as ReceiptDocument;
+        const named = captionForRename(parsed.title);
+        const committed = await backend.commit(state.revision, next, named, signal);
+        notify({ phase: "complete", message: named });
         return reportChange(state.document, committed.document, committed.revision, false);
       },
     },
@@ -347,7 +384,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
       untrustedContent: true,
       async execute(input, signal) {
         emptyInput.parse(input ?? {});
-        notify({ phase: "reading", message: "The agent is checking the preview" });
+        notify({ phase: "reading", message: "Checking the preview" });
         const state = await backend.getState(signal);
         backend.focusPreview?.();
         const measured = measureReceipt(state.document);
@@ -378,7 +415,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
         const before = await backend.getState();
         const state = await backend.undo();
         if (!state) throw new Error("There is nothing to undo.");
-        notify({ phase: "complete", message: "The agent undid the last change", blockIds: state.document.blocks.map((block) => block.id) });
+        notify({ phase: "complete", message: "Undid the last change", blockIds: agentFocusBlockIds(state.document.blocks, changedBlockIds(before.document, state.document)) });
         return reportChange(before.document, state.document, state.revision, false);
       },
     },
@@ -386,7 +423,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     {
       name: "request_receipt_print",
       title: "Request a print",
-      description: "Prints the exact revision you name. This is consequential and irreversible — paper comes out. Depending on the person's settings it may pause for an explicit tap of approval in the browser. Preview first.",
+      description: "Prints the exact revision you name. On a connected printer this is irreversible and paper comes out. In the browser demo it opens a preview instead. May pause for approval. Preview first.",
       inputSchema: printInput,
       readOnly: false,
       untrustedContent: false,
@@ -394,14 +431,18 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
         const parsed = printInput.parse(input);
         const state = await backend.getState(signal);
         if (parsed.expectedRevision !== state.revision) throw new StaleRevision(parsed.expectedRevision, state.revision);
-        notify({ phase: "waitingForApproval", message: "The agent is requesting print approval", blockIds: state.document.blocks.map((block) => block.id) });
+        notify({ phase: "waitingForApproval", message: captionForPhase("waitingForApproval") });
         const result = await backend.requestPrint(parsed.expectedRevision, parsed.reason, signal);
-        notify({ phase: result.status === "failed" || result.status === "unknown" ? "error" : "complete", message: result.message });
+        const failed = result.status === "failed" || result.status === "unknown";
+        notify({
+          phase: result.status === "awaiting_approval" ? "waitingForApproval" : failed ? "error" : "complete",
+          message: captionForPrint(result.status, result.message),
+        });
         return {
           text: result.message,
           data: {
             ...result,
-            nextAction: result.status === "succeeded" ? "It printed. Nothing further is needed."
+            nextAction: result.status === "succeeded" ? (result.jobId ? "It printed. Nothing further is needed." : "The demo print opened. Nothing was sent to a printer.")
               : result.status === "awaiting_approval" ? "Tell them to tap “Approve and print” in the browser, then confirm with get_print_job_status. Do not resubmit."
               : result.status === "unknown" ? "Check the printer itself before trying again — the job may have partly printed."
               : result.status === "rejected" ? "The person declined. Ask what to change."
@@ -440,11 +481,11 @@ export async function runAgentTool(tool: AgentToolDefinition, input: unknown, ba
       return { text: `That input did not match the schema.\n${issues.join("\n")}`, data: { status: "invalid_input", issues, currentRevision: current, nextAction: "Fix the fields above and call again." }, isError: true };
     }
     if (error instanceof StaleRevision) {
-      backend.onActivity?.({ phase: "error", message: "The agent used a stale revision" });
+      backend.onActivity?.({ phase: "error", message: "Receipt changed, retrying" });
       return { text: error.message, data: { status: "stale", currentRevision: error.current, nextAction: "Call get_receipt and retry with the revision it returns." }, isError: true };
     }
     const message = error instanceof Error ? error.message : "The receipt tool failed.";
-    backend.onActivity?.({ phase: "error", message: "The agent hit an error" });
+    backend.onActivity?.({ phase: "error", message: "Couldn't apply that" });
     return { text: message, data: { status: "error", currentRevision: current, nextAction: "Read the message, adjust, and try once more." }, isError: true };
   }
 }

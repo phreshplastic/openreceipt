@@ -31,7 +31,7 @@ describe("WebMCP registration", () => {
     expect(await registration.ready).toBe(true);
     expect(tools.map((tool) => tool.name)).toEqual([
       "get_app_status", "get_receipt", "list_receipt_blocks", "list_receipt_recipes",
-      "draft_receipt", "edit_receipt", "preview_receipt", "undo_agent_edit",
+      "draft_receipt", "edit_receipt", "rename_receipt", "preview_receipt", "undo_agent_edit",
       "request_receipt_print", "open_receipt_editor",
     ]);
     expect(tools.every((tool) => tool.inputSchema.additionalProperties === false)).toBe(true);

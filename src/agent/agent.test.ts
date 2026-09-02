@@ -8,7 +8,7 @@ import { createDefaultDocument } from "../receipt/templates";
 import { TOOL_OUTPUT_LIMIT, clampOutput, measureReceipt, outlineReceipt } from "./outline";
 import { recipes } from "./recipes";
 import { compileDraftBlocks, type DraftBlock } from "./schema";
-import { createAgentTools, runAgentTool, type AgentBackend } from "./tools";
+import { createAgentTools, runAgentTool, type AgentActivity, type AgentBackend } from "./tools";
 import { blockVocabulary, collectionFields } from "./vocabulary";
 
 const now = new Date("2026-08-31T12:00:00.000Z");
@@ -44,21 +44,24 @@ const everyBlock: DraftBlock[] = [
   { type: "agenda", events: [{ start: "8:20", title: "Flight TP 204", detail: "Gate 22" }] },
   { type: "habits", habits: ["Water", "Walk"] },
   { type: "form", form: "meetingNotes" },
+  { type: "logo", name: "PETE’S", tagline: "PRINTER", mark: "owners-printer-western" },
 ];
 
 function makeBackend() {
   const controller = new ReceiptController(createReceiptState(createDefaultDocument(), 0));
   const requestPrint = vi.fn(async (revision: number) => ({ status: "succeeded" as const, revision, message: "Printed." }));
-  const backend: AgentBackend = {
-    getState: () => controller.state,
-    commit: (expectedRevision, document) => controller.commitPrepared(expectedRevision, document),
-    requestPrint,
-    undo: () => controller.undo(),
-    status: () => ({ editorUrl: "http://127.0.0.1:8731/app", configured: true, bridgeOnline: true, printPolicy: "confirm" as const }),
-    dependencies,
-  };
-  return { backend, controller, requestPrint, tools: new Map(createAgentTools(backend).map((tool) => [tool.name, tool])) };
-}
+    const activities: AgentActivity[] = [];
+    const backend: AgentBackend = {
+      getState: () => controller.state,
+      commit: (expectedRevision, document) => controller.commitPrepared(expectedRevision, document),
+      requestPrint,
+      undo: () => controller.undo(),
+      status: () => ({ editorUrl: "http://127.0.0.1:8731/app", configured: true, bridgeOnline: true, printPolicy: "confirm" as const }),
+      dependencies,
+      onActivity: (activity) => activities.push(activity),
+    };
+    return { backend, controller, requestPrint, tools: new Map(createAgentTools(backend).map((tool) => [tool.name, tool])), activities };
+  }
 
 const call = (harness: ReturnType<typeof makeBackend>, name: string, input?: unknown) =>
   runAgentTool(harness.tools.get(name)!, input, harness.backend);
@@ -116,6 +119,8 @@ describe("drafting and editing", () => {
     expect(result.data.revision).toBe(1);
     expect(result.data.paperLengthMm).toBeGreaterThan(0);
     expect(harness.controller.state.document.title).toBe("Lisbon, four days");
+    expect(harness.activities.at(-1)).toMatchObject({ phase: "complete", message: "Drafted Lisbon, four days" });
+    expect(harness.activities.some((activity) => activity.message === "Fetching Lisbon weather")).toBe(true);
   });
 
   it("leaves the receipt untouched on a dry run", async () => {
@@ -131,12 +136,32 @@ describe("drafting and editing", () => {
       title: "Packing",
       blocks: [{ type: "groups", title: "Packing", groups: [{ name: "Carry-on", items: ["Passport", "Charger"] }] }],
     });
-    const before = harness.controller.state.document.blocks[0];
-    await call(harness, "edit_receipt", { operations: [{ op: "checkItem", at: 1, item: "passport" }] });
-    const after = harness.controller.state.document.blocks[0];
+    // Position 1 is the sign the draft inherited, so the grouped list is the second block.
+    const before = harness.controller.state.document.blocks[1];
+    await call(harness, "edit_receipt", { operations: [{ op: "checkItem", at: 2, item: "passport" }] });
+    const after = harness.controller.state.document.blocks[1];
     expect(after.id).toBe(before.id);
     if (after.type !== "catalog" || after.kind !== "checklistGroups") throw new Error("expected a grouped list");
     expect(after.data.groups[0].items).toEqual([{ text: "Passport", checked: true }, { text: "Charger", checked: false }]);
+  });
+
+  it("keeps whose printer it is when a draft replaces everything", async () => {
+    const harness = makeBackend();
+    const sign = harness.controller.state.document.blocks[0];
+    expect(sign.type === "catalog" && sign.kind === "logo").toBe(true);
+
+    await call(harness, "draft_receipt", { title: "Lisbon", blocks: [{ type: "text", text: "Thursday" }] });
+    const blocks = harness.controller.state.document.blocks;
+    expect(blocks[0].id).toBe(sign.id);
+    expect(blocks).toHaveLength(2);
+  });
+
+  it("lets a draft set its own sign instead of inheriting one", async () => {
+    const harness = makeBackend();
+    await call(harness, "draft_receipt", { title: "Lisbon", blocks: [{ type: "logo", name: "MAYA" }, { type: "text", text: "Thursday" }] });
+    const blocks = harness.controller.state.document.blocks;
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0].type === "catalog" && blocks[0].kind === "logo").toBe(true);
   });
 
   it("refuses a stale revision instead of overwriting a human edit", async () => {
@@ -160,6 +185,18 @@ describe("drafting and editing", () => {
     await call(harness, "draft_receipt", { title: "Drafted", blocks: [{ type: "text", text: "One" }] });
     await call(harness, "undo_agent_edit");
     expect(harness.controller.state.document.title).not.toBe("Drafted");
+  });
+
+  it("renames the shelf title without rewriting the paper heading", async () => {
+    const harness = makeBackend();
+    const heading = harness.controller.state.document.blocks.find((block) => block.type === "heading");
+    expect(heading && heading.type === "heading" ? heading.text : undefined).toBe("Today");
+
+    const result = await call(harness, "rename_receipt", { title: "Lisbon trip" });
+    expect(result.data.status).toBe("updated");
+    expect(harness.controller.state.document.title).toBe("Lisbon trip");
+    const after = harness.controller.state.document.blocks.find((block) => block.type === "heading");
+    expect(after && after.type === "heading" ? after.text : undefined).toBe("Today");
   });
 });
 
@@ -189,8 +226,10 @@ describe("granular edits across every collection", () => {
 
   // This schema is shipped to every agent on every turn, so its growth should be a
   // deliberate decision. Bump this only alongside a reason for the extra context cost.
+  // 16k → 17k: the logo block carries the six wordmark ids, so an agent asked to
+  // rename or restyle the printer's sign can do it without a second round trip.
   it("keeps the edit schema small enough to ship to every agent", () => {
-    expect(JSON.stringify(z.toJSONSchema(editTool().inputSchema)).length).toBeLessThanOrEqual(16_000);
+    expect(JSON.stringify(z.toJSONSchema(editTool().inputSchema)).length).toBeLessThanOrEqual(17_000);
   });
 
   it("names every collection's fields to the agent", () => {
