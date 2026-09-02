@@ -1,10 +1,9 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { Blocks, ChevronDown, GripVertical, MousePointer2, Plus, Star } from "lucide-react";
+import { Blocks, ChevronDown, GripVertical, MousePointer2, Plus } from "lucide-react";
 import type { EditorActivity } from "../App";
+import { isAgentWorking } from "../agent/captions";
 import type { CoreReceiptBlock, ReceiptBlock, RenderedReceipt } from "../receipt";
-import type { CatalogBlockKind } from "../receipt";
-import { getLibraryDefinition } from "../block-library";
 import { PaperSurface } from "./PaperSurface";
 
 type Props = {
@@ -13,14 +12,13 @@ type Props = {
   selectedId?: string;
   recentAgentBlockIds?: string[];
   agentActivity?: EditorActivity;
-  feeding?: boolean;
+  onUndo?(): void;
   onSelect(id: string): void;
   onReplace(block: ReceiptBlock): void;
   onMove(id: string, toIndex: number): void;
   onAdd(type: CoreReceiptBlock["type"], index: number): void;
-  favoriteIds?: CatalogBlockKind[];
-  onAddCatalog(kind: CatalogBlockKind, index: number): void;
   onBrowseCatalog(index: number): void;
+  onOpenAddMenu?(): void;
 };
 
 const blockOptions: { type: CoreReceiptBlock["type"]; label: string }[] = [
@@ -47,7 +45,11 @@ function textMetrics(block: Extract<ReceiptBlock, { type: "heading" | "text" }>)
 
 type MenuState = { index: number; left: number; top: number; placement: "up" | "down" };
 
-export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockIds = [], agentActivity, feeding = false, favoriteIds = [], onAdd, onAddCatalog, onBrowseCatalog, onSelect, onReplace, onMove }: Props) {
+const ReceiptInk = memo(function ReceiptInk({ svg }: { svg: string }) {
+  return <div className="receipt-svg" dangerouslySetInnerHTML={{ __html: svg }} />;
+});
+
+export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockIds = [], agentActivity, onAdd, onBrowseCatalog, onOpenAddMenu, onSelect, onReplace, onMove, onUndo }: Props) {
   const paper = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -83,13 +85,14 @@ export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockId
     event.stopPropagation();
     const rect = event.currentTarget.getBoundingClientRect();
     const width = 196;
-    const placement = rect.bottom + 360 > window.innerHeight ? "up" : "down";
+    const placement = rect.bottom + 280 > window.innerHeight ? "up" : "down";
     setMenu({
       index,
       left: Math.max(8, Math.min(window.innerWidth - width - 8, rect.left + rect.width / 2 - width / 2)),
       top: placement === "up" ? rect.top - 7 : rect.bottom + 7,
       placement,
     });
+    onOpenAddMenu?.();
   };
 
   const moveAt = useCallback((sourceId: string | undefined, insertIndex: number) => {
@@ -144,15 +147,20 @@ export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockId
   }, [blocks.length, draggingId, insertionY, moveAt]);
 
   const selectedGeometry = rendered.blocks.find((geometry) => geometry.id === selectedId);
-  const agentGeometry = agentActivity ? rendered.blocks.find((geometry) => agentActivity.blockIds.includes(geometry.id)) ?? rendered.blocks[0] : undefined;
+  const composing = agentActivity?.phase === "drafting";
+  const agentGeometry = !composing && agentActivity
+    ? rendered.blocks.find((geometry) => agentActivity.blockIds.includes(geometry.id)) ?? rendered.blocks[0]
+    : undefined;
   const agentCursorStyle: CSSProperties | undefined = agentGeometry ? {
-    left: Math.min(rendered.width * scale - 18, (agentGeometry.x + agentGeometry.width) * scale + 8),
-    top: Math.max(8, (agentGeometry.y + Math.min(agentGeometry.height, 22)) * scale),
+    transform: `translate3d(${Math.min(rendered.width * scale - 18, (agentGeometry.x + agentGeometry.width) * scale + 8)}px, ${Math.max(8, (agentGeometry.y + Math.min(agentGeometry.height, 22)) * scale)}px, 0)`,
   } : undefined;
+  const working = agentActivity ? isAgentWorking(agentActivity.phase) : false;
 
-  return <div className={`receipt-shell ${feeding ? "is-feeding" : ""} ${draggingId ? "is-reordering" : ""}`}>
-    <PaperSurface className="receipt-paper" ref={paper} style={{ aspectRatio: `${rendered.width} / ${rendered.height}` }}>
-      <div className="receipt-svg" dangerouslySetInnerHTML={{ __html: rendered.svg }} />
+  return <div className={`receipt-shell ${draggingId ? "is-reordering" : ""}`}>
+    <div className="receipt-stage" ref={paper}>
+      <PaperSurface className="receipt-paper" style={{ aspectRatio: `${rendered.width} / ${rendered.height}` }}>
+        <ReceiptInk svg={rendered.svg} />
+      </PaperSurface>
       <div className="receipt-hit-layer">
         {rendered.blocks.map((geometry) => {
           const block = blocks.find((candidate) => candidate.id === geometry.id);
@@ -188,10 +196,23 @@ export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockId
           />;
         })}
       </div>
-    </PaperSurface>
+      {composing && agentActivity && <div className="agent-composing" aria-hidden="true">
+        <div className="agent-composing-card">
+          <span className="agent-working"><i /><i /><i /></span>
+          <span>{agentActivity.message}</span>
+        </div>
+      </div>}
+    </div>
 
     <div className="receipt-chrome-layer">
-      {agentActivity && agentCursorStyle && <div className={`agent-cursor phase-${agentActivity.phase}`} style={agentCursorStyle} aria-hidden="true"><MousePointer2 size={18} fill="currentColor" /><span>Agent</span></div>}
+      {agentActivity && agentCursorStyle && <div className={`agent-cursor phase-${agentActivity.phase}`} style={agentCursorStyle}>
+        <MousePointer2 size={18} fill="currentColor" />
+        <div className="agent-cursor-card">
+          <span className="agent-cursor-who">Agent{working && <span className="agent-working"><i /><i /><i /></span>}</span>
+          <span className="agent-cursor-caption">{agentActivity.message}</span>
+          {agentActivity.phase === "complete" && onUndo && <button type="button" onClick={(event) => { event.stopPropagation(); onUndo(); }}>Undo</button>}
+        </div>
+      </div>}
       {selectedGeometry && <button
         type="button"
         draggable
@@ -259,7 +280,6 @@ export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockId
       style={{ position: "fixed", left: menu.left, top: menu.top, transform: menu.placement === "up" ? "translateY(-100%)" : undefined }}
     >
       {blockOptions.map((option) => <button type="button" role="menuitem" key={option.type} onClick={() => { onAdd(option.type, menu.index); setMenu(undefined); }}>{option.label}</button>)}
-      {favoriteIds.length > 0 && <><span className="add-menu-separator" /><span className="add-menu-label">Favorites</span>{favoriteIds.slice(0, 4).map((id) => <button type="button" role="menuitem" className="favorite-menu-item" key={id} onClick={() => { onAddCatalog(id, menu.index); setMenu(undefined); }}><Star size={12} fill="currentColor" />{getLibraryDefinition(id)?.name ?? id}</button>)}</>}
       <span className="add-menu-separator" />
       <button type="button" role="menuitem" className="browse-library-item" onClick={() => { onBrowseCatalog(menu.index); setMenu(undefined); }}><Blocks size={13} />Browse all blocks…</button>
     </div>, document.body)}

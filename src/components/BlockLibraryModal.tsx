@@ -13,11 +13,12 @@ import {
   type UserDefaults,
 } from "../block-library";
 import { ConfigFields } from "./ConfigFields";
+import { LibraryGlyph } from "./LibraryGlyph";
 import type { CatalogBlockKind } from "../receipt";
 import type { PaperWidthDots, PrototypeBlockId } from "../blocks/types";
 import { PaperSurface } from "./PaperSurface";
 
-const categories = ["All", "Favorites", "Daily", "Live data", "Write-in", "Getting around", "Home & life"] as const;
+const categories = ["All", "Favorites", "Identity", "Daily", "Live data", "Write-in", "Getting around", "Home & life"] as const;
 
 function LibraryPaper({ id, width, className = "" }: { id: PrototypeBlockId; width: PaperWidthDots; className?: string }) {
   const rendered = useMemo(() => renderLibraryPreview(id, width), [id, width]);
@@ -111,6 +112,7 @@ export function BlockLibraryModal({ width, favoriteIds, initialId, defaults, onT
             const isFavorite = favoriteId ? favoriteIds.includes(favoriteId) : false;
             return <article className={`library-card ${selected.id === definition.id ? "selected" : ""}`} key={definition.id}>
               <button type="button" className="library-card-main" aria-label={definition.name} aria-pressed={selected.id === definition.id} onClick={() => { setSelectedId(definition.id); setError(""); }}>
+                <LibraryGlyph id={definition.id} />
                 <div className="library-card-preview"><LibraryPaper id={definition.id} width={width} /></div>
                 <span className="library-card-copy"><strong>{definition.name}</strong></span>
               </button>
@@ -121,7 +123,7 @@ export function BlockLibraryModal({ width, favoriteIds, initialId, defaults, onT
 
         <aside className="library-detail">
           <div className="library-detail-preview"><LibraryPaper id={selected.id} width={width} /></div>
-          <div className="library-detail-heading"><div><span>{selected.category}</span><h3>{selected.name}</h3></div>{selectedFavoriteId && <button type="button" className={`library-detail-star ${favorite ? "active" : ""}`} onClick={() => onToggleFavorite(selectedFavoriteId)} aria-pressed={favorite}><Star size={15} fill={favorite ? "currentColor" : "none"} />{favorite ? "Favorited" : "Favorite"}</button>}</div>
+          <div className="library-detail-heading"><LibraryGlyph id={selected.id} /><div><span>{selected.category}</span><h3>{selected.name}</h3></div>{selectedFavoriteId && <button type="button" className={`library-detail-star ${favorite ? "active" : ""}`} onClick={() => onToggleFavorite(selectedFavoriteId)} aria-pressed={favorite}><Star size={15} fill={favorite ? "currentColor" : "none"} />{favorite ? "Favorited" : "Favorite"}</button>}</div>
           <p>{selected.designNote}</p>
           <div className="library-detail-meta"><span>{width === 576 ? "80 mm" : "58 mm"} receipt</span><span>{selected.availability === "available" ? selected.dataMode : "Preview only"}</span></div>
 

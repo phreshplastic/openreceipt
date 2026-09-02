@@ -1,28 +1,29 @@
-import { AlignCenter, AlignLeft, AlignRight, Blocks, Bold, Check, ChevronRight, Italic, Plus, RotateCw, Star, Trash2, Underline } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
-import { configDescriptorFor, getLibraryDefinition, initialConfigValues, isLiveCatalogBlock, missingRequiredField, renderLibraryPreview, type ConfigValues, type LiveCatalogBlock, type UserDefaults } from "../block-library";
+import { AlignCenter, AlignLeft, AlignRight, Bold, Check, ChevronRight, Italic, MousePointer2, Plus, RotateCw, Sparkles, Trash2, Underline, X } from "lucide-react";
+import { useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import { configDescriptorFor, getLibraryDefinition, initialConfigValues, isLiveCatalogBlock, missingRequiredField, type ConfigValues, type LiveCatalogBlock, type UserDefaults } from "../block-library";
 import { ConfigFields } from "./ConfigFields";
+import { LibraryGlyph } from "./LibraryGlyph";
+import { WordmarkPicker } from "./WordmarkPicker";
+import { restyleLogo, wordmarkSizeIds, type WordmarkSize } from "../blocks/wordmarks";
+import { printerIdentityLabel } from "../onboarding/profile";
 import { createId, receiptTemplates, type CatalogBlockKind, type CatalogReceiptBlock, type ReceiptBlock, type ReceiptDocument } from "../receipt";
-import type { PaperWidthDots } from "../blocks/types";
 import { printPolicies, type AppSettings } from "../state/storage";
-import { PaperSurface } from "./PaperSurface";
 
-export type InspectorMode = "library" | "format" | "print";
+export type InspectorMode = "library" | "format" | "settings";
 type Props = {
   block?: ReceiptBlock;
   canRemove: boolean;
   mode: InspectorMode;
   favoriteIds: CatalogBlockKind[];
-  paperWidth: PaperWidthDots;
+  recommendedIds: CatalogBlockKind[];
   catalogBusy?: { id: string; kind: "refresh" | "reconfigure" };
   catalogError?: { id: string; message: string };
   page: ReceiptDocument["page"];
   settings: AppSettings;
-  bridgeOnline: boolean;
-  printStatus: string;
-  webMcpAvailable: boolean;
+  documentTitle: string;
   onModeChange(mode: InspectorMode): void;
   onChange(block: ReceiptBlock): void;
+  onTitleChange(title: string): void;
   onRemove(): void;
   onBrowseLibrary(): void;
   onInsertFavorite(id: CatalogBlockKind): void;
@@ -30,6 +31,9 @@ type Props = {
   onReconfigureCatalog(id: string, values: ConfigValues): Promise<void>;
   onPageChange(page: ReceiptDocument["page"]): void;
   onSettingsChange(settings: AppSettings): void;
+  onPersonalize(): void;
+  onDismissWelcome(): void;
+  showWelcome: boolean;
 };
 type TextualBlock = Extract<ReceiptBlock, { type: "heading" | "text" }>;
 
@@ -43,26 +47,78 @@ function InspectorTabs({ mode, onChange }: { mode: InspectorMode; onChange(mode:
   return <div className="inspector-bar"><div className="inspector-tabs" role="tablist" aria-label="Inspector view">
     <button type="button" role="tab" aria-selected={mode === "library"} className={mode === "library" ? "active" : ""} onClick={() => onChange("library")}>Library</button>
     <button type="button" role="tab" aria-selected={mode === "format"} className={mode === "format" ? "active" : ""} onClick={() => onChange("format")}>Format</button>
-    <button type="button" role="tab" aria-selected={mode === "print"} className={mode === "print" ? "active" : ""} onClick={() => onChange("print")}>Print</button>
+    <button type="button" role="tab" aria-selected={mode === "settings"} className={mode === "settings" ? "active" : ""} onClick={() => onChange("settings")}>Settings</button>
   </div></div>;
 }
 
-function FavoritePreview({ id, width }: { id: CatalogBlockKind; width: PaperWidthDots }) {
-  const rendered = useMemo(() => renderLibraryPreview(id, width), [id, width]);
-  return <PaperSurface className="inspector-favorite-paper" style={{ aspectRatio: `${rendered.width} / ${rendered.height}` }} dangerouslySetInnerHTML={{ __html: rendered.svg }} />;
+function ShelfItem({ id, onInsert }: { id: CatalogBlockKind; onInsert(id: CatalogBlockKind): void }) {
+  const definition = getLibraryDefinition(id);
+  if (!definition) return null;
+  return <article className="blocks-shelf-item">
+    <LibraryGlyph id={definition.id} />
+    <div><strong>{definition.name}</strong><span>{definition.dataMode}</span></div>
+    <button type="button" className="icon-button" aria-label={`Add ${definition.name}`} title={`Add ${definition.name}`} onClick={() => onInsert(id)}><Plus size={15} /></button>
+  </article>;
 }
 
-function BlocksShelf({ favoriteIds, paperWidth, onBrowseLibrary, onInsertFavorite }: Pick<Props, "favoriteIds" | "paperWidth" | "onBrowseLibrary" | "onInsertFavorite">) {
-  if (!favoriteIds.length) return <div className="blocks-shelf-empty"><span className="blocks-shelf-mark"><Star size={18} /></span><strong>Your favorite blocks live here.</strong><p>Favorite a block in the library to keep it close whenever you’re building a receipt.</p><button type="button" className="button secondary" onClick={onBrowseLibrary}><Blocks size={14} />Browse Block Library</button></div>;
-  return <div className="blocks-shelf"><header><div><strong>Favorites</strong><span>{favoriteIds.length} saved</span></div><button type="button" onClick={onBrowseLibrary}>Browse all</button></header><div className="blocks-shelf-list">{favoriteIds.map((id) => {
-    const definition = getLibraryDefinition(id);
-    if (!definition) return null;
-    return <article className="blocks-shelf-item" key={id}><div className="blocks-shelf-preview"><FavoritePreview id={id} width={paperWidth} /></div><div><strong>{definition.name}</strong><span>{definition.dataMode}</span></div><button type="button" className="icon-button" aria-label={`Add ${definition.name}`} title={`Add ${definition.name}`} onClick={() => onInsertFavorite(id)}><Plus size={15} /></button></article>;
-  })}</div></div>;
+function BlocksShelf({ favoriteIds, onBrowseLibrary, onInsertFavorite }: Pick<Props, "favoriteIds" | "onBrowseLibrary" | "onInsertFavorite">) {
+  return <div className="blocks-shelf">
+    <header>
+      <div>
+        <strong>Favorites</strong>
+        <span>{favoriteIds.length ? `${favoriteIds.length} saved` : "None yet"}</span>
+      </div>
+      <button type="button" onClick={onBrowseLibrary}>Browse library</button>
+    </header>
+    {favoriteIds.length
+      ? <div className="blocks-shelf-list">{favoriteIds.map((id) => <ShelfItem id={id} key={id} onInsert={onInsertFavorite} />)}</div>
+      : <p className="blocks-shelf-empty">Star a block in the library to pin it here.</p>}
+  </div>;
+}
+
+function RecommendedShelf({ recommendedIds, onInsertFavorite }: Pick<Props, "recommendedIds" | "onInsertFavorite">) {
+  if (!recommendedIds.length) return null;
+  return <div className="blocks-shelf recommended-shelf"><header><div><strong>For you</strong><span>Based on what you print</span></div></header><div className="blocks-shelf-list">{recommendedIds.map((id) => <ShelfItem id={id} key={id} onInsert={onInsertFavorite} />)}</div></div>;
+}
+
+function WelcomeCard({ onPersonalize, onDismissWelcome }: Pick<Props, "onPersonalize" | "onDismissWelcome">) {
+  return <div className="first-visit-card">
+    <button type="button" className="icon-button" onClick={onDismissWelcome} aria-label="Dismiss welcome"><X size={15} /></button>
+    <span className="first-visit-mark"><Sparkles size={18} /></span>
+    <strong>This is a real receipt.</strong>
+    <p>Edit any line on the paper, add a block, or make the printer feel like yours.</p>
+    <div><button type="button" className="button primary" onClick={onPersonalize}>Make it mine</button><button type="button" className="text-button" onClick={onDismissWelcome}>Not now</button></div>
+  </div>;
 }
 
 function InspectorSection({ label, children }: { label: string; children: ReactNode }) {
   return <section className="inspector-section"><h3>{label}</h3>{children}</section>;
+}
+
+const wordmarkSizeLabels: Record<WordmarkSize, string> = { small: "Small", medium: "Medium", large: "Large" };
+
+/** A three-way size picker for the printer's sign, in the same radiogroup/radio shape as WordmarkPicker. */
+function LogoSizeControl({ size, onChange }: { size: WordmarkSize; onChange(size: WordmarkSize): void }) {
+  return <div className="segmented" role="radiogroup" aria-label="Sign size">
+    {wordmarkSizeIds.map((id) => <button type="button" role="radio" aria-checked={size === id} className={size === id ? "active" : ""} key={id} onClick={() => onChange(id)}>{wordmarkSizeLabels[id]}</button>)}
+  </div>;
+}
+
+/**
+ * What Format shows with nothing selected: name this receipt, then a quiet prompt
+ * to pick a block on the paper. Drafts stay in the left rail.
+ */
+function DocumentPanel({ documentTitle, onTitleChange }: { documentTitle: string; onTitleChange(title: string): void }) {
+  return <>
+    <div className="inspector-heading"><h2>Receipt</h2></div>
+    <InspectorSection label="Name your receipt">
+      <input className="inspector-wide-input" aria-label="Receipt title" value={documentTitle} onChange={(event) => onTitleChange(event.target.value)} />
+    </InspectorSection>
+    <div className="inspector-empty">
+      <span className="inspector-empty-mark" aria-hidden="true"><MousePointer2 size={18} /></span>
+      <p>Click a block on the receipt to edit it.</p>
+    </div>
+  </>;
 }
 
 function Alignment({ value, onChange }: { value: "left" | "center" | "right"; onChange(value: "left" | "center" | "right"): void }) {
@@ -92,25 +148,27 @@ function TextStyleControls({ block, onChange }: { block: TextualBlock; onChange(
   </>;
 }
 
-function PrintPanel({ page, settings, bridgeOnline, printStatus, webMcpAvailable, onPageChange, onSettingsChange }: Pick<Props, "page" | "settings" | "bridgeOnline" | "printStatus" | "webMcpAvailable" | "onPageChange" | "onSettingsChange">) {
+function SettingsPanel({ page, settings, onPageChange, onSettingsChange, onPersonalize }: Pick<Props, "page" | "settings" | "onPageChange" | "onSettingsChange" | "onPersonalize">) {
   const profiles = [
-    { paperWidthMm: 80 as const, printableWidthDots: 576 as const, paddingDots: 28, label: "80 mm", detail: "576 dots" },
-    { paperWidthMm: 58 as const, printableWidthDots: 420 as const, paddingDots: 22, label: "58 mm", detail: "420 dots" },
+    { paperWidthMm: 80 as const, printableWidthDots: 576 as const, paddingDots: 28, label: "80 mm" },
+    { paperWidthMm: 58 as const, printableWidthDots: 420 as const, paddingDots: 22, label: "58 mm" },
   ];
-  return <div className="print-panel">
-    <InspectorSection label="Paper size"><div className="paper-profile-options">{profiles.map((profile) => <button type="button" key={profile.paperWidthMm} aria-pressed={page.paperWidthMm === profile.paperWidthMm} className={page.paperWidthMm === profile.paperWidthMm ? "selected" : ""} onClick={() => onPageChange(profile)}><span className="radio">{page.paperWidthMm === profile.paperWidthMm && <Check size={11} />}</span><span><strong>{profile.label}</strong><small>{profile.detail}</small></span></button>)}</div></InspectorSection>
-    <InspectorSection label="Home">
-      <div className="inspector-control-stack">
-        <label className="inspector-control-row"><span>City</span><input aria-label="Home city" placeholder="City or postal code" value={settings.defaultLocation} onChange={(event) => onSettingsChange({ ...settings, defaultLocation: event.target.value })} /></label>
-        <label className="inspector-control-row"><span>Units</span><select value={settings.defaultUnit} onChange={(event) => onSettingsChange({ ...settings, defaultUnit: event.target.value as AppSettings["defaultUnit"] })}><option value="fahrenheit">Fahrenheit</option><option value="celsius">Celsius</option></select></label>
+  const named = settings.printerProfile.completed;
+  return <div className="settings-panel">
+    <InspectorSection label="Paper">
+      <div className="segmented" role="radiogroup" aria-label="Paper size">
+        {profiles.map((profile) => <button type="button" role="radio" aria-checked={page.paperWidthMm === profile.paperWidthMm} className={page.paperWidthMm === profile.paperWidthMm ? "active" : ""} key={profile.paperWidthMm} onClick={() => onPageChange(profile)}>{profile.label}</button>)}
       </div>
-      <p className="catalog-form-note">Where new weather, air and surf blocks start. Each block can point somewhere else.</p>
     </InspectorSection>
-    <InspectorSection label="Printer"><div className="printer-summary"><span className={`status-dot ${bridgeOnline ? "online" : ""}`} /><div><strong>{bridgeOnline ? "Local printer ready" : "Printer offline"}</strong><small>{printStatus || (bridgeOnline ? "Local bridge" : "Click the status in the toolbar to retry")}</small></div></div></InspectorSection>
-    <InspectorSection label="Agent printing"><div className="inspector-policy-options">{printPolicies.map((policy) => <button type="button" key={policy.id} className={settings.printPolicy === policy.id ? "selected" : ""} onClick={() => onSettingsChange({ ...settings, printPolicy: policy.id })}><span className="radio">{settings.printPolicy === policy.id && <Check size={11} />}</span><span><strong>{policy.name}</strong><small>{policy.description}</small></span></button>)}</div>
+    <InspectorSection label="Agent permissions">
+      <div className="inspector-policy-options">{printPolicies.map((policy) => <button type="button" key={policy.id} className={settings.printPolicy === policy.id ? "selected" : ""} onClick={() => onSettingsChange({ ...settings, printPolicy: policy.id })}><span className="radio">{settings.printPolicy === policy.id && <Check size={11} />}</span><span><strong>{policy.name}</strong><small>{policy.description}</small></span></button>)}</div>
       {settings.printPolicy === "approved" && <div className="inspector-trusted-templates"><span>Approved templates</span>{receiptTemplates.map((template) => <label key={template.id}><input type="checkbox" checked={settings.trustedTemplateIds.includes(template.id)} onChange={(event) => onSettingsChange({ ...settings, trustedTemplateIds: event.target.checked ? [...settings.trustedTemplateIds, template.id] : settings.trustedTemplateIds.filter((id) => id !== template.id) })} /><span>{template.name}</span></label>)}</div>}
     </InspectorSection>
-    <div className="inspector-agent-status"><span className={`status-dot ${webMcpAvailable ? "online" : ""}`} /><span>{webMcpAvailable ? "Agent tools available" : "Agent tools unavailable"}</span></div>
+    <InspectorSection label="Your printer">
+      {named
+        ? <div className="settings-identity"><strong>{printerIdentityLabel(settings.printerProfile)}</strong><button type="button" className="text-button" onClick={onPersonalize}>Change</button></div>
+        : <button type="button" className="text-button settings-personalize" onClick={onPersonalize}>Name your printer</button>}
+    </InspectorSection>
   </div>;
 }
 
@@ -168,9 +226,33 @@ function LiveSourcePanel({ block, busy, error, defaults, onRefresh, onReconfigur
 }
 
 function CatalogBlockEditor(props: CatalogEditorProps) {
-  const { block, onChange } = props;
+  const { block, defaults, onChange } = props;
 
   if (isLiveCatalogBlock(block)) return <LiveSourcePanel key={`${block.id}:${JSON.stringify("config" in block ? block.config : null)}`} {...props} block={block} />;
+
+  if (block.kind === "logo") {
+    const firstName = defaults.ownerFirstName ?? "";
+    return <>
+      <InspectorSection label="Size">
+        <LogoSizeControl size={block.data.size} onChange={(size) => onChange({ ...block, data: { ...block.data, size } })} />
+      </InspectorSection>
+      <InspectorSection label="Mark">
+        <WordmarkPicker
+          selected={block.data.style}
+          data={block.data}
+          firstName={firstName}
+          onSelect={(style) => onChange({ ...block, data: restyleLogo(block.data, style, firstName) })}
+        />
+      </InspectorSection>
+      <InspectorSection label="Wording">
+        <div className="inspector-control-stack">
+          <input className="inspector-wide-input" aria-label="Logo name" maxLength={40} value={block.data.primary} onChange={(event) => onChange({ ...block, data: { ...block.data, primary: event.target.value } })} />
+          <input className="inspector-wide-input" aria-label="Line beneath the logo" placeholder="Line beneath" maxLength={40} value={block.data.secondary ?? ""} onChange={(event) => onChange({ ...block, data: { ...block.data, secondary: event.target.value || undefined } })} />
+        </div>
+        <p className="catalog-form-note">Marks are set in faces every machine has, so the paper prints what you see here.</p>
+      </InspectorSection>
+    </>;
+  }
 
   if (block.kind === "agenda") return <>
     <InspectorSection label="Day"><input className="inspector-wide-input" aria-label="Agenda date" value={block.data.date} onChange={(event) => onChange({ ...block, data: { ...block.data, date: event.target.value } })} /></InspectorSection>
@@ -333,13 +415,22 @@ function CatalogBlockEditor(props: CatalogEditorProps) {
   </InspectorSection>;
 }
 
-export function Inspector({ block, canRemove, mode, favoriteIds, paperWidth, catalogBusy, catalogError, page, settings, bridgeOnline, printStatus, webMcpAvailable, onModeChange, onChange, onRemove, onBrowseLibrary, onInsertFavorite, onRefreshCatalog, onReconfigureCatalog, onPageChange, onSettingsChange }: Props) {
-  if (mode === "library") return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><BlocksShelf favoriteIds={favoriteIds} paperWidth={paperWidth} onBrowseLibrary={onBrowseLibrary} onInsertFavorite={onInsertFavorite} /></aside>;
-  if (mode === "print") return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><PrintPanel page={page} settings={settings} bridgeOnline={bridgeOnline} printStatus={printStatus} webMcpAvailable={webMcpAvailable} onPageChange={onPageChange} onSettingsChange={onSettingsChange} /></aside>;
-  if (!block) return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><div className="inspector-empty"><span>Nothing selected</span><p>Choose a block on the receipt to adjust it.</p></div></aside>;
-  return <aside className="inspector">
-    <InspectorTabs mode={mode} onChange={onModeChange} />
-    <div className="inspector-heading"><h2>{blockName(block)}</h2><button className="icon-button danger" type="button" disabled={!canRemove} onClick={onRemove} aria-label={`Remove ${blockName(block)} block`} title="Remove block"><Trash2 size={16} /></button></div>
+type FormatProps = Pick<Props, "canRemove" | "catalogBusy" | "catalogError" | "settings" | "onChange" | "onRemove" | "onRefreshCatalog" | "onReconfigureCatalog"> & {
+  block: ReceiptBlock;
+  headingId?: string;
+  onClose?: () => void;
+};
+
+/** The selected-block editor, shared by the desktop aside and the phone sheet. */
+export function InspectorFormat({ block, canRemove, catalogBusy, catalogError, settings, onChange, onRemove, onRefreshCatalog, onReconfigureCatalog, headingId, onClose }: FormatProps) {
+  return <>
+    <div className="inspector-heading">
+      <h2 id={headingId}>{blockName(block)}</h2>
+      <div className="inspector-heading-actions">
+        <button className="icon-button danger" type="button" disabled={!canRemove} onClick={onRemove} aria-label={`Remove ${blockName(block)} block`} title="Remove block"><Trash2 size={16} /></button>
+        {onClose && <button className="icon-button" type="button" onClick={onClose} aria-label="Close format"><X size={16} /></button>}
+      </div>
+    </div>
 
     {(block.type === "heading" || block.type === "text") && <TextStyleControls block={block} onChange={onChange} />}
 
@@ -363,10 +454,70 @@ export function Inspector({ block, canRemove, mode, favoriteIds, paperWidth, cat
       block={block}
       busy={catalogBusy?.id === block.id ? catalogBusy.kind : undefined}
       error={catalogError?.id === block.id ? catalogError.message : undefined}
-      defaults={{ location: settings.defaultLocation, unit: settings.defaultUnit }}
+      defaults={{ location: settings.defaultLocation, unit: settings.defaultUnit, ownerFirstName: settings.printerProfile.ownerFirstName }}
       onChange={onChange}
       onRefresh={() => onRefreshCatalog(block.id)}
       onReconfigure={(values) => onReconfigureCatalog(block.id, values)}
     />}
+  </>;
+}
+
+export function InspectorSheet({ open, block, onClose, ...format }: Omit<FormatProps, "headingId" | "onClose"> & { open: boolean; onClose(): void }) {
+  const [offset, setOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ startY: number } | undefined>(undefined);
+
+  const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drag.current = { startY: event.clientY };
+    setDragging(true);
+  };
+  const onPointerMove = (event: PointerEvent<HTMLButtonElement>) => {
+    if (!drag.current) return;
+    setOffset(Math.max(0, event.clientY - drag.current.startY));
+  };
+  const onPointerUp = (event: PointerEvent<HTMLButtonElement>) => {
+    const delta = drag.current ? Math.max(0, event.clientY - drag.current.startY) : 0;
+    drag.current = undefined;
+    setDragging(false);
+    if (delta > 80) {
+      setOffset(0);
+      onClose();
+    } else setOffset(0);
+  };
+
+  return <div className={`inspector-sheet-overlay${open ? "" : " is-leaving"}`} aria-hidden={!open}>
+    <section
+      className={`inspector-sheet${open ? "" : " is-leaving"}${dragging ? " is-dragging" : ""}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="inspector-sheet-title"
+      style={offset ? { transform: `translateY(${offset}px)` } : undefined}
+    >
+      <button type="button" className="inspector-sheet-grabber" aria-label="Dismiss format" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} />
+      <div className="inspector-sheet-body">
+        <InspectorFormat block={block} headingId="inspector-sheet-title" onClose={onClose} {...format} />
+      </div>
+    </section>
+  </div>;
+}
+
+export function Inspector({ block, canRemove, mode, favoriteIds, recommendedIds, catalogBusy, catalogError, page, settings, documentTitle, onModeChange, onChange, onTitleChange, onRemove, onBrowseLibrary, onInsertFavorite, onRefreshCatalog, onReconfigureCatalog, onPageChange, onSettingsChange, onPersonalize, onDismissWelcome, showWelcome }: Props) {
+  if (mode === "library") return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><RecommendedShelf recommendedIds={recommendedIds} onInsertFavorite={onInsertFavorite} /><BlocksShelf favoriteIds={favoriteIds} onBrowseLibrary={onBrowseLibrary} onInsertFavorite={onInsertFavorite} /></aside>;
+  if (mode === "settings") return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} /><SettingsPanel page={page} settings={settings} onPageChange={onPageChange} onSettingsChange={onSettingsChange} onPersonalize={onPersonalize} /></aside>;
+  if (!block) return <aside className="inspector"><InspectorTabs mode={mode} onChange={onModeChange} />{showWelcome ? <WelcomeCard onPersonalize={onPersonalize} onDismissWelcome={onDismissWelcome} /> : <DocumentPanel documentTitle={documentTitle} onTitleChange={onTitleChange} />}</aside>;
+  return <aside className="inspector">
+    <InspectorTabs mode={mode} onChange={onModeChange} />
+    <InspectorFormat
+      block={block}
+      canRemove={canRemove}
+      catalogBusy={catalogBusy}
+      catalogError={catalogError}
+      settings={settings}
+      onChange={onChange}
+      onRemove={onRemove}
+      onRefreshCatalog={onRefreshCatalog}
+      onReconfigureCatalog={onReconfigureCatalog}
+    />
   </aside>;
 }
