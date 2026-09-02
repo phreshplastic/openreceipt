@@ -14,3 +14,13 @@ bridge/**/__pycache__/
 *.egg-info/
 bridge/last-print.bin
 bridge/data/
+.gstack/
+public/generated/
+
+# Photograph sources, hero experiments, and Devpost stills: heavy and regenerable, so
+# they stay on disk without riding along in a clone. `npm run assets:scenes` needs the
+# sources; the cropped webp results it writes to src/assets/scenes are committed.
+docs/potential-carousel-pics/
+docs/stills/
+docs/hero/
+docs/logo/
