@@ -37,7 +37,7 @@ function monochromePng(width: number, height: number) {
 
 test("shares HTTP edits and browser-approved dummy printing through the live local API", async ({ page, playwright }) => {
   await page.goto(`${liveBaseUrl}/app`);
-  await expect(page.getByText("Saved to local API", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
 
   const headless = await playwright.request.newContext({ baseURL: liveBaseUrl });
   const session = await headless.post("/api/v1/session");
@@ -53,7 +53,7 @@ test("shares HTTP edits and browser-approved dummy printing through the live loc
     },
   });
   expect(updated.ok()).toBe(true);
-  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue(title);
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue(title);
 
   const artifact = monochromePng(576, 80);
   const jobId = crypto.randomUUID();
@@ -75,7 +75,7 @@ test("shares HTTP edits and browser-approved dummy printing through the live loc
   const approval = page.getByRole("dialog", { name: new RegExp(title) });
   await expect(approval).toBeVisible();
   await approval.getByRole("button", { name: "Approve and print" }).click();
-  await expect(page.getByText("Printed", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Printed" })).toBeVisible();
   const completed = await (await headless.get(`/api/v1/print-requests/${jobId}`)).json() as { status: string };
   expect(completed.status).toBe("succeeded");
   await headless.dispose();

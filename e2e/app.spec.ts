@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+/** The landing copy lives in content/site.json; read it so these assertions cannot drift from it. */
+const site = JSON.parse(readFileSync(new URL("../content/site.json", import.meta.url), "utf8"));
 
 const capabilities = {
   connected: true,
@@ -15,7 +19,7 @@ const capabilities = {
 
 test.beforeEach(async ({ page }) => {
   let receipt: Record<string, unknown> | undefined;
-  let settings = { revision: 0, initialized: false, configured: false, printPolicy: "confirm", trustedTemplateIds: [] as string[], updatedAt: new Date().toISOString() };
+  let settings = { revision: 1, initialized: true, configured: true, printPolicy: "confirm", trustedTemplateIds: [] as string[], defaultLocation: "", defaultUnit: "fahrenheit", printerProfile: { completed: false, ownerFirstName: "", identityId: "owners-printer-western", useCaseIds: [] as string[] }, updatedAt: new Date().toISOString() };
   await page.route("**/api/v1/session", (route) => route.fulfill({ json: { csrfToken: "e2e-csrf" } }));
   await page.route("**/api/v1/receipt", async (route) => {
     if (route.request().method() === "GET") {
@@ -34,18 +38,37 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("**/api/v1/events**", (route) => route.fulfill({ status: 200, contentType: "text/event-stream", body: ": ready\n\n" }));
   await page.route("**/api/v1/print-requests?status=awaiting_approval", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/api/v1/print-requests", (route) => route.request().method() === "GET" ? route.fulfill({ json: { items: [] } }) : route.fallback());
   await page.route("**/api/v1/capabilities", (route) => route.fulfill({ json: capabilities }));
   await page.route("**/api/v1/configuration", (route) => route.fulfill({ json: capabilities }));
 });
 
-test("landing, setup, and receipt-first editing", async ({ page }) => {
+test("landing opens a receipt-first editor without setup", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: /Make a little something/i })).toBeVisible();
-  await page.getByRole("button", { name: /Set up your printer/i }).click();
-  await expect(page.getByRole("heading", { name: /Set up the local printer/i })).toBeVisible();
-  await page.getByRole("button", { name: /58 mm/i }).click();
-  await page.getByRole("button", { name: /Finish setup/i }).click();
-  await expect(page.getByText("Saved to local API", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: site.hero.heading })).toBeVisible();
+  await expect(page.locator(".hero-wordmark")).toHaveText(site.name);
+  await expect(page.locator(".landing-nav")).not.toHaveClass(/is-visible/);
+  const activeMoment = page.locator(".moments-slide.active");
+  const before = await activeMoment.getAttribute("data-moment");
+  await page.getByRole("button", { name: "Next slide" }).click();
+  await expect(activeMoment).not.toHaveAttribute("data-moment", before ?? "");
+  await page.getByRole("tab", { name: "This week's dinners" }).click();
+  await expect(activeMoment).toHaveAttribute("data-moment", "cook");
+  await page.locator(".printer-demo").scrollIntoViewIfNeeded();
+  await expect(page.locator(".landing-nav")).toHaveClass(/is-visible/);
+  await expect(page.locator(".landing-nav .landing-nav-title")).toHaveText(site.name);
+  await expect(page.locator(".landing-nav .button.primary")).toBeVisible();
+  await expect(page.locator(".printer-demo-status")).toHaveText("Printer ready.");
+  await expect(page.locator(".printer-demo-slot")).toHaveClass(/is-idle/);
+  await page.getByRole("button", { name: "Print sample receipt" }).click();
+  await expect(page.locator(".printer-demo-slot")).toHaveClass(/is-printed/);
+  await page.getByRole("button", { name: "Reprint sample receipt" }).click();
+  await expect(page.locator(".printer-demo-slot")).toHaveClass(/is-retracting|is-feeding/);
+  await expect(page.locator(".printer-demo-slot")).toHaveClass(/is-printed/);
+  await expect(page.getByRole("link", { name: "Launch editor" })).toHaveAttribute("href", "/app");
+  await page.locator(".hero-actions .button.primary").click();
+  await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
+  await expect(page.getByText("This is a real receipt.", { exact: true }).last()).toBeVisible();
   await page.getByRole("button", { name: "Select heading block" }).click();
   const editor = page.getByRole("textbox", { name: "Edit heading" });
   await editor.fill("A RECEIPT MADE TOGETHER");
@@ -69,29 +92,149 @@ test("landing, setup, and receipt-first editing", async ({ page }) => {
   await expect(page.locator(".editor-header")).toHaveCount(1);
   await expect(page.locator(".canvas-toolbar")).toHaveCount(0);
   await expect(page.locator(".canvas-footer")).toHaveCount(0);
+  const rail = page.getByRole("complementary", { name: "Drafts and print queue" });
+  await expect(rail).toBeVisible();
+  await expect(rail).toHaveCSS("background-color", "rgb(250, 250, 250)");
+  await expect(rail.getByText(/WebMCP/i)).toHaveCount(0);
+  await expect(rail.getByRole("region", { name: "Print queue" })).toHaveCount(0);
+  await expect(rail.getByRole("button", { name: "New blank" })).toBeVisible();
+  await expect(rail.getByRole("button", { name: "New from template" })).toBeVisible();
+  const paperWidthBeforeZoom = await page.locator(".receipt-shell").evaluate((element) => element.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Zoom in" }).click();
+  await expect(page.getByLabel("Receipt preview zoom")).toContainText("110%");
+  expect(await page.locator(".receipt-shell").evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(paperWidthBeforeZoom);
+  await expect(page.getByLabel("OpenReceipt").first()).toBeVisible();
+  await expect(page.locator(".editor-header .brand-icon img")).toBeVisible();
+  await expect(page.locator(".editor-header a.brand")).toHaveAttribute("href", "/");
+  // The rail has no collapse control any more; it is simply there at this width, and its
+  // right border is what the header's leading divider lines up against.
+  await expect(page.getByRole("complementary", { name: "Drafts and print queue" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Drafts" })).toBeHidden();
+  const [dividerLeft, railRight] = await Promise.all([
+    page.locator(".wordmark-divider").evaluate((element) => element.getBoundingClientRect().left),
+    page.locator(".receipt-rail").evaluate((element) => element.getBoundingClientRect().right),
+  ]);
+  expect(Math.abs(dividerLeft - railRight)).toBeLessThanOrEqual(1);
+
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(page.locator(".receipt-shell")).toBeVisible();
+  await expect(page.getByLabel("OpenReceipt").first()).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Drafts and print queue" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Drafts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Templates" })).toBeVisible();
+  await page.setViewportSize({ width: 420, height: 800 });
+  await expect(page.locator(".receipt-shell")).toBeVisible();
+  await expect(page.getByLabel("OpenReceipt").first()).toBeVisible();
+});
+
+test("opens every workshop guide from the localhost landing page", async ({ page }) => {
+  await page.goto("/guides");
+  await expect(page).toHaveURL(/\/guides$/);
+  await expect(page.getByRole("heading", { level: 1, name: /Useful notes for putting an AI agent/i })).toBeVisible();
+
+  const guides = [
+    "What kind of printer should you get for an AI project?",
+    "Set up an Epson TM-L90 with OpenReceipt",
+    "How to choose thermal paper: width, weight, and phenol-free rolls",
+    "How an AI agent gets a receipt onto paper",
+  ];
+  for (const title of guides) {
+    await page.getByRole("link", { name: title, exact: true }).first().click();
+    await expect(page.getByRole("heading", { level: 1, name: title, exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Guides", exact: true }).click();
+  }
+});
+
+test("completes setup with the virtual printer when no hardware is connected", async ({ page }) => {
+  await page.unroute("**/api/v1/capabilities");
+  await page.route("**/api/v1/capabilities", (route) => route.fulfill({ json: { ...capabilities, connected: false, detail: "The Epson TM-L90 was not detected." } }));
+
+  await page.goto("/setup");
+  await expect(page.getByRole("heading", { name: /Connect your printer/i })).toBeVisible();
+  const usbOption = page.getByRole("button", { name: /Epson TM-L90/i });
+  await expect(usbOption).toContainText("not detected");
+  await expect(page.getByRole("button", { name: /Continue/i })).toBeDisabled();
+
+  await page.getByRole("button", { name: /Virtual printer/i }).click();
+  await page.getByRole("button", { name: /Continue/i }).click();
+  await expect(page.getByRole("heading", { name: /Choose your paper/i })).toBeVisible();
+  await page.getByRole("button", { name: /Finish setup/i }).click();
+  await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
+});
+
+test("continues the original print after first-print setup", async ({ page }) => {
+  let settings = { revision: 0, initialized: true, configured: false, printPolicy: "confirm", trustedTemplateIds: [], defaultLocation: "", defaultUnit: "fahrenheit", printerProfile: { completed: false, ownerFirstName: "", identityId: "owners-printer-western", useCaseIds: [] }, updatedAt: new Date().toISOString() };
+  await page.route("**/api/v1/settings", async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: settings });
+    settings = { ...settings, ...route.request().postDataJSON(), revision: settings.revision + 1, initialized: true, updatedAt: new Date().toISOString() };
+    return route.fulfill({ json: settings });
+  });
+  const submitted: string[] = [];
+  const now = new Date().toISOString();
+  await page.route("**/api/v1/print-requests", async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
+    submitted.push(route.request().postData() ?? "");
+    return route.fulfill({ json: { id: "first-print", status: "queued", checksum: "test", createdAt: now, updatedAt: now } });
+  });
+  await page.route("**/api/v1/print-requests/first-print", (route) => route.fulfill({ json: { id: "first-print", status: "succeeded", checksum: "test", createdAt: now, updatedAt: now } }));
+
+  await page.goto("/app");
+  await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
+  await page.getByRole("button", { name: "Print", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Printer setup" })).toBeVisible();
+  await page.getByRole("button", { name: /Continue/i }).click();
+  await page.getByRole("button", { name: /58 mm/i }).click();
+  await page.getByRole("button", { name: /Save and print/i }).click();
+  await expect(page.getByRole("button", { name: "Printed" })).toBeVisible();
+  expect(submitted).toHaveLength(1);
+});
+
+test("explores the demo when the bridge is unreachable", async ({ page }) => {
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await page.route("**/api/v1/**", (route) => route.fulfill({ status: 502, json: { error: { code: "bad_gateway", message: "The local bridge could not be reached." } } }));
+
+  await page.goto("/setup");
+  await expect(page.getByRole("button", { name: /Explore without setup/i })).toBeVisible();
+  await page.getByRole("button", { name: /Explore without setup/i }).click();
+  await expect(page.getByRole("button", { name: "Select heading block" })).toBeVisible();
+  const editor = page.getByRole("textbox", { name: "Edit heading" });
+  await page.getByRole("button", { name: "Select heading block" }).click();
+  await editor.fill("JUST LOOKING AROUND");
+  await expect(editor).toHaveValue("JUST LOOKING AROUND");
 });
 
 test("keeps heading text fixed when inline editing begins", async ({ page }) => {
   await page.goto("/app");
-  await expect(page.getByText("Saved to local API", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Select heading block" })).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
-  const headingTopBeforeSelection = await page.locator(".receipt-svg text").first().evaluate((element) => element.getBoundingClientRect().top);
+  // The logo block draws first, so measure the heading's own line rather than the topmost one.
+  const headingLine = page.locator(".receipt-svg text", { hasText: /^Today$/ });
+  await expect.poll(async () => headingLine.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThan(40);
+  const headingTopBeforeSelection = await headingLine.evaluate((element) => element.getBoundingClientRect().top);
   await page.getByRole("button", { name: "Select heading block" }).click();
   const editorStyle = await page.getByRole("textbox", { name: "Edit heading" }).evaluate((element) => {
     const style = getComputedStyle(element);
     return { background: style.backgroundColor, color: style.color, textFill: style.webkitTextFillColor };
   });
-  const headingTopAfterSelection = await page.locator(".receipt-svg text").first().evaluate((element) => element.getBoundingClientRect().top);
+  const headingTopAfterSelection = await headingLine.evaluate((element) => element.getBoundingClientRect().top);
   expect(Math.abs(headingTopAfterSelection - headingTopBeforeSelection)).toBeLessThanOrEqual(1);
   expect(editorStyle).toEqual({ background: "rgba(0, 0, 0, 0)", color: "rgba(0, 0, 0, 0)", textFill: "rgba(0, 0, 0, 0)" });
 });
 
 test("opens the focused template and settings overlays", async ({ page }) => {
   await page.goto("/app");
-  await page.getByRole("button", { name: /Templates/i }).click();
-  await expect(page.getByRole("dialog", { name: "Templates" })).toBeVisible();
-  await page.getByRole("button", { name: /Checklist/i }).click();
-  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Packing list");
+  await page.getByRole("button", { name: "New from template" }).click();
+  const templates = page.getByRole("dialog", { name: "Templates" });
+  await expect(templates).toBeVisible();
+  await expect(templates.getByText("Start with a shape")).toHaveCount(0);
+  await expect(templates.getByText(/Your mark, today/)).toHaveCount(0);
+  const previews = templates.locator(".template-preview");
+  await expect(previews).toHaveCount(2);
+  const previewHeights = await previews.evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().height)));
+  expect(new Set(previewHeights).size).toBe(1);
+
+  await templates.getByRole("button", { name: /Checklist/i }).click();
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Packing list");
   const checklist = page.getByRole("button", { name: "Select checklist block" });
   const geometryBeforeSelection = await checklist.evaluate((element) => {
     const box = element.getBoundingClientRect();
@@ -104,30 +247,46 @@ test("opens the focused template and settings overlays", async ({ page }) => {
     return { x: box.x, y: box.y, width: box.width, height: box.height };
   })).toEqual(geometryBeforeSelection);
   await expect(page.getByText("Selected block", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: /Printer ready/ }).click();
-  await expect(page.getByText(/80 mm paper · 576 × .* dots · revision/)).toBeVisible();
-  await page.getByRole("button", { name: /Approved automations/i }).click();
-  await expect(page.getByText("Approved template revisions")).toBeVisible();
+  await page.getByRole("tablist", { name: "Inspector view" }).getByRole("tab", { name: "Settings" }).click();
+  await expect(page.getByRole("radiogroup", { name: "Paper size" })).toBeVisible();
+  await page.getByRole("button", { name: /Trusted templates/i }).click();
+  await expect(page.getByText("Approved templates")).toBeVisible();
 });
 
-test("uses a full-width three-part inspector for library, block format, and print settings", async ({ page }) => {
+test("names a new blank distinctly from the starter receipt", async ({ page }) => {
+  await page.goto("/app");
+  const rail = page.getByRole("complementary", { name: "Drafts and print queue" });
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Today");
+  await expect(rail.getByRole("button", { name: "Today", exact: true })).toBeVisible();
+
+  await rail.getByRole("button", { name: "New blank" }).click();
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Untitled");
+  await expect(rail.getByRole("button", { name: "Untitled", exact: true })).toBeVisible();
+  await expect(rail.getByRole("button", { name: "Today", exact: true })).toBeVisible();
+
+  await rail.getByRole("button", { name: "New blank" }).click();
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Untitled 2");
+  await expect(rail.getByRole("button", { name: "Untitled 2", exact: true })).toBeVisible();
+});
+
+test("uses a full-width three-part inspector for library, block format, and settings", async ({ page }) => {
   await page.goto("/app");
   const inspector = page.locator(".inspector");
   const tabs = page.getByRole("tablist", { name: "Inspector view" });
-  await expect(tabs.getByRole("tab")).toHaveText(["Library", "Format", "Print"]);
+  await expect(tabs.getByRole("tab")).toHaveText(["Library", "Format", "Settings"]);
   const [inspectorWidth, tabsWidth] = await Promise.all([
     inspector.evaluate((element) => element.getBoundingClientRect().width),
     tabs.evaluate((element) => element.getBoundingClientRect().width),
   ]);
   expect(Math.abs(tabsWidth - (inspectorWidth - 20))).toBeLessThanOrEqual(1);
 
-  await tabs.getByRole("tab", { name: "Print" }).click();
-  const narrowPaper = page.getByRole("button", { name: /58 mm.*420 dots/ });
+  await tabs.getByRole("tab", { name: "Settings" }).click();
+  const narrowPaper = page.getByRole("radio", { name: "58 mm" });
   await narrowPaper.click();
-  await expect(narrowPaper).toHaveAttribute("aria-pressed", "true");
+  await expect(narrowPaper).toHaveAttribute("aria-checked", "true");
   await expect(page.locator(".receipt-svg svg")).toHaveAttribute("viewBox", /^0 0 420 /);
-  await page.getByRole("button", { name: /Allow agent printing/ }).click();
-  await expect(page.getByRole("button", { name: /Allow agent printing/ })).toHaveClass(/selected/);
+  await page.getByRole("button", { name: /Allow without asking/ }).click();
+  await expect(page.getByRole("button", { name: /Allow without asking/ })).toHaveClass(/selected/);
 
   const separatorInsets = await inspector.locator(".inspector-section").first().evaluate((element) => {
     const style = getComputedStyle(element, "::after");
@@ -139,7 +298,27 @@ test("uses a full-width three-part inspector for library, block format, and prin
   await expect(tabs.getByRole("tab", { name: "Format" })).toHaveAttribute("aria-selected", "true");
 });
 
-test("uses one physical paper surface and feeds it only during print submission", async ({ page }) => {
+test("empty Format names the receipt instead of showing the sign gallery", async ({ page }) => {
+  await page.goto("/app");
+  await page.getByRole("button", { name: "Dismiss welcome" }).click();
+  const inspector = page.locator(".inspector");
+  await expect(inspector.getByRole("heading", { name: "Receipt", exact: true })).toBeVisible();
+  await expect(inspector.getByText("Name your receipt")).toBeVisible();
+  await expect(inspector.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Today");
+  await expect(inspector.getByText("Click a block on the receipt to edit it.")).toBeVisible();
+  await expect(inspector.getByRole("radiogroup", { name: "Printer wordmark" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Select logo block" }).click();
+  await expect(inspector.getByRole("heading", { name: "Logo" })).toBeVisible();
+  await expect(inspector.getByRole("radiogroup", { name: "Sign size" })).toBeVisible();
+  await expect(inspector.getByRole("radiogroup", { name: "Printer wordmark" })).toBeVisible();
+
+  await page.locator(".canvas-stage").click({ position: { x: 8, y: 8 } });
+  await expect(inspector.getByText("Name your receipt")).toBeVisible();
+  await expect(inspector.getByRole("radiogroup", { name: "Printer wordmark" })).toHaveCount(0);
+});
+
+test("uses one physical paper surface without animating the preview on print", async ({ page }) => {
   const now = new Date().toISOString();
   await page.route("**/api/v1/print-requests", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 500));
@@ -153,10 +332,16 @@ test("uses one physical paper surface and feeds it only during print submission"
   await expect(page.locator(".receipt-tear")).toHaveCount(0);
   expect(await paper.evaluate((element) => getComputedStyle(element).clipPath.startsWith("polygon("))).toBe(true);
 
+  await expect(page.getByRole("button", { name: "Print destination, Epson printer" })).toBeVisible();
   await page.getByRole("button", { name: "Print", exact: true }).click();
-  await expect(page.locator(".receipt-shell")).toHaveClass(/is-feeding/);
+  await expect(page.locator(".receipt-shell")).not.toHaveClass(/is-feeding/);
+  await expect(page.locator(".agent-cursor")).toHaveCount(0);
+  await expect(page.locator(".agent-activity")).toHaveCount(0);
+  await expect(page.locator(".agent-changed")).toHaveCount(0);
+  await expect(page.getByText("The agent is printing the approved receipt")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Printing" })).toBeDisabled();
-  await expect(page.getByText("Printed", { exact: true })).toBeVisible();
+  await expect(page.locator(".print-pixel-grid")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Printed", exact: true })).toBeVisible();
   await expect(page.locator(".receipt-shell")).not.toHaveClass(/is-feeding/);
 });
 
@@ -186,10 +371,8 @@ test("inserts between blocks, keeps shared undo history, and collapses secondary
   await expect(page.getByRole("textbox", { name: "Block text" })).toBeHidden();
   await page.getByText("Text content", { exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Block text" })).toBeVisible();
-  await page.getByRole("button", { name: "Hide format panel" }).click();
-  await expect(page.locator(".editor-layout")).toHaveClass(/inspector-collapsed/);
   await page.getByRole("button", { name: "Select text block" }).last().click();
-  await expect(page.locator(".editor-layout")).not.toHaveClass(/inspector-collapsed/);
+  await expect(page.locator(".inspector")).toBeVisible();
 
   for (let index = 0; index < 8; index += 1) {
     await page.getByRole("button", { name: "Add block", exact: true }).click();
@@ -205,38 +388,117 @@ test("clears selection off-block and accepts a reorder from blank canvas space",
   await page.goto("/app");
   const blocks = page.locator('.receipt-svg g[data-block-id]');
   const before = await blocks.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-block-id")));
+  const heading = before[1]; // The logo block signs the top of the paper, so the heading is second.
   await page.getByRole("button", { name: "Select heading block" }).click();
   await expect(page.locator(".receipt-selection-frame")).toHaveCSS("border-top-style", "dashed");
 
   const canvas = page.locator(".canvas-stage");
   await canvas.click({ position: { x: 8, y: 8 } });
   await expect(page.locator(".receipt-selection-frame, .receipt-block-hit.selected")).toHaveCount(0);
-  await expect(page.getByText("Nothing selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("This is a real receipt.", { exact: true }).last()).toBeVisible();
 
   await page.getByRole("button", { name: "Select heading block" }).click();
   const canvasBounds = await canvas.boundingBox();
   if (!canvasBounds) throw new Error("Canvas bounds unavailable");
   await page.getByRole("button", { name: "Drag selected block" }).dragTo(canvas, { targetPosition: { x: 12, y: canvasBounds.height - 24 } });
   const after = await blocks.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-block-id")));
-  expect(after.at(-1)).toBe(before[0]);
+  expect(after.at(-1)).toBe(heading);
 });
 
-test("uses filled cellular bars online and retries from the outlined offline status", async ({ page }) => {
+test("shows printer connection on the destination menu instead of a separate status chip", async ({ page }) => {
   await page.unroute("**/api/v1/capabilities");
   let connected = false;
-  await page.route("**/api/v1/capabilities", (route) => route.fulfill({ json: { ...capabilities, connected } }));
+  await page.route("**/api/v1/capabilities", (route) => route.fulfill({ json: { ...capabilities, connected, transport: "usb" } }));
   await page.goto("/app");
-  const status = page.getByRole("button", { name: /Printer offline.*Click to retry/ });
-  await expect(status).toBeVisible();
-  await expect(status.locator(".cellular-bars")).not.toHaveClass(/connected/);
-  expect(await status.locator("rect").first().evaluate((element) => getComputedStyle(element).fill)).toBe("none");
+
+  const destination = page.getByRole("button", { name: /Print destination/ });
+  await expect(destination.locator(".status-dot")).toHaveClass(/offline/);
+  await destination.click();
+  const printerItem = page.getByRole("menuitemradio", { name: /Epson printer/ });
+  await expect(printerItem.locator(".status-dot")).toHaveClass(/offline/);
+  await expect(printerItem.getByText("Not connected")).toBeVisible();
+  const demoItem = page.getByRole("menuitemradio", { name: /Demo print/ });
+  await expect(demoItem.locator(".status-dot")).toHaveClass(/online/);
 
   connected = true;
-  await status.click();
-  const online = page.getByRole("button", { name: /Printer ready.*Local bridge/ });
-  await expect(online).toBeVisible();
-  await expect(online.locator(".cellular-bars")).toHaveClass(/connected/);
-  expect(await online.locator("rect").first().evaluate((element) => getComputedStyle(element).fill)).not.toBe("none");
+  await destination.click();
+  await destination.click();
+  await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).locator(".status-dot")).toHaveClass(/online/);
+  await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).getByText("Epson TM-L90")).toBeVisible();
+  await expect(destination.locator(".status-dot")).toHaveClass(/online/);
+});
+
+test("does not treat dummy file output as a connected Epson", async ({ page }) => {
+  await page.unroute("**/api/v1/capabilities");
+  await page.route("**/api/v1/capabilities", (route) => route.fulfill({ json: { ...capabilities, connected: true, transport: "dummy" } }));
+  await page.goto("/app");
+
+  const destination = page.getByRole("button", { name: /Print destination/ });
+  await expect(destination.locator(".status-dot")).toHaveClass(/offline/);
+  await destination.click();
+  await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).locator(".status-dot")).toHaveClass(/offline/);
+  await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).getByText("Not connected")).toBeVisible();
+  await expect(page.getByRole("menuitemradio", { name: /Demo print/ }).locator(".status-dot")).toHaveClass(/online/);
+});
+
+test("keeps drafts and block format when editor columns collapse", async ({ page }) => {
+  const drafts = page.getByRole("complementary", { name: "Drafts and print queue" });
+  const inspector = page.locator(".inspector");
+  const formatSheet = page.getByRole("dialog", { name: "Logo" });
+
+  await page.setViewportSize({ width: 1400, height: 900 });
+  await page.goto("/app");
+  await expect(drafts).toBeVisible();
+  await expect(page.getByRole("button", { name: "Drafts" })).toBeHidden();
+  await expect(inspector).toBeVisible();
+  await expect(page.locator(".inspector-sheet-overlay")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect(drafts).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Drafts" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Templates" })).toBeVisible();
+  await page.getByRole("button", { name: "Select logo block" }).click();
+  await expect(inspector.getByRole("radiogroup", { name: "Sign size" })).toBeVisible();
+  await expect(inspector.getByRole("radiogroup", { name: "Printer wordmark" })).toBeVisible();
+
+  const previousTitle = await page.getByRole("textbox", { name: "Receipt title" }).first().inputValue();
+  await page.getByRole("button", { name: "Drafts" }).click();
+  await expect(drafts).toBeVisible();
+  await expect(drafts).toHaveCSS("position", "fixed");
+  await drafts.getByRole("button", { name: "New blank" }).click();
+  await expect(drafts).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).not.toHaveValue(previousTitle);
+  await page.getByRole("button", { name: "Drafts" }).click();
+  await drafts.getByRole("button", { name: previousTitle, exact: true }).click();
+  await expect(drafts).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue(previousTitle);
+
+  await page.setViewportSize({ width: 420, height: 800 });
+  await expect(inspector).toBeHidden();
+  await expect(formatSheet).toBeVisible();
+  await page.getByRole("button", { name: "Close format" }).click();
+  await expect(formatSheet).toHaveCount(0);
+  await page.getByRole("button", { name: "Drafts" }).click();
+  await expect(drafts).toBeVisible();
+  const sheetBox = await drafts.boundingBox();
+  expect(sheetBox).toBeTruthy();
+  expect(sheetBox!.width).toBeGreaterThan(400);
+  expect(sheetBox!.y).toBeGreaterThan(150);
+  await page.keyboard.press("Escape");
+  await expect(drafts).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Select logo block" }).click();
+  await expect(formatSheet).toBeVisible();
+  await expect(formatSheet.getByRole("radiogroup", { name: "Sign size" })).toBeVisible();
+  await expect(formatSheet.getByRole("radiogroup", { name: "Printer wordmark" })).toBeVisible();
+  await expect(formatSheet.getByRole("textbox", { name: "Logo name" })).toBeVisible();
+  await expect(page.getByRole("toolbar", { name: "Mobile text formatting" })).toHaveCount(0);
+  await formatSheet.getByRole("button", { name: "Close format" }).click();
+  await expect(formatSheet).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Select heading block" }).click();
+  await expect(formatSheet).toHaveCount(0);
+  await expect(page.getByRole("toolbar", { name: "Mobile text formatting" })).toBeVisible();
 });
 
 test("keeps a long receipt scrollable on a narrow editor", async ({ page }) => {
@@ -246,7 +508,6 @@ test("keeps a long receipt scrollable on a narrow editor", async ({ page }) => {
   const mobileFormatter = page.getByRole("toolbar", { name: "Mobile text formatting" });
   await expect(mobileFormatter).toBeVisible();
   await expect(page.locator(".inspector")).toBeHidden();
-  await expect(page.getByRole("button", { name: /format panel/i })).toBeHidden();
   await mobileFormatter.getByRole("button", { name: "Italic" }).click();
   await expect(page.locator('.receipt-svg text[font-style="italic"]')).not.toHaveCount(0);
   for (let index = 0; index < 8; index += 1) {
@@ -278,7 +539,7 @@ type ShimWindow = Window & { __webmcpShim: { tools: Map<string, unknown>; call(n
 /** The production build only installs the local WebMCP host when it is asked for. */
 const shimUrl = (path: string) => `${path}?webmcp=shim`;
 const shimReady = (page: import("@playwright/test").Page) =>
-  expect.poll(() => page.evaluate(() => (window as unknown as ShimWindow).__webmcpShim?.tools.size ?? 0)).toBe(10);
+  expect.poll(() => page.evaluate(() => (window as unknown as ShimWindow).__webmcpShim?.tools.size ?? 0)).toBe(11);
 
 test("turns a described situation into a designed receipt", async ({ page }) => {
   await page.goto(shimUrl("/app"));
@@ -301,13 +562,13 @@ test("turns a described situation into a designed receipt", async ({ page }) => 
     ],
   }));
 
-  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Lisbon · four days");
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Lisbon · four days");
   await expect(page.locator(".receipt-svg")).toContainText("DAYS TO GO");
   await expect(page.locator(".receipt-svg")).toContainText("TP 204");
   await expect(page.locator(".receipt-svg")).toContainText("Passport");
-  await expect(page.locator(".agent-activity")).toBeVisible();
   await expect(page.locator(".agent-cursor")).toBeVisible();
-  await expect(page.locator(".agent-activity").getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.locator(".agent-cursor").getByRole("button", { name: "Undo" })).toBeVisible();
+  await expect(page.locator(".agent-cursor-caption")).toHaveText("Drafted Lisbon · four days");
 
   // The agent can read back what will physically print.
   const preview = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("preview_receipt", {}));
@@ -315,7 +576,7 @@ test("turns a described situation into a designed receipt", async ({ page }) => 
   expect(preview.structuredContent.paperLengthMm).toBeGreaterThan(0);
 
   // One item changes without rewriting the block the human may be editing.
-  await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("edit_receipt", { operations: [{ op: "checkItem", at: 4, item: "passport" }] }));
+  await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("edit_receipt", { operations: [{ op: "checkItem", at: 5, item: "passport" }] }));
   const outline = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("get_receipt", {}));
   expect(outline.content[0].text).toContain("1/3");
 
@@ -329,7 +590,7 @@ test("turns a described situation into a designed receipt", async ({ page }) => 
   // Undo steps back exactly one change: the item that was just checked.
   const undone = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("undo_agent_edit", {}));
   expect(undone.content[0].text).toContain("0/3");
-  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Lisbon · four days");
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Lisbon · four days");
 });
 
 test("lists the block vocabulary an agent can draw on", async ({ page }) => {
@@ -347,7 +608,7 @@ test("registers its tools away from the editor too", async ({ page }) => {
   const status = await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("get_app_status", {}));
   expect(status.content[0].text).toContain("Editor:");
   await page.evaluate(async () => (window as unknown as ShimWindow).__webmcpShim.call("open_receipt_editor", {}));
-  await expect(page.getByRole("textbox", { name: "Receipt title" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toBeVisible();
 });
 
 test("binds agent print approval to one visible revision", async ({ page }) => {
@@ -365,7 +626,7 @@ test("binds agent print approval to one visible revision", async ({ page }) => {
       { type: "list", items: ["Flatten boxes", "Take out the bin"] },
     ],
   }));
-  await expect(page.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Take recycling out");
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Take recycling out");
   await expect(page.locator(".receipt-svg")).toContainText("Put the blue bin by the door tonight.");
 
   await page.evaluate(async () => {
@@ -378,7 +639,7 @@ test("binds agent print approval to one visible revision", async ({ page }) => {
   await expect(approval.getByText(/Revision \d+/)).toBeVisible();
 
   // Any human edit cancels the approval, so an approved draft cannot drift.
-  await page.getByRole("textbox", { name: "Receipt title" }).fill("Changed while reviewing");
+  await page.getByRole("textbox", { name: "Receipt title" }).first().fill("Changed while reviewing");
   await expect(approval).toHaveCount(0);
   const stale = await page.evaluate(() => (window as unknown as ShimWindow).__printPromise) as { structuredContent: Record<string, unknown> };
   expect(stale.structuredContent).toMatchObject({ status: "stale" });
@@ -396,8 +657,8 @@ test("binds agent print approval to one visible revision", async ({ page }) => {
 test("favorites a library block and keeps it close in the inspector and Add menu", async ({ page }) => {
   await page.goto("/app");
   await page.getByRole("tab", { name: "Library" }).click();
-  await expect(page.getByText("Your favorite blocks live here.")).toBeVisible();
-  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  await expect(page.getByText("Favorites")).toBeVisible();
+  await page.getByRole("button", { name: "Browse library" }).click();
 
   const library = page.getByRole("dialog", { name: "Block Library" });
   await expect(library).toBeVisible();
@@ -431,8 +692,41 @@ test("favorites a library block and keeps it close in the inspector and Add menu
 
   await page.getByRole("button", { name: "Add block", exact: true }).click();
   const addMenu = page.getByRole("menu", { name: "Add block" });
-  await expect(addMenu.getByRole("menuitem", { name: "Agenda" })).toBeVisible();
+  await expect(addMenu.getByRole("menuitem", { name: "Heading" })).toBeVisible();
+  await expect(addMenu.getByRole("menuitem", { name: "Agenda" })).toHaveCount(0);
   await expect(addMenu.getByRole("menuitem", { name: "Browse all blocks…" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Library" })).toHaveAttribute("aria-selected", "true");
+});
+
+test("inserts a configured favorite without reopening the library", async ({ page }) => {
+  await page.goto("/app");
+  await page.getByRole("tab", { name: "Library" }).click();
+  await page.getByRole("button", { name: "Browse library" }).click();
+  const library = page.getByRole("dialog", { name: "Block Library" });
+  await library.getByLabel("Search Block Library").fill("countdown");
+  await library.getByRole("button", { name: "Add Countdown to favorites" }).click();
+  await library.getByRole("button", { name: "Close Block Library" }).click();
+
+  await page.getByRole("button", { name: "Add Countdown" }).click();
+  await expect(page.getByRole("dialog", { name: "Block Library" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Select countdown block" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Format" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("Countdown added", { exact: true })).toBeVisible();
+});
+
+test("names the printer on paper without renaming the chrome", async ({ page }) => {
+  await page.goto("/app");
+  await page.getByRole("button", { name: "Make it mine" }).first().click();
+  await page.getByLabel("First name").fill("Maya");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: /Daily briefings/ }).click();
+  await page.getByRole("button", { name: "Done" }).click();
+
+  await expect(page.getByRole("dialog", { name: "Name your printer" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Block Library" })).toHaveCount(0);
+  await expect(page.getByLabel("OpenReceipt").first()).toBeVisible();
+  await expect(page.getByText("For you", { exact: true })).toBeVisible();
+  await expect(page.locator(".receipt-svg text", { hasText: "MAYA" }).first()).toBeVisible();
 });
 
 test("preserves a between-block insertion point through the Block Library", async ({ page }) => {
@@ -475,7 +769,7 @@ test("configures weather once, saves its snapshot, and refreshes it manually", a
 
   await page.goto("/app");
   await page.getByRole("tab", { name: "Library" }).click();
-  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  await page.getByRole("button", { name: "Browse library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
   await library.getByText("Daily weather", { exact: true }).first().click();
   await library.getByLabel("City or postal code").fill("Brooklyn");
@@ -498,7 +792,7 @@ test("configures weather once, saves its snapshot, and refreshes it manually", a
 test("keeps blocks with no data source off real paper", async ({ page }) => {
   await page.goto("/app");
   await page.getByRole("tab", { name: "Library" }).click();
-  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  await page.getByRole("button", { name: "Browse library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
   await library.locator(".library-card").filter({ hasText: "Delivery route" }).getByRole("button").first().click();
   await expect(library.getByRole("link", { name: "Review in playground" })).toBeVisible();
@@ -516,7 +810,7 @@ test("configures a block that needs a city before it can be added", async ({ pag
 
   await page.goto("/app");
   await page.getByRole("tab", { name: "Library" }).click();
-  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  await page.getByRole("button", { name: "Browse library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
   await library.locator(".library-card").filter({ hasText: "Air quality" }).getByRole("button").first().click();
 
@@ -544,7 +838,7 @@ test("moves a live block to another place and keeps the old data when the fetch 
 
   await page.goto("/app");
   await page.getByRole("tab", { name: "Library" }).click();
-  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  await page.getByRole("button", { name: "Browse library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
   await library.locator(".library-card").filter({ hasText: "Air quality" }).getByRole("button").first().click();
   await library.getByLabel("City or postal code").fill("Lisbon");
@@ -561,7 +855,7 @@ test("moves a live block to another place and keeps the old data when the fetch 
 test("lets an agent edit one line of a block without rewriting it", async ({ page }) => {
   await page.goto("/app?webmcp=shim");
   await page.getByRole("tab", { name: "Library" }).click();
-  await page.getByRole("button", { name: "Browse Block Library" }).click();
+  await page.getByRole("button", { name: "Browse library" }).click();
   const library = page.getByRole("dialog", { name: "Block Library" });
   await library.locator(".library-card").filter({ hasText: "Meeting notes" }).getByRole("button").first().click();
   await library.getByRole("button", { name: "Add block", exact: true }).click();
@@ -592,8 +886,8 @@ test("reviews printable blocks, widths, local data, and the catalog", async ({ p
 
   await page.goto("/blocks");
   await expect(page.getByRole("heading", { name: "Blocks are the fun part." })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Focus .* preview$/ })).toHaveCount(20);
-  await expect(page.locator(".prototype-card .paper-surface")).toHaveCount(20);
+  await expect(page.getByRole("button", { name: /^Focus .* preview$/ })).toHaveCount(21);
+  await expect(page.locator(".prototype-card .paper-surface")).toHaveCount(21);
   // The three with no data source are shown, but under their own heading.
   await expect(page.getByRole("heading", { name: "Design studies" })).toBeVisible();
 
