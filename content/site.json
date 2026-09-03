@@ -113,7 +113,7 @@
     {
       "slug": "epson-tm-l90-ai-printer-setup",
       "title": "Set up an Epson TM-L90 with OpenReceipt",
-      "description": "Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local helper, and make your first print.",
+      "description": "Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local bridge, and make your first print.",
       "media": {
         "src": "/generated/tm-l90.png",
         "alt": "Epson TM-L90 thermal printer used with OpenReceipt",
