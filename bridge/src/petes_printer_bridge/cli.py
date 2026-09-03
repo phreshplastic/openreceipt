@@ -11,6 +11,7 @@ from platformdirs import user_data_path
 from .app import create_app
 from .auth import ALL_SCOPES
 from .storage import BridgeStore
+from .transports import create_usb_transport
 
 
 def main() -> None:
@@ -19,12 +20,22 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=int(os.environ.get("PETES_PRINTER_PORT", "8731")))
     parser.add_argument("--data-dir", type=Path, default=user_data_path("petes-printer"))
     parser.add_argument("--web-dist", type=Path)
+    parser.add_argument("--print-file", type=Path, help="Print a PNG file directly to the Epson TM-L90 over USB.")
     tokens = parser.add_mutually_exclusive_group()
     tokens.add_argument("--create-token", metavar="NAME", help="Create a scoped headless API token.")
     tokens.add_argument("--list-tokens", action="store_true", help="List headless API tokens without revealing secrets.")
     tokens.add_argument("--revoke-token", metavar="ID", help="Revoke a headless API token.")
     parser.add_argument("--scope", action="append", default=[], choices=sorted(ALL_SCOPES), help="Scope for --create-token; repeat as needed.")
     args = parser.parse_args()
+    if args.print_file:
+        transport = create_usb_transport()
+        try:
+            transport.prepare()
+            transport.print_image(args.print_file.read_bytes(), 4, "full")
+        finally:
+            transport.close()
+        print(f"Printed {args.print_file}")
+        return
     if args.create_token or args.list_tokens or args.revoke_token:
         store = BridgeStore(args.data_dir)
         try:
