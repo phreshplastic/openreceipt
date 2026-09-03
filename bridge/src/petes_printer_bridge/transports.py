@@ -23,7 +23,9 @@ class EscposTransport:
 
     def print_image(self, image_bytes: bytes, feed_lines: int, cut_mode: str) -> None:
         with Image.open(BytesIO(image_bytes)) as image:
-            self.printer.image(image.convert("1"), impl="bitImageRaster", center=False)
+            # python-escpos owns the monochrome conversion and inversion needed
+            # by ESC/POS. Pre-converting here can invert the receipt twice.
+            self.printer.image(image, impl="bitImageRaster", center=False)
         if feed_lines:
             self.printer.text("\n" * feed_lines)
         self.printer.cut(mode="FULL" if cut_mode == "full" else "PART", feed=False)
