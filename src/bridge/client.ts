@@ -64,7 +64,10 @@ export class ApiError extends Error {
 
 let sessionPromise: Promise<string> | undefined;
 let sessionToken: string | undefined;
-const bridgeOrigin = import.meta.env.MODE === "public" ? "http://localhost:8731" : "";
+// Use the bridge directly in both public and local-browser runs. The Vite
+// proxy is useful for development assets, but it can hide bridge failures and
+// make the printer appear disconnected while the daemon is healthy.
+const bridgeOrigin = import.meta.env.MODE === "test" ? "" : "http://localhost:8731";
 const bridgeUrl = (path: string) => `${bridgeOrigin}${path}`;
 
 export function ensureBrowserSession() {
