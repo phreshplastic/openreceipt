@@ -63,7 +63,7 @@ export class ApiError extends Error {
 }
 
 let sessionPromise: Promise<string> | undefined;
-const bridgeOrigin = import.meta.env.MODE === "public" ? "http://127.0.0.1:8731" : "";
+const bridgeOrigin = import.meta.env.MODE === "public" ? "http://localhost:8731" : "";
 const bridgeUrl = (path: string) => `${bridgeOrigin}${path}`;
 
 export function ensureBrowserSession() {
