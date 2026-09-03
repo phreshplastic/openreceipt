@@ -1,59 +1,96 @@
-# Pete’s Printer — WebMCP Challenge demo
+# OpenReceipt — WebMCP Challenge demo
 
-Make a 2:35–2:45 hybrid launch reel. Use clean screen capture for the working proof, a phone or camera for the printer, and voiceover throughout. A short founder shot can replace the second beat, but a Loom face bubble should not stay on-screen: it takes space from the receipt and makes the piece feel like a walkthrough instead of a small product film.
+**Target 2:40. Hard ceiling 2:59.** Under three minutes is a rule, not a preference.
 
-The whole story is one Lisbon trip receipt. One situation becomes a designed draft, the person and agent refine the same document, the agent previews the physical output, the person approves the consequential action, and the paper appears.
+One situation, told once, all the way through: a surf trip to Portugal, a week out. A person asks an agent for help, the agent builds a real document through named WebMCP tools, the person and the agent both edit it, and it ends up as paper that goes in the board bag.
+
+The emotional spine is one sentence: **the trip is the easy part; remembering everything is not.** The admin between you and the water gets handled, and then it leaves the screen. Everything in the cut either serves that or comes out.
+
+The receipt is real and already built — `video/assets/generated/surfing-trip.json`, drafted live through the tools and saved as **Surfing Trip**. Its measurements are **576 dots wide, 277 mm of paper** at revision 7. Reconfirm both after the final rehearsal and burn in whatever the capture actually says; live blocks bump the revision on their own.
+
+## Shape
+
+| Section | Time | Job |
+| --- | --- | --- |
+| Sizzle | 0:00–0:18 | The whole product with no explanation. Beat-cut. Ends on the wordmark. |
+| Situation | 0:18–0:32 | Why anyone would want this. The only slow part. |
+| Collaboration | 0:32–2:04 | The proof. Named tools, one shared document, both hands on it. |
+| Object | 2:04–2:42 | Approval, the printer, and the paper doing its job. |
+| End card | 2:42–2:50 | Name, line, links. |
+
+The challenge notes say the first 15 seconds must carry the agent-to-paper payoff, because judges may not watch further. The sizzle is that insurance: it shows the ending before the story starts.
 
 ## The cut
 
-| Time | Picture | Voiceover / live audio | On-screen copy |
+| Time | Picture | Voice | On screen |
 | --- | --- | --- | --- |
-| 0:00–0:08 | Macro shot of the final Lisbon receipt emerging from the real printer. Let the motor start the film; jazz enters after the first second. Tear the receipt and hold it briefly. | “A browser agent made this. It didn’t click around a webpage.” | “A website, an agent, and a real printer.” |
-| 0:08–0:22 | Wide desk shot with laptop and printer. Optional: cut to a clean, full-frame founder shot beside the printer. | “I built Pete’s Printer, a local-first receipt canvas where a person and an agent make something together, then send it to a thermal printer.” | “Pete’s Printer” / “Make a little something.” |
-| 0:22–0:36 | Screen capture of the editor. Move across the receipt, select one block, and make a tiny inline edit so it is plainly a working canvas. | “The receipt is the interface. What you see is drawn at the printer’s exact dot width, and I can edit it myself like any document.” | “One shared receipt” |
-| 0:36–0:54 | Show the agent beside the app. Enter the prepared travel prompt. Let the real tool activity remain visible; use a subtle editorial label only if the host does not name the call clearly. | “But this page also registers ten structured tools through WebMCP. Instead of guessing at buttons or scraping the DOM, the agent asks Pete’s Printer what belongs on a trip receipt.” | `list_receipt_recipes` / “WebMCP connected” |
-| 0:54–1:15 | The app changes live into the Lisbon receipt. Hold on the countdown, flight facts, weather, and grouped packing list as they appear. | “One `draft_receipt` call creates a countdown, flight details, destination weather, and packing grouped by where things live. The app supplies the printable vocabulary and constraints; the agent supplies the intelligence.” | `draft_receipt` / “Situation → finished paper” |
-| 1:15–1:36 | Ask the agent to add earbuds and mark Passport packed. Show the single checklist line change and the app’s agent highlight/Undo affordance. If possible, make one direct human edit immediately before this. | “We are editing the same revision-checked document. I can change it by hand, and the agent can update one line without replacing the block I might be touching.” | `get_receipt` → `edit_receipt` / “Granular, revision-checked edits” |
-| 1:36–1:50 | Ask, “How long will this be?” Show the real preview response and briefly frame the digital receipt. Replace the bracketed value below after the final rehearsal. | “Before anything physical happens, `preview_receipt` reads back the exact print, its dot dimensions, and its [actual] millimetres of paper.” | `preview_receipt` / “[actual width] dots · [actual length] mm” |
-| 1:50–2:09 | Ask, “Print it.” Show the print request and the full approval panel, including revision, output dimensions, destination, and the note about edits cancelling the request. Do not approve immediately; give the judge time to read it. | “Printing is consequential, so `request_receipt_print` pauses for human approval bound to this exact revision. If I edit the receipt now, the request cancels; an approved draft cannot drift.” | `request_receipt_print` / “Human approval required” |
-| 2:09–2:27 | Click “Approve and print.” Show the on-screen feed animation, then match-cut to the physical printer producing the same design. Bring up the printer sound and duck the music. | “I approve once. The browser renders that same document, and a local bridge sends it to the Epson over USB. There is no account or cloud print queue.” | “Exact preview → local USB print” |
-| 2:27–2:42 | Hold the finished paper beside the matching screen. Fold it, put it near a bag, or tape it by the door so its purpose is tangible. End on the printer and wordmark. | “A conversation became something I can keep by the door, fold into a pocket, and write on. Pete’s Printer makes the web a place where people and agents can create a real thing together.” | “Pete’s Printer” / “Make a little something.” / “Built with WebMCP” |
+| 0:00–0:04 | Black. Printer motor alone. Hard cut to paper feeding, macro. | — | — |
+| 0:04–0:16 | Beat-cut montage, one image per beat: prompt being typed, blocks landing, `draft_receipt`, the surf chart drawing itself, approval panel, approve click, paper feeding, hand tearing, pen ticking a box. | — | Tool names flash with the images |
+| 0:16–0:20 | Ground. Shapes settle. | — | **OpenReceipt** / A printer your agent can reach. |
+| 0:20–0:32 | The real desk. Printer idle. Slow — let it breathe after the sizzle. | "A week from Thursday I fly to Lisbon, pick up a car, and drive up the coast to Ericeira to surf. The trip is the easy part. Remembering everything is not." | — |
+| 0:32–0:50 | Screen: the prompt typed into the agent, then real tool activity. | "So I asked. And the agent isn't clicking around my page or scraping the DOM — this page registers eleven tools through WebMCP, so it can ask OpenReceipt what a trip receipt is actually made of." | `list_receipt_recipes` / WebMCP connected |
+| 0:50–1:14 | The receipt assembling. Punch: the countdown, then the arrival rows, then the weather, then **the surf chart drawing itself**. | "One call. A countdown. Where the car is and how far the drive is. The forecast where I'm actually going, not where I live. And a swell chart, which I didn't ask for — but the page knows a surf block exists, so the agent used it." | `draft_receipt` |
+| 1:14–1:32 | He clicks into a line and retypes it himself, in the editor. | "The rental desk is wrong. I fix that myself, on the same document. I don't have to ask." | One shared document |
+| 1:32–1:54 | Second prompt. One line changes. Agent highlight and Undo visible. | "And when I do ask, it changes one line. It doesn't replace the block I was just typing in. We're both working against the same revision, and it's checked both ways — if my copy is stale, the edit is refused." | `get_receipt` → `edit_receipt` |
+| 1:54–2:04 | He ticks two boxes in the editor. | "I can tick things off right here." | — |
+| 2:04–2:24 | Preview response with the real numbers. Then the approval panel, held long enough to read every field. | "Before anything physical happens it reads back the exact print — 576 dots wide, 282 millimetres of paper. Then it stops and asks. Printing is the one thing the agent can't do on its own." | `preview_receipt` · 576 dots · 282 mm / `request_receipt_print` |
+| 2:24–2:32 | Approve click. Match cut to the real printer. | "Approval is bound to this exact revision. If I edit now, the request dies — an approved draft can't drift." | Human approval required |
+| 2:32–2:44 | Printer running, paper emerging, hand tears it. Then a pen ticking a box on the printed list. | "…and then it's paper. Which is what I want in a board bag, on a beach, with wet hands and no signal." | — |
+| 2:44–2:52 | The receipt tucked into the board bag or by the door. End card. | "A conversation became something I can hold. That's new." | **OpenReceipt** / A printer your agent can reach. / Built with WebMCP · MIT · [live URL] |
 
-## Prepared live prompt
+## The prompts to run on camera
 
-Use one prompt with enough detail for a fast, visually rich first draft:
+Rehearse once, then record. These produce the receipt already saved as **Surfing Trip**.
 
-> I’m flying to Lisbon Thursday at 8:20 AM for four days, carry-on only. My flight is TP 204 and my seat is 14A. Make me something I can keep by the door.
+> I'm flying to Lisbon on the 10th, then driving up to Ericeira for a week of surfing. Make me something I can keep in the board bag.
 
-Then use these short follow-ups:
+Then **make one direct edit by hand** — click into the `Car` row and change the desk number. This is the single most important shot in the film: it is what proves a person and an agent are working on the same document rather than taking turns with a chatbot.
 
-> Add earbuds to my carry-on and mark Passport packed.
+> The evening session looks best — move sunscreen into the board bag and add a line to check the tide before dinner.
 
 > How long will this be on paper?
 
 > Looks good. Print it.
 
-The final receipt should contain a display heading, countdown, flight facts, destination weather, grouped packing, and a short “before the door” group. Keep it short enough that the whole paper can be read in the editor and held comfortably in the final shot.
+## What is on the paper
+
+**PETE'S / PRINTER** as the wordmark, then **Surf trip** as the display heading, then a solid rule. After that, three sections separated by dashed rules:
+
+1. **Countdown** — seven days to "Wheels up", with board bag, check-in and car as milestones.
+2. **Packing** — grouped into board bag, wetsuit, carry-on, and before-the-door, with checkboxes.
+3. **Getting there** — a section header over five facts: flight, landing, rental desk, the emphasised 50-minute drive, and when the keys are available.
+4. **Surf window** — the swell chart, last.
+
+The order is by when you actually use it: count the days, pack the bag, travel, then surf. A trip receipt read top to bottom should walk you through the trip.
+
+Dashed rules separate the sections and a solid rule closes the masthead, so the strip has a visible rhythm instead of being one continuous column. `Getting there` is a `section` heading; `Packing` and `Surf window` carry their own headers from their blocks, so adding more would double up.
+
+Everything on it has to be information. The heading says what the trip is, not where it is — a stranger reads "Surf trip" instantly and finds Ericeira in the drive row and the swell header. There is no subtitle line, because a line that only sets a mood is taking up paper someone has to carry.
+
+**The weather block came out.** It and the surf block are both line charts with a three-column stat row underneath, and side by side on an 80 mm strip they read as the same block twice. Surf is the one that is distinctive, that is the reason for the trip, and that makes the WebMCP argument. The packing list already encodes the clothing decision the forecast would have informed. Putting it back is one `edit_receipt` call if the paper feels thin without it.
+
+The surf block is the beat that sells WebMCP hardest, and it is worth the punch-in. The agent did not invent a chart: it asked the page what blocks exist, found `surf`, and used it. That is the whole argument for structured tools over DOM scraping, visible in one image.
+
+The wordmark always prints in caps, whatever anyone types, and its face is the one chosen in personalisation rather than anything an agent picks. Both are enforced in the product now, so the paper cannot come out looking like it was signed by six different shops.
+
+## Say something true
+
+Speak at 135–145 words per minute, conversationally. The script is about 260 words, which leaves room to breathe. Do not read the on-screen copy aloud — titles locate evidence, the voice carries the story.
 
 ## What each judging criterion sees
 
-- **WebMCP leverage:** actual named tool calls, structured situation-to-receipt composition, granular item editing, exact preview, and permission-gated printing show a deep tool surface rather than a single novelty action.
-- **Execution:** the same document moves from a finished editor to an exact preview and then to real paper, which proves the product is coherent end to end.
-- **Potential impact:** the receipt leaves the screen and becomes a useful, glanceable object near the door, in a pocket, or wherever another screen would be distracting.
-- **Creativity and ambition:** a web page and an agent collaborate on a physical artifact, while revision-bound approval makes the unusual output trustworthy.
+- **WebMCP leverage** — named tools doing real work: recipe lookup, structured drafting, granular revision-checked editing, exact preview, permission-gated printing. Five distinct capabilities, not one novelty action. The stale-revision refusal is worth a sentence because almost nothing else in the field has it.
+- **Execution** — the same document travels from a finished editor through an exact preview to real paper without a seam.
+- **Potential impact** — the receipt leaves the screen and becomes useful where a screen is bad: wet hands, bright sun, no signal.
+- **Creativity and ambition** — a web page and an agent collaborate on a physical object, and revision-bound approval is what makes an unusual output trustworthy.
 
-## Capture plan
+## Rules that constrain the cut
 
-1. **Lock the demo state.** Use the real WebMCP host you will name in the submission, the real bridge, and the real printer. Rehearse the exact prompts until the tool sequence and final paper are stable. Record one clean safety take before experimenting.
-2. **Record the screen separately.** Capture at 1440p or higher with notifications, bookmarks, debug panels, and unrelated tabs hidden. Keep the app and agent large enough to read on a phone. Leave tool calls and the approval panel on-screen longer than feels necessary while recording; the edit can shorten them.
-3. **Record four physical shots.** Get the cold-open macro, a wide laptop-and-printer shot, a side angle of the full print, and a five-second hold of the finished receipt beside the matching screen. Lock focus and exposure on the white paper so it does not pulse while printing.
-4. **Record voiceover after the picture edit.** Speak conversationally at roughly 135–145 words per minute. Keep the printer’s real sound at the opening and payoff. Use only original or explicitly licensed jazz, mixed low enough that every technical sentence is effortless to hear.
-5. **Finish for judging, not social media.** Burn in accurate English captions, export 16:9 at 1080p or better, and keep the final runtime below 2:45. Upload to YouTube as **Public**, watch the uploaded version once with headphones and once on a phone, then verify that the Devpost link opens while signed out.
+- Under three minutes, public on YouTube, audio explaining what was built and how WebMCP was used.
+- No third-party trademarks or copyrighted material without permission. The agent host's interface appears incidentally because that is where the tools run, which is nominative use of the thing we interoperate with — but keep its chrome incidental. No host logo in a title card, no host name in the end card, nothing implying endorsement.
+- Music must be original or explicitly licensed for public promotional use, with the licence recorded in `video/assets/audio/`.
+- Every product claim in the voice track must be visible in captured footage in the same breath.
 
 ## If time collapses
 
-Make a clean two-minute walkthrough with voiceover and one physical cutaway. Start on the final print, show the travel prompt and real draft, make the single-line edit, preview, request approval, approve, and end on the real paper. Cut the landing page, setup flow, block library, headless MCP server, architecture tour, and most code; they are good supporting material for the repository, but they dilute the one interaction the video needs to prove.
-
-## Deadline guardrail
-
-The final video must be public on YouTube and strictly under three minutes. Freeze the submitted video, repository commit, live build, and Devpost entry before **September 3, 2026 at 4:00 p.m. Eastern** and leave the submitted versions unchanged during judging. Use only music and visual assets you have permission to publish; borrow the warm pacing of a product launch film, not another company’s marks, footage, interface, or soundtrack.
+Cut the sizzle to eight seconds and the situation to one sentence. Never cut: the named tool call, the human's own edit, the approval panel, or the paper. Those four are the submission.

@@ -1,23 +1,27 @@
 # Copy-paste agent handoff
 
-Paste the following into Claude Code, Cursor, Codex, or Kimi from the repository root:
+The Remotion project already exists in `video/edit/`, the direction is settled in `video/LOOK.md`, and `video/shot-plan.json` drives the timing. Paste the following at the repository root:
 
-> Build the Pete's Printer WebMCP Challenge demo video from the production package under `video/`. Read `video/AGENTS.md`, `video/README.md`, `video/CAPTURE.md`, `video/LOOK.md`, `video/shot-plan.json`, and `docs/demo-video-screenplay.md` before making changes. Keep all video dependencies and outputs inside `video/`; do not modify the product app or root package files.
+> Continue the OpenReceipt WebMCP Challenge demo video in `video/`. Read `video/AGENTS.md`, `video/README.md`, `video/LOOK.md`, `video/CAPTURE.md`, `video/shot-plan.json`, and `docs/demo-video-screenplay.md` before changing anything. Keep all video dependencies and outputs inside `video/`; do not modify the product app or root package files.
 >
-> First inventory `video/assets/` with `ffprobe`, match files to the asset IDs in `video/shot-plan.json`, and write any gaps to `video/assets/MISSING.md`. Then initialize a current Remotion TypeScript project in `video/edit/`, install or load the official Remotion agent skills, and create a 1920x1080, 30 fps composition. Keep timing in one data module and build reusable components for full-bleed UI crops, warm paper backgrounds, tool-call labels, restrained camera movement, captions, and the final physical-print reveal.
+> First inventory `video/assets/` with `ffprobe`, match files to the asset IDs in `video/shot-plan.json`, and write any gaps to `video/assets/MISSING.md`. Then build `video/edit/src/sequences/Film.tsx` from the ten sequences in the plan, using `Pilot.tsx` as the pattern — it is the approved look and rhythm, and every device the film needs already exists in `edit/src/motion`, `edit/src/plate`, `edit/src/camera` and `edit/src/type`.
 >
-> Use real footage for every product claim. The edit must visibly prove named WebMCP tool use, human and agent editing the same revision-checked receipt, exact preview, revision-bound approval, and the matching physical print. Use the supplied screenplay wording and shot plan rather than inventing a new product story.
+> Use real footage for every product claim. The edit must visibly prove named WebMCP tool use, human and agent editing the same revision-checked receipt, exact preview, revision-bound approval, and the matching physical print. Use the supplied screenplay wording rather than inventing a new product story.
 >
-> Work through two review gates. First render one representative still per sequence into `video/exports/stills/` and summarize the visual choices and any missing media. After those frames are approved, render a complete rough cut with scratch narration into `video/exports/review/`. Only after rough-cut approval should you mix final narration, licensed music, printer sound, and reviewed captions. Put the final MP4, SRT, and release checklist in `video/exports/final/`.
+> Respect the direction the code already encodes. Time everything in beats via `beat(n)` — never in frames or seconds — so the film retimes to the real track from `music.bpm` alone. The `fill` value per sequence is the frame's arc and must stay 1.0 at `approve-and-print`, where the frame goes bare. Inter only, weight for hierarchy. Parchment and thermal receipt are two different materials, and the receipt never wears parchment. `#0071E3` appears only where the captured UI already uses it, plus the `ToolTag` pill.
 >
-> If media is missing, use clearly labeled placeholders and continue elsewhere; never generate fake UI, fake tool calls, or fake printer footage. If a coherent Remotion rough cut cannot be completed promptly, make the screenplay's two-minute fallback from the same real media and preserve the physical print payoff.
+> Work through the gates in `video/AGENTS.md`. First render one still per sequence into `video/exports/stills/` and summarise the choices and any missing media. After those are approved, render a complete rough cut with scratch narration into `video/exports/review/`. Only then mix final narration, licensed music, printer sound, and reviewed captions, and put the final MP4, SRT, and release checklist in `video/exports/final/`.
+>
+> If media is missing, keep the labelled `Placeholder` slates and continue elsewhere; never generate fake UI, fake tool calls, or fake printer footage. If a coherent rough cut cannot be completed promptly, make the screenplay's two-minute fallback from the same real media and preserve the physical print payoff.
 
-## When footage has not been recorded yet
+## Review prompt after the stills
 
-Give the agent the same prompt, then add:
+> Review the rendered sequence stills as a product-launch film at phone playback size. Report only problems that change the edit: unreadable UI, weak hierarchy, inconsistent framing, a receipt that has started to look like the parchment it sits on, false product claims, or missing physical continuity. Propose exact crop, size, colour, or timing changes, then wait for my taste decisions before producing the full render.
 
-> No final media exists yet. Create only the Remotion structure, design tokens, shot timing, placeholder components, and automated still-render commands. Use obvious slate placeholders named after missing asset IDs. Stop before polishing animation so real footage can determine crops and pacing.
+## If the cut stops feeling like music
 
-## Review prompt after the first stills
+Check that arrivals are on whole beats, that something happens on most downbeats, and that the density varies — a reel at one speed throughout stops registering as rhythm. Watch it once with the sound off: if the cuts feel arbitrary, they have drifted off the grid.
 
-> Review the rendered sequence stills as a product-launch film at phone playback size. Report only problems that change the edit: unreadable UI, weak hierarchy, inconsistent framing, copied-looking Anthropic details, false product claims, or missing physical continuity. Propose exact crop, size, color, or timing changes, then wait for my taste decisions before producing the full render.
+## If the paper stops looking real
+
+Almost always the lighting pass, not the noise. Check `feDiffuseLighting`'s `elevation` (low rakes across the tooth; high flattens it) and the `feComponentTransfer` contrast expansion after it. Adding more turbulence makes it worse. See `LOOK.md`.

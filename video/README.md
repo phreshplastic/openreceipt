@@ -1,45 +1,68 @@
-# Pete's Printer demo video
+# OpenReceipt demo video
 
-This folder is the production handoff for the WebMCP Challenge video. The target is a 2:35-2:45 launch-style film built from real screen capture, real printer footage, Pete's voice, restrained motion graphics, and licensed jazz.
+This folder is the production surface for the WebMCP Challenge video: a 2:35–2:45 launch-style film built from real screen capture, real printer footage, Pete's voice, generated paper, and licensed jazz.
 
-The story and wording already exist. Treat [`../docs/demo-video-screenplay.md`](../docs/demo-video-screenplay.md) as the narrative source of truth and [`shot-plan.json`](shot-plan.json) as the machine-readable edit map. The current tool research and licensing notes live in [`../docs/research/ai-video-tools-2026.md`](../docs/research/ai-video-tools-2026.md).
+The story already exists. [`../docs/demo-video-screenplay.md`](../docs/demo-video-screenplay.md) is the narrative source of truth, [`LOOK.md`](LOOK.md) is the art direction, and [`shot-plan.json`](shot-plan.json) is the machine-readable edit map that the Remotion project reads directly.
+
+## The direction in one paragraph
+
+The film is a **product launch sizzle reel staged on paper**. Warm ground, real capture in cards that travel and settle, geometric shapes carrying the rhythm, hard punches into detail, and cuts that land on the beat. Type is Inter throughout, weight for hierarchy.
+
+Time is measured in beats, not seconds: `music.bpm` in the shot plan sets the grid, and everything in `edit/` is timed against it, so retiming to a real track is one number. The frame's own arc is the `fill` value per sequence — cards through the story, then exactly 1.0 for the print, where nothing sits between the viewer and the proof.
+
+Two paper stocks, and the difference is load-bearing: parchment is the ground, thermal receipt is the product, and the receipt never wears parchment. All of it is generated — nothing photographed, nothing licensed. The recipe is in [`LOOK.md`](LOOK.md).
 
 ## Start here
 
-1. **Finish the setup check.** Work through [`SETUP.md`](SETUP.md) before recording, because discovering a watermark, missing export option, or music restriction after capture costs the most time.
-2. **Record into the named asset slots.** Follow [`CAPTURE.md`](CAPTURE.md) and place files under `assets/`; consistent names let an agent assemble the first cut without another sorting pass.
-3. **Hand the folder to an agent.** Start Claude Code, Cursor, Codex, or Kimi at the repository root and paste [`HANDOFF.md`](HANDOFF.md). The scoped [`AGENTS.md`](AGENTS.md) gives it the production constraints.
-4. **Review stills before video.** The agent should apply [`LOOK.md`](LOOK.md), render one representative frame per sequence, get Pete's approval on framing and typography, and only then spend time on complete renders.
-5. **Use the fallback early.** If a coherent Remotion rough cut does not exist after the first assembly session, make the two-minute Screen Studio cut described in the screenplay. The real printer reveal and WebMCP explanation remain mandatory.
+1. **Look first.** Render `Paper-Study` and `Pilot` from `edit/` and settle the stock choice before capture, because the look changes what is worth recording.
+2. **Check the setup.** Work through [`SETUP.md`](SETUP.md) before recording. Discovering a watermark or a music restriction after capture costs the most time.
+3. **Record into the named slots.** Follow [`CAPTURE.md`](CAPTURE.md) and place files under `assets/`. The recorder settings at the top of that file matter as much as the shot list.
+4. **Hand the folder to an agent.** Paste [`HANDOFF.md`](HANDOFF.md) at the repository root. [`AGENTS.md`](AGENTS.md) carries the production constraints.
+5. **Use the fallback early.** If a coherent rough cut does not exist after the first assembly session, make the two-minute cut described in the screenplay. The real printer reveal and the WebMCP explanation stay mandatory either way.
 
 ## What Pete supplies
 
-- Clean software recordings of the rehearsed Lisbon flow.
-- Four to six phone clips showing the real printer and finished receipt.
-- Rough narration for timing, followed by a final narration recording.
-- A licensed jazz track or a saved license record for generated music.
-- Taste decisions on the key-frame review and final cut.
+- Clean software recordings of the rehearsed Lisbon flow, exported flat with auto-zoom off.
+- Six phone clips of the real printer and the finished receipt.
+- Rough narration for timing, then a final narration recording.
+- A licensed jazz track plus its licence record.
+- Taste decisions on the look test and the final cut.
+
+Not needed: any texture shoot, overhead rig, foley session, or titling and zooming inside the screen recorder.
 
 ## What the agent owns
 
-- Media inspection, proxies, transcript/timing data, and the Remotion project under `edit/`.
-- Assembly, large UI crops, tool-call labels, transitions, captions, audio ducking, and renders.
+- Media inspection, proxies, timing data, and the Remotion project under `edit/`.
+- Assembly, paper, crops, tool labels, transitions, captions, audio ducking, renders.
 - A factual-continuity pass against the captured product and the challenge rules.
-- Exporting a final MP4 and SRT under `exports/` without changing the product application.
+- A final MP4 and SRT under `exports/`, without touching the product application.
 
 ## Directory contract
 
 ```text
 video/
-  assets/       Human-supplied recordings, audio, and approved stills
-  edit/         Separate Remotion package created by the editing agent
-  exports/      Review and final renders
-  AGENTS.md     Scoped rules for any continuation agent
-  CAPTURE.md    Exact recording checklist and file names
-  HANDOFF.md    Copy-paste continuation prompt
-  LOOK.md       Visual, motion, typography, and sound direction
-  SETUP.md      Accounts, software, skills, and licensing check
-  shot-plan.json  Timing and asset map derived from the screenplay
+  assets/         Human-supplied recordings, audio, and approved stills
+  edit/           The Remotion project (own package.json, isolated from the app)
+  exports/        Review and final renders
+  AGENTS.md       Scoped rules for any continuation agent
+  CAPTURE.md      Recorder settings and the exact shot list
+  HANDOFF.md      Copy-paste continuation prompt
+  LOOK.md         Visual, material, motion, and sound direction
+  SETUP.md        Accounts, software, skills, and licensing check
+  shot-plan.json  Beat grid, fill arc, timing, and asset map
 ```
 
-`ffmpeg` 8.1.2, Node 26, and npm 11 are already available on this machine. The Remotion package has deliberately not been initialized yet, so the next agent can use the current official starter after footage exists and keep its dependencies isolated from the product app.
+## Running the edit
+
+```bash
+cd video/edit && npm install && npm run studio
+```
+
+| Command | What it does |
+| --- | --- |
+| `npm run studio` | Remotion Studio, no browser auto-open |
+| `npx remotion still Paper-Study out.png` | The paper look test — read it at 100% |
+| `npm run pilot` | The 12-bar look test in motion, into `exports/review/` |
+| `npm run lint` | ESLint plus `tsc` |
+
+`ffmpeg` 8.1.2, Node 26 and npm 11 are already available on this machine.

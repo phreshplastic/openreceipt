@@ -1,46 +1,50 @@
 # Capture manifest
 
-Record picture without live narration. Hold every important state two seconds before and after the action, because those handles let the edit breathe and make agent-generated zooms reliable.
+Real audio and real timing now exist for the whole film. Everything below is timestamped against the actual 78.18s voiceover — record close to these durations so the edit doesn't have to stretch or cut your footage to fit.
 
-## Screen capture
+## Recorder settings — unchanged, still load-bearing
 
-Set the display and browser to the exact state used in the submission. Record at 1440p or higher, hide notifications and unrelated tabs, keep the agent tool names readable, and preserve the real cursor.
+- **Auto-zoom OFF, no baked-in camera moves.** All camera work happens in Remotion.
+- **Export flat** — no rounded corners, drop shadow, padding, or wallpaper. The film's own frame (dark backdrop, rounded card, shadow) replaces whatever Screen Studio would add — a decorated export fights it.
+- 2560×1600 or higher, fixed window size across every take.
+- Notifications off, unrelated tabs hidden, real cursor visible.
 
-| Asset ID | File name | Required content | Done |
+## The physical printer shot — new guidance
+
+You'll shoot this on your phone, and it does **not** need to be polished. It sits inside the exact same rounded, shadowed frame as the screen capture (`Card` component, `variant="phone"`) — the frame is doing the work of making it look intentional, not the camera work. Handheld is fine. Landscape or portrait both work; the frame crops to fit either way. What actually matters:
+
+- Steady enough to read, not steady enough to look like a tripod.
+- Real light — a window or lamp, not the phone's flash.
+- Get the motor starting and the paper actually emerging in the same continuous shot if you can — that's the one match cut in the film (`print` scene, 47.28s–51.47s).
+
+## Screen recording — timestamped to the real VO
+
+Your receipt is already correct in the app (revision 40 — Pete's Printer, solid dividers, "Surf trip in Portugal") — nothing to fix there before recording.
+
+| Scene | VO window | What's said | What to capture |
 | --- | --- | --- | --- |
-| `screen-editor` | `assets/screen/screen-01-editor-human-edit.mov` | Receipt canvas, block selection, and one small direct edit | [ ] |
-| `screen-agent-prompt` | `assets/screen/screen-02-agent-prompt-tools.mov` | Prepared Lisbon prompt and visible `list_receipt_recipes` activity | [ ] |
-| `screen-draft` | `assets/screen/screen-03-draft-lisbon.mov` | `draft_receipt` and the complete Lisbon receipt appearing | [ ] |
-| `screen-granular-edit` | `assets/screen/screen-04-granular-edit.mov` | Add earbuds, mark Passport packed, highlight/Undo state | [ ] |
-| `screen-preview` | `assets/screen/screen-05-preview.mov` | `preview_receipt` with real dot dimensions and paper length | [ ] |
-| `screen-approval` | `assets/screen/screen-06-approval-panel.mov` | Print request and the untouched approval panel held long enough to read | [ ] |
-| `screen-approve-feed` | `assets/screen/screen-07-approve-and-feed.mov` | Approval click and on-screen feed animation | [ ] |
-| `screen-safety` | `assets/screen/screen-99-complete-safety-take.mov` | One uninterrupted run from prompt through approval | [ ] |
+| hook + ask-agent | 0.06s–10.73s | "...you tell your agent about it...ask it to put together a list..." | The real prompt typed and sent, in whichever host you're actually using. ~11s. |
+| real-tools + blocks-assemble | 10.81s–28.06s | "...real tools...beautiful, minimal, utilitarian...countdown, packing list, surf forecast..." | `list_receipt_recipes`/`draft_receipt` firing, then the receipt assembling. Hold on the surf block specifically for a beat — it's getting a punch-in. ~17s. |
+| human-edit | 28.06s–34.48s | "...edit it yourself..." | You clicking into a real line and retyping it by hand. The single most important shot — two hands on one document. ~6s. |
+| shared-canvas | 34.72s–42.97s | "...same shared canvas at the same time..." | The agent's own edit landing: one line changes, highlight + Undo visible. ~8s. |
+| preview | 43.2s–47.08s | "...preview of the exact receipt." | `preview_receipt` on screen, real dot width and paper length — whatever it actually says. ~4s. |
+| print (screen half) | 47.28s–51.47s | "...one button press to print..." | Approve click, then the on-screen print feed. Cuts to your phone shot here. ~4s. |
+| same-flow | 56.64s–65.68s | "...grocery list, morning brief, reminder, meeting notes..." | Optional: a few seconds of the recipe/template list if you want it as a backup to the B-roll montage covering this line. Not required — B-roll may carry this beat entirely. |
 
-## Physical footage
+Everything else (`autonomous-aside`, `carry-it`, `badges`, `end-card`) is your physical footage or the end card — no screen needed.
 
-Shoot horizontal 4K at 30 fps with stable support and locked focus/exposure. Record natural printer sound on every take, then capture 20 seconds of room tone and one isolated print for sound design.
+## Physical shots, by scene
 
-| Asset ID | File name | Required content | Done |
-| --- | --- | --- | --- |
-| `physical-cold-open` | `assets/physical/physical-01-cold-open-macro.mov` | Printer wakes, paper begins, Lisbon receipt emerges | [ ] |
-| `physical-wide` | `assets/physical/physical-02-wide-desk.mov` | Laptop, printer, and enough negative space for a title | [ ] |
-| `physical-full-print` | `assets/physical/physical-03-full-print-side.mov` | Complete print from a side or three-quarter angle | [ ] |
-| `physical-tear` | `assets/physical/physical-04-tear-and-lift.mov` | Hand tears and lifts the finished receipt cleanly | [ ] |
-| `physical-match` | `assets/physical/physical-05-paper-beside-screen.mov` | Readable paper beside the matching on-screen receipt for at least five seconds | [ ] |
-| `physical-use` | `assets/physical/physical-06-by-the-door.mov` | Receipt placed by a bag, door, or other believable point of use | [ ] |
-| `printer-sfx` | `assets/audio/sfx-printer-isolated.wav` | One clean printer run without speech or music | [ ] |
-| `room-tone` | `assets/audio/sfx-room-tone.wav` | Twenty seconds of the recording space | [ ] |
+| Scene | VO window | Capture |
+| --- | --- | --- |
+| print | 47.28s–56.52s | Printer motor starting, paper emerging — continuous if possible. ~9s total covers both `print` and the `autonomous-aside` line, which just stays on this shot. |
+| carry-it | 65.92s–70.76s | Tear the receipt off, hold it or place it somewhere real — bag, door, dash. ~5s. |
+| badges | 70.88s–75.27s | Can be a continuation of the carry-it shot, or a second calm moment — three short text badges land over whatever you give here, so it just needs to hold still enough to read text over. ~4s. |
 
-## Voice and music
+## Audio — done, nothing needed from you here
 
-Record the rough read first so an agent can cut to cadence. Record the final voice after the rough picture exists, matching its pacing rather than trying to hit every screenplay timestamp blindly.
+VO and music are both ingested, transcribed, and mixed as a balance reference (sent separately). Once your footage is in, final loudness gets normalized to about −14 LUFS for YouTube.
 
-| Asset ID | File name | Required content | Done |
-| --- | --- | --- | --- |
-| `vo-scratch` | `assets/audio/vo-scratch.wav` | Full screenplay read, conversational and unprocessed | [ ] |
-| `vo-final` | `assets/audio/vo-final.wav` | Approved read with retakes left as separate files if needed | [ ] |
-| `vo-clean` | `assets/audio/vo-final-clean.wav` | Restrained cleanup of the approved read | [ ] |
-| `music` | `assets/audio/music-jazz.wav` | Licensed instrumental track with license record | [ ] |
+## B-roll — I'm sourcing this, not you
 
-Before handing off, play every file once, confirm it contains the named event, and leave failed takes outside these final asset names. The editing agent should be able to trust that each named slot contains the best available take.
+Two beats (`hook` and `same-flow`) get short cinematic B-roll clips via Pexels — see `assets/broll-manifest.md` for the exact plan. Nothing needed from you unless you'd rather shoot those moments yourself instead of using stock.
