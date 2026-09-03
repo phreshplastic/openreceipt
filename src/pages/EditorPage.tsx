@@ -75,8 +75,8 @@ function usePresence(open: boolean, durationMs = 340) {
   const [present, setPresent] = useState(open);
   useEffect(() => {
     if (open) {
-      setPresent(true);
-      return;
+      const frame = window.requestAnimationFrame(() => setPresent(true));
+      return () => window.cancelAnimationFrame(frame);
     }
     const timer = window.setTimeout(() => setPresent(false), durationMs);
     return () => window.clearTimeout(timer);
@@ -114,7 +114,6 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   const [destination, setDestination] = useState<PrintDestination>(() => loadPrintDestination());
   const [destinationMenuOpen, setDestinationMenuOpen] = useState(false);
   const canvasPointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
-  const lastFormatBlock = useRef<ReceiptBlock | undefined>(undefined);
   const draftStoreRef = useRef(draftStore);
   const documentRef = useRef(state.document);
   const skipAutosaveRef = useRef(false);
@@ -127,9 +126,8 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     documentRef.current = state.document;
   });
   const selected = state.document.blocks.find((block) => block.id === selectedId);
-  if (selected && !isTextBlock(selected)) lastFormatBlock.current = selected;
   const formatSheetOpen = phoneViewport && !!selected && !isTextBlock(selected);
-  const formatSheetBlock = (formatSheetOpen ? selected : lastFormatBlock.current);
+  const formatSheetBlock = selected;
   const formatSheetPresent = usePresence(formatSheetOpen);
   const draftsPresent = usePresence(draftsOpen);
   const defaults: UserDefaults = { location: settings.defaultLocation, unit: settings.defaultUnit, ownerFirstName: settings.printerProfile.ownerFirstName };
