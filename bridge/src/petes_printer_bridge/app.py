@@ -52,7 +52,10 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
         for origin in os.environ.get("PETES_PRINTER_ALLOWED_ORIGINS", "https://openreceipt.phreshplastic.com").split(",")
         if origin.strip()
     }
-    allowed_origins.update({"http://localhost:8731", "http://127.0.0.1:8731", "http://[::1]:8731"})
+    allowed_origins.update({
+        "http://localhost:5173", "http://127.0.0.1:5173", "http://[::1]:5173",
+        "http://localhost:8731", "http://127.0.0.1:8731", "http://[::1]:8731",
+    })
     auth = AuthManager(store, allowed_origins)
 
     @asynccontextmanager
