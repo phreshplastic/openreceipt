@@ -1,6 +1,17 @@
 export type PrintDestination = "printer" | "demo";
+export type PrintAction = "demo" | "setup" | "printer";
 
 const KEY = "petes-printer:print-destination:v2";
+
+/** Demo print is a browser preview. It must never open the Epson setup overlay. */
+export function resolvePrintAction(
+  destination: PrintDestination,
+  printer: { configured: boolean; bridgeOnline: boolean },
+): PrintAction {
+  if (destination === "demo") return "demo";
+  if (!printer.configured || !printer.bridgeOnline) return "setup";
+  return "printer";
+}
 
 type DestinationStorage = Pick<Storage, "getItem" | "setItem">;
 

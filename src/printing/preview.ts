@@ -52,9 +52,10 @@ export function openReceiptPreview(document: ReceiptDocument): DemoPrintResult {
 export async function playDemoPrint(document: ReceiptDocument, options: PlayDemoPrintOptions = {}): Promise<DemoPrintResult> {
   const html = previewHtmlFor(document);
   options.onStage?.("feeding");
+  // Open in the same click/approve turn so the browser does not treat this as a popup.
+  const result = openPreviewHtml(html);
   const delayMs = prefersReducedMotion() ? 0 : (options.delayMs ?? DEMO_PRINT_FEED_MS);
   if (delayMs > 0) await sleep(delayMs);
-  const result = openPreviewHtml(html);
   options.onStage?.("complete");
   return result;
 }

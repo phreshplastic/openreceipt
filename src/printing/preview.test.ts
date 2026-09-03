@@ -29,19 +29,18 @@ describe("playDemoPrint", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not open a tab until the editor hold finishes", async () => {
+  it("opens a tab on the same turn, then holds feeding until complete", async () => {
     vi.useFakeTimers();
     const open = vi.fn(() => ({ opener: null }));
     vi.stubGlobal("open", open);
     const stages: string[] = [];
     const pending = playDemoPrint(createDefaultDocument(), { delayMs: 1800, onStage: (stage) => stages.push(stage) });
     expect(stages).toEqual(["feeding"]);
-    expect(open).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(1799);
-    expect(open).not.toHaveBeenCalled();
+    expect(stages).toEqual(["feeding"]);
     await vi.advanceTimersByTimeAsync(1);
     await pending;
     expect(stages).toEqual(["feeding", "complete"]);
-    expect(open).toHaveBeenCalledOnce();
   });
 });

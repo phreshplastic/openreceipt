@@ -219,7 +219,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     // template deliberately does not, which is what keeps it out of the trusted-print path.
     const created = createFromTemplateEntry(store, id, documentSeed(settings.printerProfile));
     if (!created) return;
-    // The paper heading can stay "Morning briefing"; the shelf name has to be unique or
+    // The paper heading can stay "Morning brief"; the shelf name has to be unique or
     // every blank looks identical. Blank receipts take Untitled rather than repeating it.
     const base = id === "blank" ? "Untitled" : created.document.title;
     const titled = { ...created.document, title: uniqueDraftTitle(base, store.drafts.map((draft) => draft.title)) };
@@ -520,6 +520,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
             busy={busy}
             complete={complete}
             disabled={printDisabled}
+            idleLabel={destination === "demo" ? "Demo print" : "Print"}
             title={printerUnavailable ? "No printer on this site. Choose Demo print." : syncStatus === "conflict" ? "Resolve the receipt conflict before printing." : printStatus || undefined}
             onClick={() => void print(destination).catch(() => undefined)}
           />

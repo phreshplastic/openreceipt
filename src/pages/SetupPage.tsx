@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, Printer, RefreshCw, Usb, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Brand } from "../components/Brand";
-import { getCapabilities, saveConfiguration, type BridgeCapabilities, type PaperProfile, type PrinterAdapter } from "../bridge/client";
+import { getCapabilities, preferredSetupAdapter, saveConfiguration, type BridgeCapabilities, type PaperProfile, type PrinterAdapter } from "../bridge/client";
 
 type Props = {
   onComplete(profile: PaperProfile): Promise<void>;
@@ -16,12 +16,13 @@ const fallbackProfile = { id: "80mm-576", label: "80 mm · 576 dots", paperWidth
 export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCancel }: Props) {
   const navigate = useNavigate();
   const [capabilities, setCapabilities] = useState<BridgeCapabilities>();
-  const [adapter, setAdapter] = useState<PrinterAdapter>("epson-tm-l90-usb");
+  const [adapter, setAdapter] = useState<PrinterAdapter>("virtual");
   const [profileId, setProfileId] = useState<PaperProfile["id"]>("80mm-576");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
+  const adapterChosen = useRef(false);
 
   const connected = Boolean(capabilities?.connected);
   const bridgeUnreachable = !loading && capabilities === undefined;
@@ -33,7 +34,7 @@ export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCa
     setMessage("");
     getCapabilities(signal).then((result) => {
       setCapabilities(result);
-      setAdapter(result.adapter === "virtual" ? "virtual" : "epson-tm-l90-usb");
+      if (!adapterChosen.current) setAdapter(preferredSetupAdapter(result));
       setProfileId((result.configuredProfileId as PaperProfile["id"]) || "80mm-576");
     }).catch((error: unknown) => {
       if (signal?.aborted) return;
@@ -47,7 +48,7 @@ export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCa
     const controller = new AbortController();
     getCapabilities(controller.signal).then((result) => {
       setCapabilities(result);
-      setAdapter(result.adapter === "virtual" ? "virtual" : "epson-tm-l90-usb");
+      if (!adapterChosen.current) setAdapter(preferredSetupAdapter(result));
       setProfileId((result.configuredProfileId as PaperProfile["id"]) || "80mm-576");
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return;
@@ -98,10 +99,10 @@ export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCa
         <p className="setup-intro">Choose the printer and paper you have connected. OpenReceipt will match the receipt to that paper width.</p>
         <div className="setup-section-label">Printer</div>
         <div className="setup-list setup-paper-list" role="group" aria-label="Printer">
-          <button type="button" className={adapter === "epson-tm-l90-usb" ? "selected" : ""} aria-pressed={adapter === "epson-tm-l90-usb"} onClick={() => setAdapter("epson-tm-l90-usb")}>
+          <button type="button" className={adapter === "epson-tm-l90-usb" ? "selected" : ""} aria-pressed={adapter === "epson-tm-l90-usb"} onClick={() => { adapterChosen.current = true; setAdapter("epson-tm-l90-usb"); }}>
             <span className="setup-row-mark"><Usb size={17} /></span><span className="setup-row-copy"><strong>Epson TM-L90</strong><small>{loading ? "Looking for the bridge…" : capabilities === undefined ? "Bridge unavailable" : connected ? "Detected on USB" : capabilities.detail || "Printer not detected"}</small></span>{adapter === "epson-tm-l90-usb" && <Check size={16} className="setup-check" />}
           </button>
-          <button type="button" className={adapter === "virtual" ? "selected" : ""} aria-pressed={adapter === "virtual"} onClick={() => setAdapter("virtual")} disabled={bridgeUnreachable}>
+          <button type="button" className={adapter === "virtual" ? "selected" : ""} aria-pressed={adapter === "virtual"} onClick={() => { adapterChosen.current = true; setAdapter("virtual"); }} disabled={bridgeUnreachable}>
             <span className="setup-row-mark"><FileText size={17} /></span><span className="setup-row-copy"><strong>Virtual printer</strong><small>Prints to a file on this machine — no hardware needed.</small></span>{adapter === "virtual" && <Check size={16} className="setup-check" />}
           </button>
         </div>

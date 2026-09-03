@@ -153,11 +153,27 @@ test("completes setup with the virtual printer when no hardware is connected", a
   await expect(page.getByRole("heading", { name: /Connect your printer/i })).toBeVisible();
   const usbOption = page.getByRole("button", { name: /Epson TM-L90/i });
   await expect(usbOption).toContainText("not detected");
-  await expect(page.getByRole("button", { name: /Finish setup/i })).toBeDisabled();
-
-  await page.getByRole("button", { name: /Virtual printer/i }).click();
+  await expect(page.getByRole("button", { name: /Virtual printer/i })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /Finish setup/i })).toBeEnabled();
   await page.getByRole("button", { name: /Finish setup/i }).click();
   await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
+});
+
+test("demo print never opens Epson setup", async ({ page }) => {
+  let settings = { revision: 0, initialized: true, configured: false, printPolicy: "confirm", trustedTemplateIds: [], defaultLocation: "", defaultUnit: "fahrenheit", printerProfile: { completed: false, ownerFirstName: "", identityId: "owners-printer-western", useCaseIds: [] }, updatedAt: new Date().toISOString() };
+  await page.route("**/api/v1/settings", async (route) => {
+    if (route.request().method() === "GET") return route.fulfill({ json: settings });
+    settings = { ...settings, ...route.request().postDataJSON(), revision: settings.revision + 1, initialized: true, updatedAt: new Date().toISOString() };
+    return route.fulfill({ json: settings });
+  });
+
+  await page.goto("/app");
+  await expect(page.getByRole("button", { name: "Demo print", exact: true })).toBeVisible();
+  const popupPromise = page.waitForEvent("popup");
+  await page.getByRole("button", { name: "Demo print", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Printer setup" })).toHaveCount(0);
+  const popup = await popupPromise;
+  await expect(popup.locator("svg")).toBeVisible();
 });
 
 test("continues the original print after first-print setup", async ({ page }) => {
@@ -183,6 +199,8 @@ test("continues the original print after first-print setup", async ({ page }) =>
   await page.getByRole("menuitemradio", { name: /Epson printer/ }).click();
   await page.getByRole("button", { name: "Print", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Printer setup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Virtual printer/i })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /Save and print/i })).toBeEnabled();
   await page.getByRole("button", { name: /58 mm/i }).click();
   await page.getByRole("button", { name: /Save and print/i }).click();
   await expect(page.getByRole("button", { name: "Printed" })).toBeVisible();
@@ -208,7 +226,7 @@ test("keeps heading text fixed when inline editing begins", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Select heading block" }).first()).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   // The logo block draws first, so measure the heading's own line rather than the topmost one.
-  const headingLine = page.locator(".receipt-svg text", { hasText: /^Morning briefing$/ });
+  const headingLine = page.locator(".receipt-svg text", { hasText: /^Morning brief$/ });
   await expect.poll(async () => headingLine.evaluate((element) => element.getBoundingClientRect().top)).toBeGreaterThan(40);
   const headingTopBeforeSelection = await headingLine.evaluate((element) => element.getBoundingClientRect().top);
   await page.getByRole("button", { name: "Select heading block" }).first().click();
@@ -256,13 +274,13 @@ test("opens the focused template and settings overlays", async ({ page }) => {
 test("names a new blank distinctly from the starter receipt", async ({ page }) => {
   await page.goto("/app");
   const rail = page.getByRole("complementary", { name: "Drafts and print queue" });
-  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Morning briefing");
-  await expect(rail.getByRole("button", { name: "Morning briefing", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Morning brief");
+  await expect(rail.getByRole("button", { name: "Morning brief", exact: true })).toBeVisible();
 
   await rail.getByRole("button", { name: "New blank" }).click();
   await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Untitled");
   await expect(rail.getByRole("button", { name: "Untitled", exact: true })).toBeVisible();
-  await expect(rail.getByRole("button", { name: "Morning briefing", exact: true })).toBeVisible();
+  await expect(rail.getByRole("button", { name: "Morning brief", exact: true })).toBeVisible();
 
   await rail.getByRole("button", { name: "New blank" }).click();
   await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue("Untitled 2");
@@ -304,7 +322,7 @@ test("empty Format names the receipt instead of showing the sign gallery", async
   const inspector = page.locator(".inspector");
   await expect(inspector.getByRole("heading", { name: "Receipt", exact: true })).toBeVisible();
   await expect(inspector.getByText("Name your receipt")).toBeVisible();
-  await expect(inspector.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Morning briefing");
+  await expect(inspector.getByRole("textbox", { name: "Receipt title" })).toHaveValue("Morning brief");
   await expect(inspector.getByText("Click a block on the receipt to edit it.")).toBeVisible();
   await expect(inspector.getByRole("radiogroup", { name: "Printer wordmark" })).toHaveCount(0);
 

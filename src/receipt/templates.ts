@@ -66,32 +66,33 @@ function blankReceipt(seed: DocumentSeed = {}, now = new Date()): ReceiptDocumen
   return receiptDocumentSchema.parse({
     schemaVersion: 2,
     id: createId(),
-    title: "Morning briefing",
+    title: "Morning brief",
     page,
     blocks: [
       createLogoBlock(seed),
-      { id: createId(), type: "heading", text: "Morning briefing", level: "display", weight: "bold", italic: false, underline: false, align: "left" },
+      { id: createId(), type: "heading", text: "Morning brief", level: "display", weight: "bold", italic: false, underline: false, align: "left" },
       { id: createId(), type: "text", text: today(now), size: "small", weight: "medium", italic: false, underline: false, align: "left" },
+      { id: createId(), type: "text", text: "Quiet morning. Shop on the way home.", size: "body", weight: "regular", italic: false, underline: false, align: "left" },
       { id: createId(), type: "divider", style: "solid" },
-      { id: createId(), type: "heading", text: "To do", level: "section", weight: "bold", italic: false, underline: false, align: "left" },
+      { id: createId(), type: "heading", text: "Today", level: "section", weight: "bold", italic: false, underline: false, align: "left" },
       { id: createId(), type: "checklist", items: [
-        { id: createId(), text: "Run 6 miles at tempo pace", checked: false },
-        { id: createId(), text: "Buy groceries at Whole Foods", checked: false },
-        { id: createId(), text: "Run laundry", checked: false },
-        { id: createId(), text: "Charge the camera batteries", checked: false },
+        { id: createId(), text: "Six-mile loop", checked: false },
+        { id: createId(), text: "Eggs, milk, greens", checked: false },
+        { id: createId(), text: "Laundry", checked: false },
+        { id: createId(), text: "Charger for Lisbon", checked: false },
       ] },
       { id: createId(), type: "divider", style: "solid" },
       {
         id: createId(), type: "catalog", kind: "countdown", definitionVersion: 1,
         data: {
           label: "Next up",
-          event: "Portugal trip",
+          event: "Lisbon",
           date: shortDay(tripDate),
           days: tripInDays,
           milestones: [
             { label: "Booked", complete: true },
             { label: "Packed", complete: false },
-            { label: "Go", complete: false },
+            { label: "Fly", complete: false },
           ],
         },
       },
@@ -122,7 +123,7 @@ function checklistReceipt(seed: DocumentSeed = {}): ReceiptDocumentV2 {
 }
 
 export const receiptTemplates: ReceiptTemplate[] = [
-  { id: "blank", revision: 5, name: "Blank receipt", description: "A morning briefing with today’s list and a trip countdown.", create: blankReceipt },
+  { id: "blank", revision: 6, name: "Blank receipt", description: "A morning brief with today’s list and a trip countdown.", create: blankReceipt },
   { id: "checklist", revision: 3, name: "Checklist", description: "A compact list with a deliberate finish for packing, groceries, or errands.", create: checklistReceipt },
 ];
 

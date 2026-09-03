@@ -190,13 +190,13 @@ describe("drafting and editing", () => {
   it("renames the shelf title without rewriting the paper heading", async () => {
     const harness = makeBackend();
     const heading = harness.controller.state.document.blocks.find((block) => block.type === "heading");
-    expect(heading && heading.type === "heading" ? heading.text : undefined).toBe("Morning briefing");
+    expect(heading && heading.type === "heading" ? heading.text : undefined).toBe("Morning brief");
 
     const result = await call(harness, "rename_receipt", { title: "Lisbon trip" });
     expect(result.data.status).toBe("updated");
     expect(harness.controller.state.document.title).toBe("Lisbon trip");
     const after = harness.controller.state.document.blocks.find((block) => block.type === "heading");
-    expect(after && after.type === "heading" ? after.text : undefined).toBe("Morning briefing");
+    expect(after && after.type === "heading" ? after.text : undefined).toBe("Morning brief");
   });
 
   it("changes heading copy without resetting its size", async () => {

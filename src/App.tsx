@@ -6,7 +6,7 @@ import { loadBlockLibraryPreferences, prepareReceiptCommands, saveBlockLibraryPr
 import { createReceiptState, createDefaultDocument, createFromTemplate, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
 import { documentSeed } from "./onboarding/profile";
 import { PrintCoordinator, type PrintApprovalDecision, type PrintResult, type PrintSnapshot } from "./printing/coordinator";
-import type { PrintDestination } from "./printing/destination";
+import { resolvePrintAction, type PrintDestination } from "./printing/destination";
 import { playDemoPrint, PRINT_DONE_HOLD_MS } from "./printing/preview";
 import { EditorPage } from "./pages/EditorPage";
 import { BlocksPage } from "./pages/BlocksPage";
@@ -296,7 +296,8 @@ function AppContent() {
   const printCurrent = useCallback(async (destination: PrintDestination = "demo") => {
     clearActivity();
     const current = receiptRef.current;
-    if (destination === "demo") {
+    const action = resolvePrintAction(destination, { configured: settingsRef.current.configured, bridgeOnline });
+    if (action === "demo") {
       setPrintStatus("");
       const result = await playDemoPrint(current.document, { onStage: setPrintStage });
       return {
@@ -306,7 +307,7 @@ function AppContent() {
       } as PrintResult;
     }
     const snapshot = { revision: current.revision, document: structuredClone(current.document) };
-    if (!settingsRef.current.configured || !bridgeOnline) {
+    if (action === "setup") {
       setPendingSetupPrint(snapshot);
       return { status: "cancelled", revision: snapshot.revision, message: "Printer setup is needed before printing." } as PrintResult;
     }

@@ -10,7 +10,7 @@ test("opens the real browser editor without a local API", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Print destination, Demo print" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Print destination/ }).locator(".status-dot")).toHaveClass(/online/);
-  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Demo print", exact: true })).toBeVisible();
   await expect(page.getByText("This is a real receipt.", { exact: true }).last()).toBeVisible();
 
   await page.getByRole("button", { name: "Select heading block" }).first().click();
@@ -22,14 +22,14 @@ test("opens the real browser editor without a local API", async ({ page }) => {
   expect(apiRequests).toEqual([]);
 
   const popupPromise = page.waitForEvent("popup");
-  await page.getByRole("button", { name: "Print", exact: true }).click();
+  await page.getByRole("button", { name: "Demo print", exact: true }).click();
   await expect(page.getByRole("button", { name: "Printing" })).toBeDisabled();
   await expect(page.locator(".print-pixel-grid")).toBeVisible();
   await expect(page.locator(".receipt-shell")).not.toHaveClass(/is-feeding/);
   expect(page.context().pages()).toHaveLength(1);
   const popup = await popupPromise;
   await expect(popup.locator("svg")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Demo print", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /Print destination/ }).click();
   const destinations = page.getByRole("menu", { name: "Print destination" }).getByRole("menuitemradio");

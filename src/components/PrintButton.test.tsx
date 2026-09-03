@@ -14,4 +14,9 @@ describe("PrintButton", () => {
     expect(screen.getByRole("button", { name: "Printing" })).toHaveTextContent("Print");
     expect(document.querySelector(".print-pixel-grid")).not.toBeNull();
   });
+
+  it("can label the idle action as Demo print", () => {
+    render(<PrintButton busy={false} complete={false} disabled={false} idleLabel="Demo print" onClick={noop} />);
+    expect(screen.getByRole("button", { name: "Demo print" })).toHaveTextContent("Demo print");
+  });
 });

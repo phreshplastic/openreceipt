@@ -416,7 +416,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     {
       name: "rename_receipt",
       title: "Name the receipt",
-      description: "Sets the receipt's title — the name in the editor header and the drafts list, not the heading printed on the paper. Use this whenever you draft something new or the current name is generic (Morning briefing, Untitled). A clear title is how a person tells receipts apart.",
+      description: "Sets the receipt's title — the name in the editor header and the drafts list, not the heading printed on the paper. Use this whenever you draft something new or the current name is generic (Morning brief, Untitled). A clear title is how a person tells receipts apart.",
       inputSchema: renameInput,
       readOnly: false,
       untrustedContent: false,

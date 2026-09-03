@@ -28,6 +28,12 @@ export function usbPrinterConnected(capabilities: Pick<BridgeCapabilities, "conn
   return capabilities.connected && capabilities.transport === "usb";
 }
 
+/** First-run setup should not sit on Epson when that printer is not actually there. */
+export function preferredSetupAdapter(capabilities: Pick<BridgeCapabilities, "adapter" | "transport" | "connected">): PrinterAdapter {
+  if (capabilities.adapter === "virtual" || capabilities.transport === "dummy" || !capabilities.connected) return "virtual";
+  return "epson-tm-l90-usb";
+}
+
 export type PrintJobStatus = "awaiting_approval" | "queued" | "sending" | "succeeded" | "failed" | "unknown" | "rejected" | "stale" | "cancelled";
 
 export type PrintJob = {
