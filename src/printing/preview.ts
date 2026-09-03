@@ -24,8 +24,13 @@ export function receiptPreviewFilename(title: string): string {
   return `${slug || "receipt"}.svg`;
 }
 
+function receiptPngFilename(title: string): string {
+  return receiptPreviewFilename(title).replace(/\.svg$/, ".png");
+}
+
 export function receiptPreviewHtml(svg: string, title: string): string {
   const escaped = escapeHtml(title);
+  const filename = receiptPngFilename(title);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -35,12 +40,41 @@ export function receiptPreviewHtml(svg: string, title: string): string {
   <style>
     html, body { margin: 0; min-height: 100%; background: #ece8df; }
     body { display: grid; place-items: start center; padding: 32px 16px 64px; }
+    .actions { display: flex; justify-content: center; padding-bottom: 18px; }
+    button { border: 0; border-radius: 999px; padding: 11px 18px; background: #111; color: #fff; font: 600 14px system-ui, sans-serif; cursor: pointer; }
     .slip { background: #fff; box-shadow: 0 18px 40px rgb(20 16 10 / 18%); }
     svg { display: block; width: min(420px, 92vw); height: auto; }
   </style>
 </head>
 <body>
-  <div class="slip">${svg}</div>
+  <div>
+    <div class="actions"><button id="download" type="button">Download PNG</button></div>
+    <div class="slip">${svg}</div>
+  </div>
+  <script>
+    document.getElementById("download").addEventListener("click", function () {
+      var source = document.querySelector(".slip svg");
+      var xml = new XMLSerializer().serializeToString(source);
+      var image = new Image();
+      image.onload = function () {
+        var canvas = document.createElement("canvas");
+        canvas.width = source.viewBox.baseVal.width || source.width.baseVal.value;
+        canvas.height = source.viewBox.baseVal.height || source.height.baseVal.value;
+        var context = canvas.getContext("2d");
+        context.fillStyle = "#fff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+        canvas.toBlob(function (blob) {
+          var link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = ${JSON.stringify(filename)};
+          link.click();
+          setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+        }, "image/png");
+      };
+      image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+    });
+  </script>
 </body>
 </html>`;
 }
