@@ -62,6 +62,11 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
         yield
         store.close()
 
+    def schedule_print(job_id: str) -> None:
+        # Printing must not depend on the lifecycle of an HTTP response. The
+        # browser can keep polling while this task owns the USB transport.
+        asyncio.create_task(asyncio.to_thread(printer.process_job, job_id))
+
     app = FastAPI(title="Pete's Printer bridge", version="1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
@@ -170,7 +175,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
             content = await artifact.read()
             job, replay = await asyncio.to_thread(local.create_print_request, parsed, content)
             if not replay and job["status"] == "queued":
-                background.add_task(printer.process_job, job["id"])
+                schedule_print(job["id"])
             return JSONResponse(public_job(job), status_code=200 if replay else 201, headers={"X-Idempotent-Replay": str(replay).lower()})
         except (json.JSONDecodeError, ValidationError) as error:
             return error_response(422, "invalid_request", str(error))
@@ -201,7 +206,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
         try:
             job, replay = await asyncio.to_thread(local.decide_print_request, str(job_id), payload)
             if not replay and job["status"] == "queued":
-                background.add_task(printer.process_job, job["id"])
+                schedule_print(job["id"])
             return JSONResponse(public_job(job), headers={"X-Idempotent-Replay": str(replay).lower()})
         except KeyError:
             return error_response(404, "print_request_not_found", "Print request not found.")
@@ -218,7 +223,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
             content = await artifact.read()
             job, duplicate = await asyncio.to_thread(printer.create_job, parsed, content)
             if not duplicate and job["status"] == "queued":
-                background.add_task(printer.process_job, job["id"])
+                schedule_print(job["id"])
             return JSONResponse(public_job(job), status_code=200 if duplicate else 201, headers={"X-Idempotent-Replay": str(duplicate).lower()})
         except (json.JSONDecodeError, ValidationError) as error:
             return error_response(422, "invalid_request", str(error))
