@@ -99,49 +99,7 @@ async function readJson<T>(response: Response): Promise<T> {
   return value as T;
 }
 
-// TEMPORARY — demo-video capture only. Visiting once with `?fakeBridge=online` arms
-// a per-tab flag and immediately scrubs the param from the address bar, so a screen
-// recording never shows it: only the person who deliberately loaded that link ever
-// sees a fake "ready" printer, not every visitor to the live site. Remove entirely
-// before shipping — tracked so it doesn't get left behind (see video/AGENTS.md).
-const FAKE_BRIDGE_KEY = "openreceipt:fakeBridge:v1";
-
-function fakeBridgeArmed(): boolean {
-  if (typeof location === "undefined") return false;
-  if (new URLSearchParams(location.search).get("fakeBridge") === "online") {
-    try {
-      sessionStorage.setItem(FAKE_BRIDGE_KEY, "1");
-      const url = new URL(location.href);
-      url.searchParams.delete("fakeBridge");
-      history.replaceState(null, "", url.pathname + url.search + url.hash);
-    } catch {
-      // sessionStorage or history may be unavailable (e.g. private mode); the
-      // capability check below still falls through to the real bridge.
-    }
-  }
-  try {
-    return sessionStorage.getItem(FAKE_BRIDGE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function fakeBridgeCapabilities(): BridgeCapabilities | undefined {
-  if (!fakeBridgeArmed()) return undefined;
-  return {
-    connected: true,
-    adapter: "epson-tm-l90-usb",
-    model: "Epson TM-L90",
-    transport: "usb",
-    cutModes: ["full", "partial"],
-    profiles: [{ id: "80mm-576", label: "80 mm", paperWidthMm: 80, printableWidthDots: 576, paddingDots: 28 }],
-    configuredProfileId: "80mm-576",
-  };
-}
-
 export async function getCapabilities(signal?: AbortSignal) {
-  const fake = fakeBridgeCapabilities();
-  if (fake) return fake;
   return readJson<BridgeCapabilities>(await fetch(bridgeUrl("/api/v1/capabilities"), { signal, cache: "no-store" }));
 }
 
