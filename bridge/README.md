@@ -22,6 +22,10 @@ petes-printer --web-dist ./dist
 The app is available at `http://127.0.0.1:8731`. Set `PETES_PRINTER_TRANSPORT=dummy` to write
 ESC/POS bytes to a local file instead of opening USB.
 
+The live browser app can connect to a laptop bridge at `http://127.0.0.1:8731`. The bridge allows
+`https://openreceipt.phreshplastic.com` by default and rejects other cross-origin state changes.
+Override the list with `PETES_PRINTER_ALLOWED_ORIGINS`, using comma-separated origins.
+
 The shipped USB adapter expects Epson vendor/product ID `04b8:0202`, interface `0`, OUT endpoint
 `01`, and IN endpoint `82`. Linux users may need a udev rule for unprivileged USB access; the
 [python-escpos installation guide](https://github.com/python-escpos/python-escpos/blob/master/doc/user/installation.rst)

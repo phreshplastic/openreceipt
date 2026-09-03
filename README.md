@@ -21,8 +21,10 @@ machine beside the printer. There is no account or cloud print queue in this rel
 | Print while you are working at your desk | Connect the TM-L90 to your laptop by USB and run the bridge there. |
 | Leave the printer ready with the laptop off | Connect the TM-L90 to a Raspberry Pi, run the bridge on the Pi, and use the Pi as the local OpenReceipt host. |
 
-The public site can edit receipts and register WebMCP tools, but it cannot reach a printer. Physical
-printing requires the local bridge on the laptop or Pi.
+The public site can edit receipts and register WebMCP tools. For physical printing, start the local
+bridge on the same laptop as the browser; the live app connects to that loopback bridge. A Raspberry
+Pi setup still requires the Pi-hosted app or an SSH tunnel because the live site does not reach across
+your network.
 
 ## Direct USB setup on a laptop
 
@@ -48,7 +50,8 @@ Start OpenReceipt with the compiled app:
 petes-printer --web-dist ./dist
 ~~~
 
-Open [http://127.0.0.1:8731](http://127.0.0.1:8731), connect the TM-L90 by USB, and complete the
+Open [http://127.0.0.1:8731](http://127.0.0.1:8731), or open the live app at
+`https://openreceipt.phreshplastic.com/app` to use the bridge from the public site. Connect the TM-L90 by USB, and complete the
 single setup screen. Choose the detected Epson, choose the width of the roll that is loaded, and
 press **Test connection**. When the connection slip looks right, use **Finish setup** from the
 setup page or return to the editor and press **Print**.

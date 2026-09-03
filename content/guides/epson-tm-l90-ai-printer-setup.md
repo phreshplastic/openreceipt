@@ -17,7 +17,9 @@ bridge runs beside the printer, keeps the receipt and print job on that machine,
 at `http://127.0.0.1:8731`.
 
 You can run the bridge on a laptop while you work, or on a Raspberry Pi that stays beside the
-printer after the laptop is turned off. The printer connection is the same in both cases.
+printer after the laptop is turned off. When the bridge runs on your laptop, the live OpenReceipt app
+can connect to it through loopback. A Pi setup uses the Pi-hosted app or an SSH tunnel because the
+live site does not reach across your network.
 
 ## Before you start
 

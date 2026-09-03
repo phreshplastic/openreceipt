@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID
@@ -10,6 +11,7 @@ from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
@@ -45,7 +47,13 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
     store = manager.store if manager else BridgeStore(data_directory)
     printer = manager or PrinterManager(store)
     local = LocalApplication(store, printer)
-    auth = AuthManager(store)
+    allowed_origins = {
+        origin.strip().rstrip("/")
+        for origin in os.environ.get("PETES_PRINTER_ALLOWED_ORIGINS", "https://openreceipt.phreshplastic.com").split(",")
+        if origin.strip()
+    }
+    allowed_origins.update({"http://localhost:8731", "http://127.0.0.1:8731", "http://[::1]:8731"})
+    auth = AuthManager(store, allowed_origins)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -55,6 +63,13 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
         store.close()
 
     app = FastAPI(title="Pete's Printer bridge", version="1.0", lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=sorted(allowed_origins),
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Content-Type", "X-CSRF-Token"],
+    )
 
     @app.exception_handler(RequestValidationError)
     async def request_validation_error(_: Request, error: RequestValidationError):
@@ -75,8 +90,9 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
         return response
 
     @app.post("/api/v1/session")
-    async def create_browser_session(response: Response):
-        return auth.create_session(response)
+    async def create_browser_session(request: Request, response: Response):
+        origin = request.headers.get("origin", "").rstrip("/")
+        return auth.create_session(response, cross_origin=origin in allowed_origins)
 
     @app.get("/api/v1/capabilities")
     async def capabilities():

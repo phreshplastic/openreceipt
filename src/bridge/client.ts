@@ -63,9 +63,11 @@ export class ApiError extends Error {
 }
 
 let sessionPromise: Promise<string> | undefined;
+const bridgeOrigin = import.meta.env.MODE === "public" ? "http://127.0.0.1:8731" : "";
+const bridgeUrl = (path: string) => `${bridgeOrigin}${path}`;
 
 export function ensureBrowserSession() {
-  sessionPromise ??= fetch("/api/v1/session", { method: "POST", credentials: "same-origin" })
+  sessionPromise ??= fetch(bridgeUrl("/api/v1/session"), { method: "POST", credentials: "include" })
     .then(async (response) => {
       if (!response.ok) throw new Error(`Could not start the local API session (${response.status}).`);
       return (await response.json() as { csrfToken: string }).csrfToken;
@@ -78,7 +80,7 @@ async function apiFetch(input: string, init: RequestInit = {}, unsafe = false) {
   const csrfToken = await ensureBrowserSession();
   const headers = new Headers(init.headers);
   if (unsafe) headers.set("X-CSRF-Token", csrfToken);
-  return fetch(input, { ...init, headers, credentials: "same-origin" });
+  return fetch(bridgeUrl(input), { ...init, headers, credentials: "include" });
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -91,7 +93,7 @@ async function readJson<T>(response: Response): Promise<T> {
 }
 
 export async function getCapabilities(signal?: AbortSignal) {
-  return readJson<BridgeCapabilities>(await fetch("/api/v1/capabilities", { signal, cache: "no-store" }));
+  return readJson<BridgeCapabilities>(await fetch(bridgeUrl("/api/v1/capabilities"), { signal, cache: "no-store" }));
 }
 
 export async function saveConfiguration(profileId: PaperProfile["id"], adapter: PrinterAdapter = "epson-tm-l90-usb") {

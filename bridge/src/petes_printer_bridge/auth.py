@@ -26,8 +26,9 @@ SESSION_COOKIE = "petes_printer_session"
 
 
 class AuthManager:
-    def __init__(self, store: BridgeStore):
+    def __init__(self, store: BridgeStore, allowed_origins: set[str] | None = None):
         self.store = store
+        self.allowed_origins = allowed_origins or {"http://localhost", "http://127.0.0.1", "http://[::1]"}
         self.secret_path = store.data_directory / "session-secret"
         self.secret = self._load_secret()
 
@@ -40,7 +41,7 @@ class AuthManager:
             target.write(secret)
         return secret
 
-    def create_session(self, response: Response) -> dict[str, str]:
+    def create_session(self, response: Response, *, cross_origin: bool = False) -> dict[str, str]:
         nonce = secrets.token_urlsafe(24)
         signature = self._sign(f"session:{nonce}")
         csrf = self._sign(f"csrf:{nonce}")
@@ -48,8 +49,8 @@ class AuthManager:
             SESSION_COOKIE,
             f"{nonce}.{signature}",
             httponly=True,
-            samesite="strict",
-            secure=False,
+            samesite="none" if cross_origin else "strict",
+            secure=cross_origin,
             path="/",
         )
         return {"csrfToken": csrf}
@@ -79,7 +80,7 @@ class AuthManager:
             origin = request.headers.get("origin")
             if origin:
                 parsed = urlsplit(origin)
-                if parsed.scheme not in {"http", "https"} or parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+                if parsed.scheme not in {"http", "https"} or origin.rstrip("/") not in self.allowed_origins:
                     raise HTTPException(status_code=403, detail="Cross-origin state changes are not allowed.")
         return {"kind": "browser", "scopes": sorted(ALL_SCOPES)}
 
