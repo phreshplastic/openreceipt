@@ -83,3 +83,5 @@ docs/potential-carousel-pics/
 docs/stills/
 docs/hero/
 docs/logo/
+.vercel
+.env*

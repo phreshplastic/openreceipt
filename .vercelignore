@@ -1,0 +1,24 @@
+# Keep CLI deploys small; git deploys already use the repo tree.
+.agents
+.claude
+.cursor-plugin
+.gstack
+.vercel
+bridge/.venv
+bridge/data
+bridge/.pytest_cache
+coverage
+dist
+dist-mcp
+docs/devpost-submission-draft.md
+docs/devpost-submission-draft-v2.md
+docs/hero
+docs/logo
+docs/potential-carousel-pics
+docs/stills
+docs/youtube-description-draft.md
+node_modules
+playwright-report
+test-results
+video
+**/whisper.cpp
