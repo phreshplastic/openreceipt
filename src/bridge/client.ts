@@ -63,6 +63,7 @@ export class ApiError extends Error {
 }
 
 let sessionPromise: Promise<string> | undefined;
+let sessionToken: string | undefined;
 const bridgeOrigin = import.meta.env.MODE === "public" ? "http://localhost:8731" : "";
 const bridgeUrl = (path: string) => `${bridgeOrigin}${path}`;
 
@@ -70,15 +71,18 @@ export function ensureBrowserSession() {
   sessionPromise ??= fetch(bridgeUrl("/api/v1/session"), { method: "POST", credentials: "include" })
     .then(async (response) => {
       if (!response.ok) throw new Error(`Could not start the local API session (${response.status}).`);
-      return (await response.json() as { csrfToken: string }).csrfToken;
+      const session = await response.json() as { csrfToken: string; sessionToken: string };
+      sessionToken = session.sessionToken;
+      return session.csrfToken;
     })
-    .catch((error) => { sessionPromise = undefined; throw error; });
+    .catch((error) => { sessionPromise = undefined; sessionToken = undefined; throw error; });
   return sessionPromise;
 }
 
 async function apiFetch(input: string, init: RequestInit = {}, unsafe = false) {
   const csrfToken = await ensureBrowserSession();
   const headers = new Headers(init.headers);
+  if (sessionToken) headers.set("X-Bridge-Session", sessionToken);
   if (unsafe) headers.set("X-CSRF-Token", csrfToken);
   return fetch(bridgeUrl(input), { ...init, headers, credentials: "include" });
 }

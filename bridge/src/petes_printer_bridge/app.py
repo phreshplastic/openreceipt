@@ -68,7 +68,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
         allow_origins=sorted(allowed_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT"],
-        allow_headers=["Content-Type", "X-CSRF-Token"],
+        allow_headers=["Content-Type", "X-CSRF-Token", "X-Bridge-Session"],
     )
 
     @app.exception_handler(RequestValidationError)

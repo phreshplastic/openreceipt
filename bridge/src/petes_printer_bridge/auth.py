@@ -23,6 +23,7 @@ ALL_SCOPES = {
     "print:direct",
 }
 SESSION_COOKIE = "petes_printer_session"
+SESSION_HEADER = "x-bridge-session"
 
 
 class AuthManager:
@@ -53,7 +54,10 @@ class AuthManager:
             secure=cross_origin,
             path="/",
         )
-        return {"csrfToken": csrf}
+        # Cross-origin browser requests can lose third-party cookies, especially
+        # when the public site is open in a privacy-hardened browser. Return the
+        # same short-lived session credential so the frontend can send it explicitly.
+        return {"csrfToken": csrf, "sessionToken": f"{nonce}.{signature}"}
 
     def authorize(self, request: Request, required_scopes: set[str], *, unsafe: bool = False, ui_only: bool = False) -> dict:
         authorization = request.headers.get("authorization", "")
@@ -66,7 +70,7 @@ class AuthManager:
                 raise HTTPException(status_code=403, detail="The API token does not grant the required scope.")
             return {"kind": "api", "tokenId": record["id"], "scopes": sorted(scopes)}
 
-        cookie = request.cookies.get(SESSION_COOKIE, "")
+        cookie = request.headers.get(SESSION_HEADER, "") or request.cookies.get(SESSION_COOKIE, "")
         try:
             nonce, signature = cookie.rsplit(".", 1)
         except ValueError as error:
