@@ -209,8 +209,13 @@ function AppContent() {
     if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
     setPrintStage("feeding");
     setPrintStatus("Sending to printer…");
-    let queued = await submitPrintRequest(snapshot, rendered, raster, { kind: requester, label: requester === "webmcp" ? "Agent" : "Browser" }, reason, crypto.randomUUID(), signal);
-    if (queued.status === "awaiting_approval") {
+    // The human Print button is already the approval boundary. Send it through
+    // the direct job endpoint so a demo print does not make a second request
+    // through the agent approval queue. Agent requests keep the explicit queue.
+    let queued = requester === "human"
+      ? await submitPrintJob(snapshot.document, rendered, raster, crypto.randomUUID(), signal)
+      : await submitPrintRequest(snapshot, rendered, raster, { kind: "webmcp", label: "Agent" }, reason, crypto.randomUUID(), signal);
+    if (requester === "webmcp" && queued.status === "awaiting_approval") {
       queued = await decidePrintRequest(queued.id, "approve", { kind: "human", label: "Browser" }, signal);
     }
     setPrintStatus("Printing…");
