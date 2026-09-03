@@ -27,7 +27,8 @@ describe.skipIf(!built)("MCP server over stdio", () => {
     const names = (await client.listTools()).tools.map((tool) => tool.name);
     expect(names).toEqual(expect.arrayContaining([
       "get_app_status", "get_receipt", "list_receipt_blocks", "list_receipt_recipes",
-      "draft_receipt", "edit_receipt", "rename_receipt", "preview_receipt", "undo_agent_edit",
+      "list_receipt_templates", "draft_receipt", "edit_receipt", "rename_receipt",
+      "save_receipt_template", "load_receipt_template", "preview_receipt", "undo_agent_edit",
       "request_receipt_print", "open_receipt_editor", "get_print_job_status", "open_in_browser",
     ]));
   });

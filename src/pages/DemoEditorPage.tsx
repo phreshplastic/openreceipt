@@ -10,6 +10,7 @@ import { playDemoPrint, PRINT_DONE_HOLD_MS } from "../printing/preview";
 import { loadReceipt, loadSettings, saveReceipt, saveSettings, type AppSettings } from "../state/storage";
 import { createDemoAgentBackend, useWebMcpRegistration } from "../webmcp/demo";
 import type { AgentActivity, AgentBackend } from "../agent";
+import type { AgentShelf } from "../state/shelf";
 import { EditorPage } from "./EditorPage";
 
 type ApprovalRequest = {
@@ -107,6 +108,7 @@ export default function DemoEditorPage() {
   }), []);
 
   const implRef = useRef<AgentBackend | undefined>(undefined);
+  const shelfRef = useRef<AgentShelf | undefined>(undefined);
   const [backend] = useState<AgentBackend>(() => ({
     getState: (signal) => implRef.current!.getState(signal),
     commit: (revision, document, summary, signal) => implRef.current!.commit(revision, document, summary, signal),
@@ -116,6 +118,12 @@ export default function DemoEditorPage() {
     onActivity: (activity) => implRef.current!.onActivity?.(activity),
     focusPreview: () => implRef.current!.focusPreview?.(),
     openEditor: (highlight) => implRef.current!.openEditor?.(highlight),
+    listTemplates: () => implRef.current!.listTemplates?.(),
+    saveTemplate: (name, document) => {
+      if (!implRef.current!.saveTemplate) throw new Error("Saving a template is only available in the browser editor.");
+      return implRef.current!.saveTemplate(name, document);
+    },
+    resolveTemplate: (idOrName) => implRef.current!.resolveTemplate?.(idOrName),
   }));
   useEffect(() => {
     implRef.current = createDemoAgentBackend({
@@ -125,6 +133,7 @@ export default function DemoEditorPage() {
       hasPendingApproval: () => Boolean(approvalRef.current),
       requestApproval,
       focusPreview: () => document.getElementById("receipt-preview")?.scrollIntoView({ block: "center" }),
+      getShelf: () => shelfRef.current,
     });
   }, [announce, controller, publish, requestApproval]);
   const webMcpAvailable = useWebMcpRegistration(backend);
@@ -159,6 +168,7 @@ export default function DemoEditorPage() {
       redo={() => { setActivity(undefined); return publish(controller.redo()); }}
       refreshBridge={async () => false}
       print={print}
+      registerShelf={(shelf) => { shelfRef.current = shelf; }}
     />
     {approval && <ApprovalPanel
       title={approval.snapshot.document.title}

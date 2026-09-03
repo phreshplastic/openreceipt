@@ -165,6 +165,20 @@ export function saveTemplate(store: DraftStore, input: { id?: string; name: stri
   return { ...store, templates };
 }
 
+/**
+ * Agent save: update the saved template that already has this name, or mint one.
+ * The human "Save as template" control still always mints, via `saveTemplate` without an id.
+ */
+export function upsertTemplate(store: DraftStore, name: string, document: ReceiptDocumentV2): { store: DraftStore; id: string; name: string; updated: boolean } {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("A template needs a name.");
+  const existing = store.templates.find((template) => template.name.trim().toLowerCase() === trimmed.toLowerCase());
+  const next = saveTemplate(store, { id: existing?.id, name: trimmed, document });
+  const saved = next.templates.find((template) => template.name.trim().toLowerCase() === trimmed.toLowerCase());
+  if (!saved) throw new Error("The template could not be saved.");
+  return { store: next, id: saved.id, name: saved.name, updated: Boolean(existing) };
+}
+
 export function deleteTemplate(store: DraftStore, id: string): DraftStore {
   return { ...store, templates: store.templates.filter((template) => template.id !== id) };
 }

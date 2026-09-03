@@ -9,6 +9,7 @@ import {
   captionForPhase,
   captionForPrint,
   captionForRename,
+  captionForTemplate,
   changedBlockIds,
   polishCaption,
 } from "./captions";
@@ -22,6 +23,9 @@ describe("agent captions", () => {
   it("names a draft without quoting the title", () => {
     expect(captionForDraft("Lisbon · four days")).toBe("Drafted Lisbon · four days");
     expect(captionForRename("Lisbon trip")).toBe("Named Lisbon trip");
+    expect(captionForTemplate("Packing")).toBe("Saved Packing");
+    expect(captionForTemplate("Packing", true)).toBe("Updated Packing");
+    expect(captionForTemplate("Checklist", false, "load")).toBe("Loaded Checklist");
   });
 
   it("describes a weather add the way a person would say it", () => {
@@ -31,6 +35,7 @@ describe("agent captions", () => {
 
   it("summarizes one edit operation, then folds extras", () => {
     expect(captionForOperations([{ op: "checkItem", item: "Passport" }])).toBe("Checked Passport");
+    expect(captionForOperations([{ op: "setCopy", text: "Lisbon, four days" }])).toBe("Updated Lisbon, four days");
     expect(captionForOperations([{ op: "addItem", text: "EU adapter" }, { op: "checkItem", item: "Passport" }])).toBe("Added EU adapter and 1 more");
   });
 

@@ -11,6 +11,7 @@ import {
   saveDraft,
   saveTemplate,
   setActiveDraft,
+  upsertTemplate,
   uniqueDraftTitle,
   type DraftStore,
 } from "./drafts";
@@ -176,6 +177,16 @@ describe("user template ids", () => {
     expect(id).not.toBe("blank");
     expect(id).not.toBe("checklist");
     expect(id.startsWith("user:")).toBe(true);
+  });
+
+  it("upserts by name rather than minting a second copy", () => {
+    const first = upsertTemplate(emptyDraftStore, "Packing", doc());
+    expect(first.updated).toBe(false);
+    const second = upsertTemplate(first.store, "packing", doc());
+    expect(second.updated).toBe(true);
+    expect(second.id).toBe(first.id);
+    expect(second.store.templates).toHaveLength(1);
+    expect(second.store.templates[0].name).toBe("packing");
   });
 });
 

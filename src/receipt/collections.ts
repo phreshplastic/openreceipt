@@ -258,6 +258,45 @@ export function blockLabel(block: ReceiptBlock) {
   return block.type === "catalog" ? block.kind : block.type;
 }
 
+/**
+ * The words on a block, without rebuilding it. `replace` through the agent compiler
+ * would reset size, alignment, and the shop sign's mark; this keeps them.
+ */
+export function setBlockCopy(block: ReceiptBlock, text: string): ReceiptBlock {
+  const copy = text.trim();
+  if (!copy) throw new Error("Copy cannot be empty.");
+
+  if (block.type === "heading") {
+    if (copy.length > 240) throw new Error("A heading can be at most 240 characters.");
+    return { ...block, text: copy };
+  }
+  if (block.type === "text") {
+    if (copy.length > 4_000) throw new Error("A text block can be at most 4,000 characters.");
+    return { ...block, text: copy };
+  }
+  if (block.type === "catalog" && block.kind === "logo") {
+    if (copy.length > 40) throw new Error("The shop sign can be at most 40 characters.");
+    return { ...block, data: { ...block.data, primary: copy } };
+  }
+  if (block.type === "catalog" && block.kind === "countdown") {
+    if (copy.length > 60) throw new Error("A countdown event can be at most 60 characters.");
+    return { ...block, data: { ...block.data, event: copy } };
+  }
+  if (block.type === "catalog" && block.kind === "checklistGroups") {
+    if (copy.length > 120) throw new Error("A grouped list title can be at most 120 characters.");
+    return { ...block, data: { ...block.data, title: copy } };
+  }
+  if (block.type === "catalog" && block.kind === "habit") {
+    if (copy.length > 120) throw new Error("A habit block title can be at most 120 characters.");
+    return { ...block, data: { ...block.data, title: copy } };
+  }
+
+  if (collectionFor(block)) {
+    throw new Error(`Block is a ${blockLabel(block)} block and has lines, not a single copy field. Use setItem to change a line.`);
+  }
+  throw new Error(`A ${blockLabel(block)} block has no copy to set. Replace it, or refresh it if it is live.`);
+}
+
 export function collectionFor(block: ReceiptBlock): CollectionDescriptor | undefined {
   return collections[blockLabel(block)];
 }

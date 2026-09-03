@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-route
 import { ApprovalPanel, ReceiptConflictPanel } from "./components/Overlays";
 import { decidePrintRequest, ensureBrowserSession, getCanonicalSettings, getCapabilities, listPrintRequests, submitPrintJob, submitPrintRequest, updateCanonicalSettings, usbPrinterConnected, waitForPrintJob, type PaperProfile, type PrintJob } from "./bridge/client";
 import { loadBlockLibraryPreferences, prepareReceiptCommands, saveBlockLibraryPreferences, toggleFavorite as toggleBlockFavorite, type BlockLibraryPreferences, type ReceiptCommand } from "./block-library";
-import { createReceiptState, createDefaultDocument, createFromTemplate, createLogoBlock, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
+import { createReceiptState, createDefaultDocument, createFromTemplate, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
 import { documentSeed } from "./onboarding/profile";
 import { PrintCoordinator, type PrintApprovalDecision, type PrintResult, type PrintSnapshot } from "./printing/coordinator";
 import type { PrintDestination } from "./printing/destination";
@@ -18,6 +18,7 @@ import { SetupPage } from "./pages/SetupPage";
 import { decideAgentPrint } from "./state/permissions";
 import { acceptSharedSettings, loadReceipt, loadSettings, saveReceipt, saveSettings, shareableSettings, type AppSettings } from "./state/storage";
 import { ReceiptSession, type ReceiptConflict, type ReceiptSyncStatus } from "./state/receiptSession";
+import { storageShelf, type AgentShelf } from "./state/shelf";
 import { registerWebMcpTools, type AgentActivity, type AgentAppStatus, type AgentBackend } from "./webmcp/register";
 import { captionForPhase, polishCaption } from "./agent/captions";
 
@@ -52,6 +53,7 @@ function AppContent() {
   const [pendingSetupPrint, setPendingSetupPrint] = useState<PrintSnapshot>();
   const receiptRef = useRef(receipt);
   const settingsRef = useRef(settings);
+  const shelfRef = useRef<AgentShelf | undefined>(undefined);
   const approvalRef = useRef<ApprovalRequest | undefined>(undefined);
   const printCoordinatorRef = useRef<PrintCoordinator | undefined>(undefined);
   const activityTimer = useRef<number | undefined>(undefined);
@@ -291,7 +293,7 @@ function AppContent() {
     const timer = window.setTimeout(() => setPrintStage("idle"), PRINT_DONE_HOLD_MS);
     return () => window.clearTimeout(timer);
   }, [printStage]);
-  const printCurrent = useCallback(async (destination: PrintDestination = "printer") => {
+  const printCurrent = useCallback(async (destination: PrintDestination = "demo") => {
     clearActivity();
     const current = receiptRef.current;
     if (destination === "demo") {
@@ -362,6 +364,9 @@ function AppContent() {
       },
       openEditor: () => navigate("/app"),
       onActivity: announceAgentActivity,
+      listTemplates: () => (shelfRef.current ?? storageShelf(documentSeed(settingsRef.current.printerProfile))).listTemplates(),
+      saveTemplate: (name, document) => (shelfRef.current ?? storageShelf(documentSeed(settingsRef.current.printerProfile))).saveTemplate(name, document),
+      resolveTemplate: (idOrName) => (shelfRef.current ?? storageShelf(documentSeed(settingsRef.current.printerProfile))).resolveTemplate(idOrName, documentSeed(settingsRef.current.printerProfile)),
     };
     const registration = registerWebMcpTools(backend);
     let disposed = false;
@@ -401,22 +406,12 @@ function AppContent() {
   const testPrint = async (profile: PaperProfile) => {
     const seed = documentSeed(settingsRef.current.printerProfile);
     const document = createDefaultDocument(seed);
-    document.title = "Printer connection";
     document.page = { paperWidthMm: profile.paperWidthMm, printableWidthDots: profile.printableWidthDots, paddingDots: profile.paddingDots };
-    document.blocks = [
-      createLogoBlock(seed),
-      { id: crypto.randomUUID(), type: "heading", text: "CONNECTION GOOD", level: "display", weight: "bold", italic: false, underline: false, align: "left" },
-      { id: crypto.randomUUID(), type: "text", text: `${profile.paperWidthMm} mm · ${profile.printableWidthDots} dots`, size: "body", weight: "regular", italic: false, underline: false, align: "left" },
-      { id: crypto.randomUUID(), type: "divider", style: "dashed" },
-      { id: crypto.randomUUID(), type: "text", text: "OpenReceipt is ready.", size: "small", weight: "medium", italic: false, underline: false, align: "left" },
-      { id: crypto.randomUUID(), type: "divider", style: "solid" },
-      { id: crypto.randomUUID(), type: "text", text: "READY TO MAKE SOMETHING", size: "small", weight: "medium", italic: false, underline: false, align: "center" },
-    ];
     const rendered = renderReceiptSvg(document);
     const raster = await rasterizeReceipt(rendered);
     const queued = await submitPrintJob(document, rendered, raster, crypto.randomUUID());
     const complete = await waitForPrintJob(queued.id);
-    if (complete.status !== "succeeded") throw new Error(complete.error || "The connection slip did not print.");
+    if (complete.status !== "succeeded") throw new Error(complete.error || "The test print did not print.");
   };
 
   const decideExternalApproval = async (decision: "approve" | "reject") => {
@@ -439,12 +434,12 @@ function AppContent() {
   };
 
   return <><Routes>
-    <Route path="/" element={<LandingPage configured={settings.configured} />} />
-    <Route path="/hero" element={<HeroExperimentPage configured={settings.configured} />} />
+    <Route path="/" element={<LandingPage />} />
+    <Route path="/hero" element={<HeroExperimentPage />} />
     <Route path="/guides" element={<GuidesPage />} />
     <Route path="/guides/:slug" element={<GuidePage />} />
     <Route path="/setup" element={<SetupPage onComplete={async (profile) => { await completeSetup(profile); }} onTestPrint={testPrint} />} />
-    <Route path="/app" element={<EditorPage runtimeMode="local" state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} printJobs={recentPrintJobs} printerConnected={printerConnected} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} loadDocument={loadDocument} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(true)} print={printCurrent} />} />
+    <Route path="/app" element={<EditorPage runtimeMode="local" state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} printJobs={recentPrintJobs} printerConnected={printerConnected} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} loadDocument={loadDocument} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(true)} print={printCurrent} registerShelf={(shelf) => { shelfRef.current = shelf; }} />} />
     <Route path="/blocks" element={<BlocksPage />} />
     <Route path="/blocks/charts" element={<ChartLabPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />

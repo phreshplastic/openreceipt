@@ -44,7 +44,7 @@ const everyBlock: DraftBlock[] = [
   { type: "agenda", events: [{ start: "8:20", title: "Flight TP 204", detail: "Gate 22" }] },
   { type: "habits", habits: ["Water", "Walk"] },
   { type: "form", form: "meetingNotes" },
-  { type: "logo", name: "PETE’S", tagline: "PRINTER", mark: "owners-printer-western" },
+  { type: "logo", name: "PETE’S", tagline: "PRINTER" },
 ];
 
 function makeBackend() {
@@ -190,13 +190,72 @@ describe("drafting and editing", () => {
   it("renames the shelf title without rewriting the paper heading", async () => {
     const harness = makeBackend();
     const heading = harness.controller.state.document.blocks.find((block) => block.type === "heading");
-    expect(heading && heading.type === "heading" ? heading.text : undefined).toBe("Today");
+    expect(heading && heading.type === "heading" ? heading.text : undefined).toBe("Morning briefing");
 
     const result = await call(harness, "rename_receipt", { title: "Lisbon trip" });
     expect(result.data.status).toBe("updated");
     expect(harness.controller.state.document.title).toBe("Lisbon trip");
     const after = harness.controller.state.document.blocks.find((block) => block.type === "heading");
-    expect(after && after.type === "heading" ? after.text : undefined).toBe("Today");
+    expect(after && after.type === "heading" ? after.text : undefined).toBe("Morning briefing");
+  });
+
+  it("changes heading copy without resetting its size", async () => {
+    const harness = makeBackend();
+    const heading = harness.controller.state.document.blocks.find((block) => block.type === "heading");
+    expect(heading && heading.type === "heading" ? heading.level : undefined).toBe("display");
+
+    await call(harness, "edit_receipt", { operations: [{ op: "setCopy", at: 2, text: "Lisbon, four days" }] });
+    const after = harness.controller.state.document.blocks.find((block) => block.type === "heading");
+    expect(after && after.type === "heading" ? after.text : undefined).toBe("Lisbon, four days");
+    expect(after && after.type === "heading" ? after.level : undefined).toBe("display");
+    expect(after?.id).toBe(heading?.id);
+  });
+
+  it("lists built-in templates and loads one onto the current receipt", async () => {
+    const harness = makeBackend();
+    const listed = await call(harness, "list_receipt_templates");
+    expect((listed.data.templates as { id: string }[]).map((template) => template.id)).toEqual(expect.arrayContaining(["blank", "checklist"]));
+
+    const loaded = await call(harness, "load_receipt_template", { template: "checklist" });
+    expect(loaded.data.status).toBe("updated");
+    expect(harness.controller.state.document.title).toBe("Packing list");
+  });
+
+  it("names the missing template instead of loading a guess", async () => {
+    const harness = makeBackend();
+    const result = await call(harness, "load_receipt_template", { template: "birthday card" });
+    expect(result.isError).toBe(true);
+    expect(result.text).toMatch(/birthday card/);
+    expect(result.text).toMatch(/Blank receipt/);
+  });
+
+  it("saves the current receipt as a named template and upserts on the same name", async () => {
+    const templates: { id: string; name: string; kind: "user" }[] = [];
+    const harness = makeBackend();
+    harness.backend.saveTemplate = (name, document) => {
+      const existing = templates.find((template) => template.name === name);
+      const saved = existing ?? { id: `user:${templates.length + 1}`, name, kind: "user" as const };
+      if (!existing) templates.push(saved);
+      void document;
+      return { ...saved, updated: Boolean(existing) };
+    };
+    harness.backend.listTemplates = () => [
+      { id: "blank", name: "Blank receipt", kind: "builtin" as const },
+      ...templates,
+    ];
+
+    const first = await call(harness, "save_receipt_template", { name: "Lisbon packing" });
+    expect(first.data.status).toBe("saved");
+    const second = await call(harness, "save_receipt_template", { name: "Lisbon packing" });
+    expect(second.data.status).toBe("updated");
+    expect(templates).toHaveLength(1);
+  });
+
+  it("refuses to save a template when there is no browser shelf", async () => {
+    const harness = makeBackend();
+    const result = await call(harness, "save_receipt_template", { name: "Packing" });
+    expect(result.isError).toBe(true);
+    expect(result.text).toMatch(/browser editor/);
   });
 });
 
@@ -226,10 +285,10 @@ describe("granular edits across every collection", () => {
 
   // This schema is shipped to every agent on every turn, so its growth should be a
   // deliberate decision. Bump this only alongside a reason for the extra context cost.
-  // 16k → 17k: the logo block carries the six wordmark ids, so an agent asked to
-  // rename or restyle the printer's sign can do it without a second round trip.
+  // 17k → 18k: setCopy lets an agent change heading/text/logo copy without the
+  // replace compiler resetting size, alignment, or the shop sign.
   it("keeps the edit schema small enough to ship to every agent", () => {
-    expect(JSON.stringify(z.toJSONSchema(editTool().inputSchema)).length).toBeLessThanOrEqual(17_000);
+    expect(JSON.stringify(z.toJSONSchema(editTool().inputSchema)).length).toBeLessThanOrEqual(18_000);
   });
 
   it("names every collection's fields to the agent", () => {

@@ -9,7 +9,7 @@ describe("printer profile", () => {
     expect(label("Maya", "owners-printer-western")).toBe("Maya’s Printer");
     expect(label("James", "owners-printer-western")).toBe("James’ Printer");
     expect(label("Maya", "masthead-press")).toBe("Maya’s Printer");
-    expect(label("", "kitchen-dispatch")).toBe("Your Printer");
+    expect(label("", "kitchen-dispatch")).toBe("Pete’s Printer");
   });
 
   it("drops invalid stored values", () => {

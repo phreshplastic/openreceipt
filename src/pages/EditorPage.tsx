@@ -21,8 +21,9 @@ import type { AppSettings } from "../state/storage";
 import type { ReceiptSyncStatus } from "../state/receiptSession";
 import { documentSeed, recommendedBlocks } from "../onboarding/profile";
 import { loadPrintDestination, savePrintDestination, type PrintDestination } from "../printing/destination";
-import { deleteDraft, deleteTemplate, loadDraftStore, persistDraftStore, saveDraft, saveTemplate, setActiveDraft, uniqueDraftTitle, type DraftStore } from "../state/drafts";
 import { createFromTemplateEntry } from "../receipt/templates";
+import { matchTemplate, summarizeTemplates, type AgentShelf } from "../state/shelf";
+import { deleteDraft, deleteTemplate, loadDraftStore, persistDraftStore, saveDraft, saveTemplate, setActiveDraft, uniqueDraftTitle, upsertTemplate, type DraftStore } from "../state/drafts";
 
 export type RuntimeMode = "demo" | "local";
 const WELCOME_DISMISSED_KEY = "petes-printer:first-visit-welcome:v1";
@@ -52,6 +53,7 @@ type Props = {
   refreshBridge(): Promise<boolean>;
   print(destination: PrintDestination): Promise<unknown>;
   runtimeMode?: RuntimeMode;
+  registerShelf?(shelf: AgentShelf | undefined): void;
 };
 
 type LibraryState = { index: number; initialId?: PrototypeBlockId };
@@ -86,7 +88,7 @@ function isTextBlock(block?: ReceiptBlock): block is Extract<ReceiptBlock, { typ
   return block?.type === "heading" || block?.type === "text";
 }
 
-export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAvailable, printStatus, printStage, printJobs, printerConnected = false, syncStatus, history, editorActivity, applyOperations, applyCommands, loadTemplate, loadDocument, updateSettings, toggleBlockFavorite, undo, redo, refreshBridge, print, runtimeMode = "local" }: Props) {
+export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAvailable, printStatus, printStage, printJobs, printerConnected = false, syncStatus, history, editorActivity, applyOperations, applyCommands, loadTemplate, loadDocument, updateSettings, toggleBlockFavorite, undo, redo, refreshBridge, print, runtimeMode = "local", registerShelf }: Props) {
   const rendered = useMemo(() => renderReceiptSvg(state.document), [state.document]);
   const [selectedId, setSelectedId] = useState<string>();
   const [templatesOpen, setTemplatesOpen] = useState(false);
@@ -109,7 +111,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   const [saveNotice, setSaveNotice] = useState("");
   const [draftSaveState, setDraftSaveState] = useState<DraftSaveState>("saved");
   const [saveMenuOpen, setSaveMenuOpen] = useState(false);
-  const [destination, setDestination] = useState<PrintDestination>(() => loadPrintDestination(runtimeMode === "demo" ? "demo" : "printer"));
+  const [destination, setDestination] = useState<PrintDestination>(() => loadPrintDestination());
   const [destinationMenuOpen, setDestinationMenuOpen] = useState(false);
   const canvasPointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
   const lastFormatBlock = useRef<ReceiptBlock | undefined>(undefined);
@@ -161,7 +163,9 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     setDraftStore(next);
     // A shelf of whole receipts is the one store here that can exhaust the browser's quota,
     // so a refused write is reported rather than swallowed.
-    setSaveNotice(persistDraftStore(next) ? "" : "This browser would not save the shelf — it may be out of space.");
+    const persisted = persistDraftStore(next);
+    setSaveNotice(persisted ? "" : "This browser would not save the shelf — it may be out of space.");
+    return persisted;
   }, []);
   const flushDraft = useCallback((options?: { asNew?: boolean; store?: DraftStore; document?: ReceiptDocument }) => {
     const store = options?.store ?? draftStoreRef.current;
@@ -183,6 +187,20 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   const saveCurrentTemplate = useCallback(() => {
     commitStore(saveTemplate(draftStoreRef.current, { name: documentRef.current.title, document: documentRef.current }));
   }, [commitStore]);
+  useEffect(() => {
+    if (!registerShelf) return;
+    const seed = documentSeed(settings.printerProfile);
+    registerShelf({
+      listTemplates: () => summarizeTemplates(draftStoreRef.current),
+      saveTemplate(name, document) {
+        const result = upsertTemplate(draftStoreRef.current, name, document);
+        if (!commitStore(result.store)) throw new Error("This browser would not save the template — it may be out of space.");
+        return { id: result.id, name: result.name, kind: "user", updated: result.updated };
+      },
+      resolveTemplate: (idOrName, resolveSeed) => matchTemplate(draftStoreRef.current, idOrName, resolveSeed ?? seed),
+    });
+    return () => registerShelf(undefined);
+  }, [commitStore, registerShelf, settings.printerProfile]);
   const openDraft = useCallback((id: string) => {
     if (id === draftStoreRef.current.activeId) return;
     const store = draftStoreRef.current.activeId ? flushDraft() : draftStoreRef.current;
@@ -201,8 +219,8 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     // template deliberately does not, which is what keeps it out of the trusted-print path.
     const created = createFromTemplateEntry(store, id, documentSeed(settings.printerProfile));
     if (!created) return;
-    // The paper heading can stay "Today"; the shelf name has to be unique or every blank
-    // looks identical. Blank receipts take Untitled rather than repeating the heading.
+    // The paper heading can stay "Morning briefing"; the shelf name has to be unique or
+    // every blank looks identical. Blank receipts take Untitled rather than repeating it.
     const base = id === "blank" ? "Untitled" : created.document.title;
     const titled = { ...created.document, title: uniqueDraftTitle(base, store.drafts.map((draft) => draft.title)) };
     if (created.template.kind === "builtin") loadTemplate(id, titled);
@@ -480,14 +498,6 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
               <ChevronDown size={12} />
             </button>
             {destinationMenuOpen && <div className="add-menu save-as-menu print-destination-menu" role="menu" aria-label="Print destination">
-              <button type="button" role="menuitemradio" aria-checked={destination === "printer"} onClick={() => chooseDestination("printer")}>
-                <span className={`status-dot ${printerConnected ? "online" : "offline"}`} />
-                <span className="print-destination-copy">
-                  Epson printer
-                  <small>{printerDetail}</small>
-                </span>
-                {destination === "printer" && <Check size={12} />}
-              </button>
               <button type="button" role="menuitemradio" aria-checked={destination === "demo"} onClick={() => chooseDestination("demo")}>
                 <span className="status-dot online" />
                 <span className="print-destination-copy">
@@ -495,6 +505,14 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
                   <small>Open a preview in this browser</small>
                 </span>
                 {destination === "demo" && <Check size={12} />}
+              </button>
+              <button type="button" role="menuitemradio" aria-checked={destination === "printer"} onClick={() => chooseDestination("printer")}>
+                <span className={`status-dot ${printerConnected ? "online" : "offline"}`} />
+                <span className="print-destination-copy">
+                  Epson printer
+                  <small>{printerDetail}</small>
+                </span>
+                {destination === "printer" && <Check size={12} />}
               </button>
             </div>}
           </div>

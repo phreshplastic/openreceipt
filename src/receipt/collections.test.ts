@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addChild, collectionFor, collections, removeChild, viewCollection, writeChild } from "./collections";
+import { addChild, collectionFor, collections, removeChild, setBlockCopy, viewCollection, writeChild } from "./collections";
 import { createId, receiptDocumentSchema, type ReceiptBlock } from "./model";
 import { createDefaultDocument } from "./templates";
 
@@ -101,5 +101,18 @@ describe("child collections", () => {
     for (const kind of ["weather", "air", "news", "markets", "surf", "games", "earthquakes"]) {
       expect(collections[kind]).toBeUndefined();
     }
+  });
+});
+
+describe("block copy", () => {
+  it("rewrites a display heading without demoting it", () => {
+    const heading = createDefaultDocument().blocks.find((block) => block.type === "heading");
+    if (!heading || heading.type !== "heading") throw new Error("expected a heading");
+    const next = setBlockCopy(heading, "Lisbon, four days");
+    expect(next).toMatchObject({ type: "heading", text: "Lisbon, four days", level: heading.level, id: heading.id });
+  });
+
+  it("points a list agent at setItem instead of inventing a title", () => {
+    expect(() => setBlockCopy(samples.checklist, "Passport")).toThrow(/setItem/);
   });
 });

@@ -41,26 +41,60 @@ const page = { paperWidthMm: 80 as const, printableWidthDots: 576 as const, padd
  * The first receipt says what day it is, so it has to be read from the clock rather
  * than written down. A frozen date is the first thing a person notices is wrong.
  */
+function startOfDay(now: Date) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function addDays(now: Date, days: number) {
+  const date = startOfDay(now);
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
 function today(now = new Date()) {
   return now.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
 }
 
-function blankReceipt(seed: DocumentSeed = {}): ReceiptDocumentV2 {
+function shortDay(now: Date) {
+  return now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
+const tripInDays = 12;
+
+function blankReceipt(seed: DocumentSeed = {}, now = new Date()): ReceiptDocumentV2 {
+  const tripDate = addDays(now, tripInDays);
   return receiptDocumentSchema.parse({
     schemaVersion: 2,
     id: createId(),
-    title: "Today",
+    title: "Morning briefing",
     page,
     blocks: [
       createLogoBlock(seed),
-      { id: createId(), type: "heading", text: "Today", level: "display", weight: "bold", italic: false, underline: false, align: "left" },
-      { id: createId(), type: "text", text: today(), size: "small", weight: "medium", italic: false, underline: false, align: "left" },
-      { id: createId(), type: "divider", style: "dashed" },
+      { id: createId(), type: "heading", text: "Morning briefing", level: "display", weight: "bold", italic: false, underline: false, align: "left" },
+      { id: createId(), type: "text", text: today(now), size: "small", weight: "medium", italic: false, underline: false, align: "left" },
+      { id: createId(), type: "divider", style: "solid" },
+      { id: createId(), type: "heading", text: "To do", level: "section", weight: "bold", italic: false, underline: false, align: "left" },
       { id: createId(), type: "checklist", items: [
-        { id: createId(), text: "Pick up the charger", checked: false },
-        { id: createId(), text: "Write the note", checked: false },
-        { id: createId(), text: "Leave by four", checked: false },
+        { id: createId(), text: "Run 6 miles at tempo pace", checked: false },
+        { id: createId(), text: "Buy groceries at Whole Foods", checked: false },
+        { id: createId(), text: "Run laundry", checked: false },
+        { id: createId(), text: "Charge the camera batteries", checked: false },
       ] },
+      { id: createId(), type: "divider", style: "solid" },
+      {
+        id: createId(), type: "catalog", kind: "countdown", definitionVersion: 1,
+        data: {
+          label: "Next up",
+          event: "Portugal trip",
+          date: shortDay(tripDate),
+          days: tripInDays,
+          milestones: [
+            { label: "Booked", complete: true },
+            { label: "Packed", complete: false },
+            { label: "Go", complete: false },
+          ],
+        },
+      },
       { id: createId(), type: "divider", style: "solid" },
     ],
   });
@@ -88,7 +122,7 @@ function checklistReceipt(seed: DocumentSeed = {}): ReceiptDocumentV2 {
 }
 
 export const receiptTemplates: ReceiptTemplate[] = [
-  { id: "blank", revision: 4, name: "Blank receipt", description: "Your mark, today, and a short list to start from.", create: blankReceipt },
+  { id: "blank", revision: 5, name: "Blank receipt", description: "A morning briefing with today’s list and a trip countdown.", create: blankReceipt },
   { id: "checklist", revision: 3, name: "Checklist", description: "A compact list with a deliberate finish for packing, groceries, or errands.", create: checklistReceipt },
 ];
 

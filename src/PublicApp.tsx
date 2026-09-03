@@ -14,7 +14,7 @@ export function PublicApp() {
   if (path === "/guides") return <Suspense fallback={publicFallback}><GuidesPage /></Suspense>;
   if (path.startsWith("/guides/")) return <Suspense fallback={publicFallback}><GuidePage slug={decodeURIComponent(path.slice("/guides/".length))} /></Suspense>;
   return <>
-    <LandingPage configured={false} publicMode />
+    <LandingPage />
     <Suspense fallback={null}><PublicAgentTools /></Suspense>
   </>;
 }

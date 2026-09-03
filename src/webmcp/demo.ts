@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { AgentActivity, AgentAppStatus, AgentBackend } from "../agent";
 import type { PrintApprovalDecision, PrintResult, PrintSnapshot } from "../printing/coordinator";
 import type { ReceiptController, ReceiptDocument, ReceiptState } from "../receipt";
-import { saveReceipt } from "../state/storage";
+import { loadSettings, saveReceipt } from "../state/storage";
+import { documentSeed } from "../onboarding/profile";
+import { storageShelf, type AgentShelf } from "../state/shelf";
 import { registerWebMcpTools } from "./register";
 
 /** Returned after the person approves a demo print. Honest: no paper left the building. */
@@ -18,9 +20,10 @@ export type DemoBackendOptions = {
   requestApproval?(snapshot: PrintSnapshot, reason: string | undefined, signal: AbortSignal): Promise<PrintApprovalDecision>;
   openEditor?(): void;
   focusPreview?(): void;
+  getShelf?(): AgentShelf | undefined;
 };
 
-export function createDemoAgentBackend({ controller, publish, onActivity, hasPendingApproval, requestApproval, openEditor, focusPreview }: DemoBackendOptions): AgentBackend {
+export function createDemoAgentBackend({ controller, publish, onActivity, hasPendingApproval, requestApproval, openEditor, focusPreview, getShelf }: DemoBackendOptions): AgentBackend {
   const commitState = (next: ReceiptState) => {
     saveReceipt(next);
     return publish ? publish(next) : next;
@@ -32,6 +35,7 @@ export function createDemoAgentBackend({ controller, publish, onActivity, hasPen
     printPolicy: "confirm",
     syncStatus: "demo",
   });
+  const shelf = () => getShelf?.() ?? storageShelf(documentSeed(loadSettings().printerProfile));
 
   return {
     getState: () => controller.state,
@@ -41,6 +45,9 @@ export function createDemoAgentBackend({ controller, publish, onActivity, hasPen
     onActivity,
     focusPreview,
     openEditor,
+    listTemplates: () => shelf().listTemplates(),
+    saveTemplate: (name, document) => shelf().saveTemplate(name, document),
+    resolveTemplate: (idOrName) => shelf().resolveTemplate(idOrName, documentSeed(loadSettings().printerProfile)),
     async requestPrint(expectedRevision: number, reason?: string, signal?: AbortSignal): Promise<PrintResult> {
       const current = controller.state;
       if (current.revision !== expectedRevision) {
@@ -93,6 +100,12 @@ export function useWebMcpRegistration(backend: AgentBackend) {
       focusPreview: () => backendRef.current.focusPreview?.(),
       openEditor: (highlight) => backendRef.current.openEditor?.(highlight),
       onActivity: (activity) => backendRef.current.onActivity?.(activity),
+      listTemplates: () => backendRef.current.listTemplates?.(),
+      saveTemplate: (name, document) => {
+        if (!backendRef.current.saveTemplate) throw new Error("Saving a template is only available in the browser editor.");
+        return backendRef.current.saveTemplate(name, document);
+      },
+      resolveTemplate: (idOrName) => backendRef.current.resolveTemplate?.(idOrName),
     };
     const registration = registerWebMcpTools(stable);
     let disposed = false;

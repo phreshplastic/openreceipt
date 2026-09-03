@@ -16,7 +16,7 @@ const guides = [
 test("serves the landing page and every guide without JavaScript", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: site.hero.heading })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Try it in your browser" }).first()).toHaveAttribute("href", "/app");
+  await expect(page.getByRole("link", { name: site.hero.publicCta }).first()).toHaveAttribute("href", "/app");
 
   for (const [path, title] of guides) {
     await page.goto(path);

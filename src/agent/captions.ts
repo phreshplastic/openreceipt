@@ -30,6 +30,11 @@ export function captionForRename(title: string): string {
   return polishCaption(`Named ${clip(title, 28)}`);
 }
 
+export function captionForTemplate(name: string, updated = false, action: "save" | "load" = "save"): string {
+  if (action === "load") return polishCaption(`Loaded ${clip(name, 28)}`);
+  return polishCaption(`${updated ? "Updated" : "Saved"} ${clip(name, 24)}`);
+}
+
 export function captionForAddedBlock(block: DraftBlock): string {
   switch (block.type) {
     case "weather": return polishCaption(`Added ${clip(block.city, 20)} weather`);
@@ -73,6 +78,7 @@ export function captionForOperation(operation: CaptionOperation): string {
     case "remove": return "Removed a block";
     case "move": return "Moved a block";
     case "refresh": return "Refreshed live data";
+    case "setCopy": return polishCaption(`Updated ${clip(operation.text ?? "the copy", 24)}`);
     case "addItem": return polishCaption(`Added ${clip(operation.text ?? "a line", 24)}`);
     case "setItem": return operation.text ? polishCaption(`Updated ${clip(operation.text, 24)}`) : "Updated a line";
     case "checkItem": {

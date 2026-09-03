@@ -17,6 +17,65 @@ bridge/data/
 .gstack/
 public/generated/
 
+# Agent skill installers may scatter copies outside .agents/skills; keep the lockfile
+# and .agents/skills/remotion-* instead.
+/skills/
+/agent/
+/data/
+.adal/
+.aider-desk/
+.augment/
+.autohand/
+.bob/
+.codeartsdoer/
+.codebuddy/
+.codemaker/
+.codestudio/
+.commandcode/
+.continue/
+.cortex/
+.crush/
+.devin/
+.factory/
+.forge/
+.goose/
+.grok/
+.hermes/
+.iflow/
+.inferencesh/
+.jazz/
+.junie/
+.kilocode/
+.kimchi/
+.kiro/
+.kode/
+.lingma/
+.mcpjam/
+.minimax/
+.moxby/
+.mux/
+.neovate/
+.ona/
+.openhands/
+.pi/
+.pochi/
+.posit/
+.qoder/
+.qwen/
+.reasonix/
+.roo/
+.rovodev/
+.tabnine/
+.terramind/
+.tinycloud/
+.trae/
+.vibe/
+.windsurf/
+.zcode/
+.zencoder/
+.claude/settings.local.json
+.claude/skills/
+
 # Photograph sources, hero experiments, and Devpost stills: heavy and regenerable, so
 # they stay on disk without riding along in a clone. `npm run assets:scenes` needs the
 # sources; the cropped webp results it writes to src/assets/scenes are committed.

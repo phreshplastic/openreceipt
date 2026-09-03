@@ -29,6 +29,31 @@ describe("prototype block renderer", () => {
   });
 });
 
+describe("wordmark case", () => {
+  const logo = samplePrototypeData.logo;
+
+  // The sign face is a caps-only subset: a lowercase letter has no glyph and falls
+  // back to Georgia mid-word. Uppercasing has to happen in the renderer, because a
+  // name can arrive from a form, a template, a stored document, or an agent.
+  it.each(["owners-printer-western", "block-modern", "oval-badge"] as const)(
+    "prints the name in caps whatever the case of the input, for %s",
+    (style) => {
+      const typed = renderPrototypeBlock("logo", { ...logo, style, primary: "Pete", secondary: "surf" }, 576);
+      const shouted = renderPrototypeBlock("logo", { ...logo, style, primary: "PETE", secondary: "SURF" }, 576);
+      expect(typed.svg).toBe(shouted.svg);
+      // Assert on drawn text only. The sign face is called "PetesPrinterSign" and
+      // rides in the markup as a family name and a data URI, so any assertion over
+      // the whole SVG matches the font rather than the name and quietly passes.
+      const drawn = [...typed.svg.replace(/<style>[\s\S]*?<\/style>/g, "").matchAll(/>([^<>]+)</g)]
+        .map((match) => match[1])
+        .join(" ");
+      expect(drawn).toContain("PETE");
+      expect(drawn).toContain("SURF");
+      expect(drawn).not.toMatch(/[a-z]/);
+    },
+  );
+});
+
 describe("wordmark size", () => {
   const logo = samplePrototypeData.logo;
 

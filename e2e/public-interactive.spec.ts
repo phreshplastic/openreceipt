@@ -5,7 +5,7 @@ test("opens the real browser editor without a local API", async ({ page }) => {
   page.on("request", (request) => { if (request.url().includes("/api/")) apiRequests.push(request.url()); });
 
   await page.goto("/");
-  await page.getByRole("link", { name: "Try it in your browser" }).first().click();
+  await page.getByRole("link", { name: "Start a receipt" }).first().click();
   await expect(page).toHaveURL(/\/app$/);
   await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Print destination, Demo print" })).toBeVisible();
@@ -13,11 +13,11 @@ test("opens the real browser editor without a local API", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
   await expect(page.getByText("This is a real receipt.", { exact: true }).last()).toBeVisible();
 
-  await page.getByRole("button", { name: "Select heading block" }).click();
+  await page.getByRole("button", { name: "Select heading block" }).first().click();
   await page.getByRole("textbox", { name: "Edit heading" }).fill("BROWSER RECEIPT");
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Edit heading" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Select heading block" }).click();
+  await page.getByRole("button", { name: "Select heading block" }).first().click();
   await expect(page.getByRole("textbox", { name: "Edit heading" })).toHaveValue("BROWSER RECEIPT");
   expect(apiRequests).toEqual([]);
 
@@ -32,6 +32,9 @@ test("opens the real browser editor without a local API", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Print", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /Print destination/ }).click();
+  const destinations = page.getByRole("menu", { name: "Print destination" }).getByRole("menuitemradio");
+  await expect(destinations.nth(0)).toHaveAccessibleName(/Demo print/);
+  await expect(destinations.nth(1)).toHaveAccessibleName(/Epson printer/);
   await expect(page.getByRole("menuitemradio", { name: /Demo print/ }).locator(".status-dot")).toHaveClass(/online/);
   await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).locator(".status-dot")).toHaveClass(/offline/);
   await page.getByRole("menuitemradio", { name: /Epson printer/ }).click();

@@ -1,10 +1,10 @@
 export type PrintDestination = "printer" | "demo";
 
-const KEY = "petes-printer:print-destination:v1";
+const KEY = "petes-printer:print-destination:v2";
 
 type DestinationStorage = Pick<Storage, "getItem" | "setItem">;
 
-export function loadPrintDestination(fallback: PrintDestination, storage: DestinationStorage = localStorage): PrintDestination {
+export function loadPrintDestination(fallback: PrintDestination = "demo", storage: DestinationStorage = localStorage): PrintDestination {
   try {
     const stored = storage.getItem(KEY);
     if (stored === "printer" || stored === "demo") return stored;

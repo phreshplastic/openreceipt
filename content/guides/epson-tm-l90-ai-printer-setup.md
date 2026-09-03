@@ -1,9 +1,9 @@
 ---
 slug: epson-tm-l90-ai-printer-setup
 title: Set up an Epson TM-L90 with OpenReceipt
-description: Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local helper, and make your first print.
+description: Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local bridge, and make your first print.
 published: 2026-08-31
-updated: 2026-09-02
+updated: 2026-09-03
 summary: Connect the TM-L90 by USB, start OpenReceipt beside it, choose the paper width, and print one test slip before handing the printer to an agent.
 topics:
   - Epson TM-L90
@@ -12,111 +12,138 @@ topics:
   - OpenReceipt
 ---
 
-I have tested one setup all the way through: an **Epson TM-L90 connected directly by USB**. OpenReceipt runs on the same computer, draws the receipt there, and sends it to the printer without a cloud print service.
+OpenReceipt has one tested hardware path: an Epson TM-L90 connected directly by USB. A small local
+bridge runs beside the printer, keeps the receipt and print job on that machine, and serves the app
+at `http://127.0.0.1:8731`.
 
-The app uses a small local helper called the bridge. It keeps the receipt and print queue on your machine, talks to USB, and serves the editor at `http://127.0.0.1:8731`.
+You can run the bridge on a laptop while you work, or on a Raspberry Pi that stays beside the
+printer after the laptop is turned off. The printer connection is the same in both cases.
 
 ## Before you start
 
 You will need:
 
 - an Epson TM-L90 with a USB interface and its 24 V power supply;
-- a computer to run the bridge on — a laptop, or a Raspberry Pi left beside the printer;
 - an 80 mm or 58 mm thermal roll;
 - Node.js 22 or newer and Python 3.12 or newer;
 - permission for your user account to access the USB printer.
 
-The adapter currently looks for USB ID `04b8:0202`. It uses interface `0`, sends data through endpoint `01`, and listens on endpoint `82`. Those numbers are simply the channels this particular printer reports over USB. TM-L90 interface boards vary, so check the machine in front of you if they do not match.
+The tested adapter expects vendor/product ID `04b8:0202`, interface `0`, OUT endpoint `01`, and IN
+endpoint `82`. TM-L90 interface boards can vary, so check the device in front of you if
+those values do not match.
 
-## Install the app and bridge
+## Install and run it
 
-From the project directory:
+From the repository directory:
 
-```bash
+~~~bash
 npm install
 python3 -m venv bridge/.venv
 . bridge/.venv/bin/activate
-pip install -e 'bridge[dev]'
+pip install -e './bridge[dev]'
 npm run build
 petes-printer --web-dist ./dist
-```
+~~~
 
-Open `http://127.0.0.1:8731`. Setup will look for the printer, ask which roll is loaded, collect a couple of local defaults, and offer a test print.
+Open `http://127.0.0.1:8731`. The setup screen detects the bridge and printer, lets you choose the
+loaded paper width, and offers a **Test connection** slip. After the test succeeds, open the
+editor, draft or edit a receipt, and approve the print.
 
-I like to run the app once with its virtual printer before touching USB:
+To test the editor without hardware, use the virtual transport instead:
 
-```bash
+~~~bash
 PETES_PRINTER_TRANSPORT=dummy petes-printer --web-dist ./dist
-```
+~~~
 
-The virtual printer writes the outgoing printer bytes to a file. It proves that the app can draw and queue a receipt, but it cannot prove that the real printer will feed or cut.
+Dummy mode writes printer bytes to a local file. It checks the software flow, but it cannot test
+paper feed or cutting.
 
-## Choose the paper width
+## Paper width
 
-OpenReceipt offers two layouts:
+Choose the profile that matches the roll loaded in the printer:
 
-| Setting | Roll | Drawing width | Works well for |
-| --- | --- | --- | --- |
-| `80mm-576` | 80 mm | 576 dots | Weather, agendas, tables, and longer receipts |
-| `58mm-420` | 58 mm | 420 dots | Reminders, short lists, and compact objects |
+| Profile | Roll | Drawing width |
+| --- | --- | --- |
+| `80mm-576` | 80 mm | 576 dots |
+| `58mm-420` | 58 mm | 420 dots |
 
-The [Epson manual](https://files.support.epson.com/pdf/pos/bulk/tm-l90_4-um_en_tc_01.pdf) specifies 203 dpi output and a 576-dot print area for 80 mm receipt paper. OpenReceipt draws the narrow layout again at 420 dots instead of squeezing the wide image. That is why wrapping in the preview should match the paper.
+OpenReceipt draws the narrow layout at 420 dots instead of squeezing the 80 mm image. The preview
+should therefore wrap like the printed paper. See the [thermal paper guide](/guides/58mm-vs-80mm-thermal-paper)
+for roll material and width choices.
 
-If you are also choosing rolls, the [thermal paper guide](/guides/58mm-vs-80mm-thermal-paper) covers width, paper weight, and phenol-free stock.
+## Raspberry Pi
 
-## Check the USB connection on Linux
+For a permanent setup, connect the TM-L90 to the Pi, install the project with the commands above,
+and leave `petes-printer --web-dist ./dist` running. Install libusb first on Debian-based systems:
 
-Ask Linux what it can see before changing permissions:
+~~~bash
+sudo apt update
+sudo apt install libusb-1.0-0
+~~~
 
-```bash
-lsusb
-lsusb -vvv -d 04b8:0202
-```
+Linux may require a udev rule for the confirmed Epson USB ID. Use the rule to grant the bridge user
+access to the device; do not run the bridge as root. The [python-escpos USB installation guide](https://github.com/python-escpos/python-escpos/blob/master/doc/user/installation.rst)
+shows the permission pattern.
 
-Look for the same device ID, interface, and outgoing endpoint that the adapter expects. The [`python-escpos` USB guide](https://github.com/python-escpos/python-escpos/blob/master/doc/user/usage.rst) follows the same process because printers do not all expose identical USB channels.
+For the tested device, the rule can contain:
 
-If the printer appears only when you run the bridge as root, stop there. Add a narrowly scoped udev rule for the USB ID you confirmed, reload the rules, and keep the bridge under your normal user account. The [`python-escpos` installation guide](https://github.com/python-escpos/python-escpos/blob/master/doc/user/installation.rst) includes the permission pattern.
+~~~text
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b8", ATTR{idProduct}=="0202", MODE="0660", GROUP="plugdev"
+~~~
 
-## Make the first real print
+Then reload udev and reconnect the printer:
 
-1. Load the roll with the coated side facing the print head, then power on the TM-L90.
-2. Start the bridge without the `dummy` setting.
-3. Open setup and wait for the printer to be detected.
-4. Choose the width that matches the loaded roll.
-5. Print the connection slip.
+~~~bash
+sudo usermod -aG plugdev "$USER"
+sudo udevadm control --reload-rules
+sudo udevadm trigger
+~~~
 
-Look at the whole result. The image should use the expected width, the paper should feed cleanly, and the cutter should fire once. OpenReceipt sends one black-and-white image, then feed and cut commands; the printer does not lay out the text itself.
+Log out and back in after changing group membership.
 
-## Leave it running on a Raspberry Pi
+Open the editor in a browser on the Pi to complete setup and print the test slip. If you need to
+operate that editor from a laptop, tunnel the Pi's loopback port over SSH:
 
-The bridge is an ordinary Python process that needs USB and a loopback port, so it does not have to
-live on your laptop. A Raspberry Pi sitting next to the printer is a good permanent home for it:
-plug the TM-L90 into the Pi, install the bridge there the same way, and leave it powered on. Nothing
-about the printer path changes — it is the same USB adapter on a smaller host.
-
-Two details are worth knowing before you try it. The Pi is Linux, so the udev rule in the section
-above applies; without it the bridge can only reach the printer as root. And the bridge binds to
-loopback by default, which means the editor has to run on the Pi as well — open it from the Pi's own
-browser, or reach `http://127.0.0.1:8731` through an SSH tunnel from your laptop:
-
-```bash
+~~~bash
 ssh -N -L 8731:127.0.0.1:8731 pi@raspberrypi.local
-```
+~~~
 
-Then open `http://127.0.0.1:8731` on your laptop as usual. Exposing the bridge on the network
-instead is deliberately not supported: it holds your receipts and can make paper come out.
+Then open `http://127.0.0.1:8731` on the laptop. Do not expose the bridge directly on the LAN or
+the public internet; v1 has no remote-access authentication.
 
-## If something goes wrong
+For an agent that runs locally on the Pi, the headless MCP server can use the same bridge for
+drafting and previewing without an open browser. The default print policy still requires approval
+in the local editor. See [bridge/README.md](../../bridge/README.md) for token and MCP configuration.
 
-**The app opens, but the printer is offline.** Check power and the cable first. Then compare the printer’s USB ID and channels with the values above. The current adapter only knows the tested TM-L90 path.
+## First real print
 
-**It works only as root on Linux.** This usually means your user account cannot open the USB device. Add the device-specific rule rather than running the whole app as root.
+1. Load the roll with the coated side facing the print head and power on the TM-L90.
+2. Start the bridge without `PETES_PRINTER_TRANSPORT=dummy`.
+3. Open setup, select the detected Epson, and choose the loaded paper width.
+4. Press **Test connection** and check the slip.
+5. Draft a receipt, review the preview, and approve the print.
 
-**The receipt is clipped or strangely narrow.** Check that the selected width matches both the roll and the printer’s paper guide. Browser zoom will not fix it; the receipt is drawn in printer dots.
+The bridge sends one black-and-white image, then feed and cut commands. The printer does not lay
+out the receipt text itself.
 
-**The image prints, but the paper does not cut.** Confirm that your unit has a cutter and that the cutter works from the printer’s own self-test.
+## Troubleshooting
 
-**The app says the result is unknown.** Look at the paper before pressing print again. Once the bridge starts sending data, a lost connection cannot tell it whether the printer stopped halfway through or finished the job. An automatic retry could give you two receipts.
+**The bridge is unavailable.** Start the bridge and open the app on the same machine. A public site
+cannot reach a local laptop or Pi bridge.
+
+**The printer is not detected.** Check power and USB, then compare `lsusb` with `04b8:0202` and the
+interface and endpoint values above.
+
+**It works only as root on Linux.** Add a device-specific udev rule and keep the bridge under an
+unprivileged user.
+
+**The receipt is clipped.** Match the selected profile to the loaded roll and the printer's paper
+guide. The layout is measured in printer dots.
+
+**The cutter does not fire.** Confirm that the unit has a cutter and that its self-test activates it.
+
+**The result is unknown.** Check the paper before retrying. Transmission may have completed even
+if the bridge lost the final response, so retrying automatically could print a duplicate.
 
 ## Sources
 

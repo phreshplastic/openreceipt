@@ -3,7 +3,7 @@ slug: how-ai-agents-print-with-webmcp
 title: How an AI agent gets a receipt onto paper
 description: Follow a receipt from an AI conversation to the local preview, one-revision approval, and thermal printer through WebMCP or MCP.
 published: 2026-08-31
-updated: 2026-09-01
+updated: 2026-09-03
 summary: The agent edits the same receipt you see, previews the paper, and asks to print one exact version. A local helper handles the physical printer.
 topics:
   - WebMCP
@@ -26,7 +26,8 @@ The app offers a small set of named actions rather than giving the agent control
 | --- | --- |
 | Read | See the title, blocks, and current version |
 | Draft | Make a complete receipt from a request |
-| Edit | Change one block or one line inside it |
+| Edit | Change a heading's words, one line, or a whole block |
+| Templates | Save the current receipt as a named starting point, or load one |
 | Preview | Check the text, width, length, and warnings |
 | Ask to print | Submit the exact version that was previewed |
 

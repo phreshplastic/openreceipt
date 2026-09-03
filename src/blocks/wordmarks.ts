@@ -153,7 +153,7 @@ function markId(seed: string) {
   return `pp-arc-${(hash >>> 0).toString(36)}`;
 }
 
-const owner = (firstName: string) => (possessive(firstName) || "YOUR").toUpperCase();
+const owner = (firstName: string) => possessive(firstName.trim() || "Pete").toUpperCase();
 const ownerPrinter = (firstName: string) => `${owner(firstName)} PRINTER`;
 
 export const wordmarkStyles: WordmarkStyle[] = [
@@ -425,10 +425,22 @@ const renderers: Record<WordmarkStyleId, (data: LogoData, width: number) => Part
  */
 const wordmarkSizeScale: Record<WordmarkSize, number> = { small: 0.5, medium: 0.72, large: 1 };
 
+/**
+ * Marks are set in caps, always, whatever anyone types.
+ *
+ * Not a stylistic preference. The sign face is a subset cut to capitals, digits and
+ * punctuation, so a lowercase letter has no glyph and silently falls back to Georgia
+ * — which puts two unrelated faces inside one word. Every face's metrics here are
+ * cap-height calibrated too, so mixed case also mis-measures every gap and rule.
+ * Uppercasing at the one point every style passes through is what makes that
+ * impossible to get wrong from a form, a template, or an agent.
+ */
+const markText = (value: string) => value.toUpperCase();
+
 export function renderLogo(data: LogoData, width: number): Part {
   const style = isWordmarkStyleId(data.style) ? data.style : defaultWordmarkStyleId;
-  const primary = data.primary.trim() || suggestWordmark(style, "").primary;
-  const secondary = data.secondary?.trim() || undefined;
+  const primary = markText(data.primary.trim() || suggestWordmark(style, "").primary);
+  const secondary = data.secondary?.trim() ? markText(data.secondary.trim()) : undefined;
   const size = data.size && data.size in wordmarkSizeScale ? data.size : defaultWordmarkSize;
   const scale = wordmarkSizeScale[size];
   const scaledWidth = width * scale;

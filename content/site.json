@@ -8,7 +8,7 @@
   "hero": {
     "heading": "A printer your agent can reach.",
     "copy": "Reminders, lists, and more on convenient thermal receipts",
-    "publicCta": "Try it in your browser",
+    "publicCta": "Start a receipt",
     "publicHref": "/guides/epson-tm-l90-ai-printer-setup"
   },
   "steps": [
@@ -32,7 +32,7 @@
     },
     {
       "name": "edit_receipt",
-      "copy": "Change one line without rewriting the rest."
+      "copy": "Change a heading or one line without rewriting the rest."
     },
     {
       "name": "preview_receipt",
@@ -43,30 +43,60 @@
       "copy": "Always waits for your approval."
     }
   ],
+  "setup": {
+    "heading": "Choose how to run it",
+    "options": [
+      {
+        "title": "Explore without hardware",
+        "copy": "Use the editor and WebMCP tools in your browser. Nothing prints until you connect a local bridge.",
+        "link": "Try the browser editor",
+        "href": "/app",
+        "visual": "browser"
+      },
+      {
+        "title": "Connect a laptop",
+        "copy": "Plug an Epson TM-L90 into your laptop by USB, run the bridge, and print while you work.",
+        "link": "Set up USB printing",
+        "href": "/guides/epson-tm-l90-ai-printer-setup",
+        "visual": "laptop"
+      },
+      {
+        "title": "Use a Raspberry Pi",
+        "copy": "Run the same bridge on a Pi beside the printer so it can stay ready with your laptop off.",
+        "link": "Read the Pi setup",
+        "href": "/guides/epson-tm-l90-ai-printer-setup#raspberry-pi",
+        "visual": "pi"
+      }
+    ]
+  },
   "faqs": [
     {
-      "question": "Do I need a thermal printer?",
-      "answer": "No. The editor works entirely in the browser. Printing currently needs an Epson TM-L90 on 80 or 58 mm paper and the small local bridge running on your machine."
+      "question": "Can I use OpenReceipt without a printer?",
+      "answer": "Yes. You can use the editor and WebMCP tools in a browser without hardware. To print, run the local bridge on a laptop or Raspberry Pi connected to an Epson TM-L90."
     },
     {
       "question": "What is WebMCP?",
-      "answer": "WebMCP lets a web page expose its tools to AI agents. A compatible agent can read the receipt, draft and edit blocks, preview the print, and ask for approval — the same operations you have in the editor."
+      "answer": "WebMCP lets a webpage expose named tools to an AI agent. In OpenReceipt, the agent can draft, edit, preview, and request a print while you work on the same receipt."
     },
     {
-      "question": "Can an agent print by itself?",
-      "answer": "It can request a print, but every job waits for your approval, bound to the exact revision you reviewed. Any edit you make cancels a pending request."
+      "question": "Can the agent print without asking me?",
+      "answer": "No. The agent can prepare and request a print, but the browser asks you to approve the exact revision you reviewed. If you edit the receipt while approval is pending, OpenReceipt cancels that request."
     },
     {
-      "question": "Does anything leave my machine?",
-      "answer": "Your receipts, settings, and print jobs stay on this machine. Blocks like weather or news fetch public APIs only when you add them, and say so."
+      "question": "Where does my receipt data go?",
+      "answer": "The local app keeps receipts, settings, events, and print jobs on the machine running it. Optional blocks such as weather or news call their public APIs only when you add them."
     },
     {
-      "question": "Is OpenReceipt free?",
-      "answer": "Yes. OpenReceipt is MIT-licensed software that currently runs from source on the machine beside the printer."
+      "question": "How do I connect a printer?",
+      "answer": "Connect the Epson TM-L90 by USB to a laptop, or run the bridge on a Raspberry Pi beside it. Open the local app, choose 58 mm or 80 mm paper, run Test connection, and then print."
     },
     {
       "question": "Which printers are supported?",
-      "answer": "OpenReceipt currently ships one physically tested adapter: the Epson TM-L90 over native USB, with 80 mm (576-dot) and 58 mm (420-dot) paper profiles. The workshop explains other ESC/POS paths without claiming they work in this app."
+      "answer": "The tested path is an Epson TM-L90 over native USB, with 80 mm (576-dot) and 58 mm (420-dot) paper profiles. Other ESC/POS printers may need different setup, so OpenReceipt does not claim they work here."
+    },
+    {
+      "question": "Is OpenReceipt free?",
+      "answer": "Yes. OpenReceipt is MIT-licensed software that runs from source. You provide the printer, paper, and computer or Raspberry Pi that runs the local bridge."
     }
   ],
   "guides": [

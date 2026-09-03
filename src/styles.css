@@ -479,6 +479,18 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .landing-tool + .landing-tool { border-top: 1px solid var(--line); }
 .landing-tool code { font-size: 13px; font-weight: 600; letter-spacing: -.01em; }
 .landing-tool span { max-width: 240px; color: var(--muted); font-size: 12px; line-height: 1.45; text-align: right; }
+.landing-setup-heading { display: flex; align-items: end; }
+.landing-setup-grid { margin-top: 40px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.landing-setup-card { min-height: 320px; padding: 14px 14px 20px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: 0 1px 2px rgb(0 0 0 / 3%); }
+.landing-setup-visual { width: 100%; height: 112px; margin-bottom: 22px; display: grid; place-items: center; overflow: hidden; border-radius: 11px; background: linear-gradient(145deg, #f2f4f8, #e7ebf2); color: #596574; }
+.landing-setup-visual-browser { background: linear-gradient(145deg, #eef3ff, #e2e8fb); color: #5274bc; }
+.landing-setup-visual-laptop { background: linear-gradient(145deg, #f2f2f3, #e5e6e9); color: #62646a; }
+.landing-setup-visual-pi { background: linear-gradient(145deg, #eef8f0, #dcefe0); color: #3e8a51; }
+.landing-setup-card h3 { margin: 0; font-size: 17px; line-height: 1.2; letter-spacing: -.02em; }
+.landing-setup-card p { margin: 10px 0 22px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.landing-setup-card a { margin-top: auto; display: inline-flex; align-items: center; gap: 7px; color: var(--tint); font-size: 13px; font-weight: 650; text-decoration: none; }
+.landing-setup-card a svg { transition: transform 160ms var(--ease-out); }
+.landing-setup-card a:hover svg { transform: translateX(3px); }
 .landing-samples { margin-top: 44px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; }
 .landing-samples figure { margin: 0; }
 .landing-sample-paper { filter: drop-shadow(0 1px 2px rgb(0 0 0 / 5%)) drop-shadow(0 14px 22px -8px rgb(0 0 0 / 14%)); }
@@ -686,6 +698,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 @keyframes setup-step-in { from { opacity: 0; transform: translateY(10px); } }
 .setup-step h1 { margin: 0; font-size: 29px; line-height: 1.12; letter-spacing: -.03em; font-weight: 720; }
 .setup-intro { max-width: 420px; margin: 10px 0 28px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.setup-section-label { margin: 0 0 9px; color: var(--muted-light); font-size: 12px; font-weight: 650; }
+.setup-paper-label { margin-top: 24px; }
 .setup-list { overflow: hidden; border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-raised); }
 .setup-list-row, .setup-paper-list button { display: flex; align-items: center; gap: 13px; min-height: 60px; padding: 13px 16px; }
 .setup-list-row + .setup-list-row, .setup-paper-list button + button { border-top: 1px solid var(--line); }
@@ -706,6 +720,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .setup-note { margin: 2px 0 0; color: var(--muted-light); font-size: 12px; line-height: 1.45; }
 .setup-test { margin-top: 16px; }
 .setup-message { margin-top: 16px; padding: 12px 14px; border-radius: 12px; background: var(--tint-soft); font-size: 13px; line-height: 1.45; }
+.setup-message .text-button { margin-top: 8px; }
 .setup-message.error { background: rgb(215 0 21 / 8%); color: var(--danger); }
 .setup-actions { margin-top: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .setup-actions .text-button { color: var(--muted); }
@@ -1412,6 +1427,7 @@ path[data-chart-series] { stroke-dasharray: 1; stroke-dashoffset: 0; }
   .landing-step { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(250px, 1fr); align-items: center; gap: 28px; }
   .landing-step-caption { margin-top: 0; }
   .landing-agents { grid-template-columns: 1fr; gap: 36px; }
+  .landing-setup-grid { grid-template-columns: 1fr; }
   .landing-tool span { text-align: left; }
   .landing-tool { flex-direction: column; gap: 4px; align-items: flex-start; }
   .landing-samples { grid-template-columns: 1fr 1fr; }

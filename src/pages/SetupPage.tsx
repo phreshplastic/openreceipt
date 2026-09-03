@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ArrowRight, Check, FileText, Printer, RefreshCw, Usb, X } from "lucide-react";
+import { ArrowRight, Check, FileText, Printer, RefreshCw, Usb, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Brand } from "../components/Brand";
 import { getCapabilities, saveConfiguration, type BridgeCapabilities, type PaperProfile, type PrinterAdapter } from "../bridge/client";
@@ -15,7 +15,6 @@ const fallbackProfile = { id: "80mm-576", label: "80 mm · 576 dots", paperWidth
 
 export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCancel }: Props) {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
   const [capabilities, setCapabilities] = useState<BridgeCapabilities>();
   const [adapter, setAdapter] = useState<PrinterAdapter>("epson-tm-l90-usb");
   const [profileId, setProfileId] = useState<PaperProfile["id"]>("80mm-576");
@@ -76,11 +75,11 @@ export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCa
   const test = async () => {
     setBusy(true);
     setFailed(false);
-    setMessage("Sending a connection slip…");
+    setMessage("Sending a test print…");
     try {
       await saveConfiguration(profileId, adapter);
       await onTestPrint(profile);
-      setMessage(adapter === "virtual" ? "Connection slip written to the bridge’s file output." : "Connection slip sent.");
+      setMessage(adapter === "virtual" ? "Test print written to the bridge’s file output." : "Test print sent.");
     } catch (error) {
       setFailed(true);
       setMessage(error instanceof Error ? error.message : "The test print failed.");
@@ -90,40 +89,33 @@ export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCa
   const content = <>
     <header className="setup-top">
       <Brand compact />
-      <span className="setup-step-count">{step + 1} of 2</span>
+      <span className="setup-step-count">Printer setup</span>
       {intent === "print" && <button type="button" className="icon-button setup-close" onClick={cancel} aria-label="Keep editing"><X size={17} /></button>}
     </header>
     <section className="setup-card">
-      <div className="setup-progress" aria-hidden="true"><span className={step === 0 ? "active" : "complete"} /><span className={step === 1 ? "active" : ""} /></div>
-      <div className="setup-step" key={step}>
-        {step === 0 ? <>
-          <h1>Connect your printer</h1>
-          <p className="setup-intro">The local bridge can drive a real Epson TM-L90 over USB, or a virtual printer if you are still trying things out.</p>
-          <div className="setup-list setup-paper-list" role="group" aria-label="Printer">
-            <button type="button" className={adapter === "epson-tm-l90-usb" ? "selected" : ""} aria-pressed={adapter === "epson-tm-l90-usb"} onClick={() => setAdapter("epson-tm-l90-usb")}>
-              <span className="setup-row-mark"><Usb size={17} /></span><span className="setup-row-copy"><strong>Epson TM-L90</strong><small>{loading ? "Looking for the bridge…" : capabilities === undefined ? "Bridge unavailable" : connected ? "Detected on USB" : capabilities.detail || "Printer not detected"}</small></span>{adapter === "epson-tm-l90-usb" && <Check size={16} className="setup-check" />}
-            </button>
-            <button type="button" className={adapter === "virtual" ? "selected" : ""} aria-pressed={adapter === "virtual"} onClick={() => setAdapter("virtual")} disabled={bridgeUnreachable}>
-              <span className="setup-row-mark"><FileText size={17} /></span><span className="setup-row-copy"><strong>Virtual printer</strong><small>Prints to a file on this machine — no hardware needed.</small></span>{adapter === "virtual" && <Check size={16} className="setup-check" />}
-            </button>
-          </div>
-          {bridgeUnreachable && <div className="setup-message error">{message || "Start the local bridge, then try again."}</div>}
-        </> : <>
-          <h1>Choose your paper</h1>
-          <p className="setup-intro">The editor will match the exact printable width. You can change this later.</p>
-          <div className="setup-list setup-paper-list" role="group" aria-label="Paper size">
-            {(capabilities?.profiles ?? [fallbackProfile]).map((item) => <button type="button" key={item.id} className={profileId === item.id ? "selected" : ""} aria-pressed={profileId === item.id} onClick={() => setProfileId(item.id)}><span className={`paper-chip paper-${item.paperWidthMm}`} /><span className="setup-row-copy"><strong>{item.paperWidthMm} mm</strong><small>{item.printableWidthDots} printable dots</small></span>{profileId === item.id && <Check size={16} className="setup-check" />}</button>)}
-          </div>
-          <button className="button secondary setup-test" onClick={() => void test()} disabled={busy}><Printer size={15} />{busy ? "Printing…" : "Test connection"}</button>
-          {message && <div className={`setup-message ${failed ? "error" : ""}`}>{message}</div>}
-        </>}
+      <div className="setup-step">
+        <h1>Connect your printer</h1>
+        <p className="setup-intro">Choose the printer and paper you have connected. OpenReceipt will match the receipt to that paper width.</p>
+        <div className="setup-section-label">Printer</div>
+        <div className="setup-list setup-paper-list" role="group" aria-label="Printer">
+          <button type="button" className={adapter === "epson-tm-l90-usb" ? "selected" : ""} aria-pressed={adapter === "epson-tm-l90-usb"} onClick={() => setAdapter("epson-tm-l90-usb")}>
+            <span className="setup-row-mark"><Usb size={17} /></span><span className="setup-row-copy"><strong>Epson TM-L90</strong><small>{loading ? "Looking for the bridge…" : capabilities === undefined ? "Bridge unavailable" : connected ? "Detected on USB" : capabilities.detail || "Printer not detected"}</small></span>{adapter === "epson-tm-l90-usb" && <Check size={16} className="setup-check" />}
+          </button>
+          <button type="button" className={adapter === "virtual" ? "selected" : ""} aria-pressed={adapter === "virtual"} onClick={() => setAdapter("virtual")} disabled={bridgeUnreachable}>
+            <span className="setup-row-mark"><FileText size={17} /></span><span className="setup-row-copy"><strong>Virtual printer</strong><small>Prints to a file on this machine — no hardware needed.</small></span>{adapter === "virtual" && <Check size={16} className="setup-check" />}
+          </button>
+        </div>
+        {bridgeUnreachable && <div className="setup-message error">{message || "Start the local bridge, then try again."}<button className="text-button" onClick={() => probe()} disabled={loading}><RefreshCw size={14} className={loading ? "spinning" : ""} />Try again</button></div>}
+        <div className="setup-section-label setup-paper-label">Paper width</div>
+        <div className="setup-list setup-paper-list" role="group" aria-label="Paper size">
+          {(capabilities?.profiles ?? [fallbackProfile]).map((item) => <button type="button" key={item.id} className={profileId === item.id ? "selected" : ""} aria-pressed={profileId === item.id} onClick={() => setProfileId(item.id)}><span className={`paper-chip paper-${item.paperWidthMm}`} /><span className="setup-row-copy"><strong>{item.paperWidthMm} mm</strong><small>{item.printableWidthDots} printable dots</small></span>{profileId === item.id && <Check size={16} className="setup-check" />}</button>)}
+        </div>
+        <button className="button secondary setup-test" onClick={() => void test()} disabled={busy || capabilities === undefined}><Printer size={15} />{busy ? "Printing…" : "Test connection"}</button>
+        {message && !bridgeUnreachable && <div className={`setup-message ${failed ? "error" : ""}`}>{message}</div>}
       </div>
       <footer className="setup-actions">
-        {step === 0 ? <button className="text-button" onClick={cancel}>{intent === "print" ? "Keep editing" : "Explore without setup"}</button> : <button className="text-button" onClick={() => setStep(0)} disabled={busy}><ArrowLeft size={14} />Back</button>}
-        {step === 0 ? bridgeUnreachable
-          ? <button className="button secondary" onClick={() => probe()} disabled={loading}><RefreshCw size={14} className={loading ? "spinning" : ""} />Try again</button>
-          : <button className="button primary" onClick={() => setStep(1)} disabled={loading || capabilities === undefined || (adapter === "epson-tm-l90-usb" && !connected)}>Continue<ArrowRight size={16} /></button>
-          : <button className="button primary" onClick={() => void configure()} disabled={busy || capabilities === undefined}>{intent === "print" ? "Save and print" : "Finish setup"}<ArrowRight size={16} /></button>}
+        <button className="text-button" onClick={cancel}>{intent === "print" ? "Keep editing" : "Explore without setup"}</button>
+        <button className="button primary" onClick={() => void configure()} disabled={busy || loading || capabilities === undefined || (adapter === "epson-tm-l90-usb" && !connected)}>{intent === "print" ? "Save and print" : "Finish setup"}<ArrowRight size={16} /></button>
       </footer>
     </section>
   </>;

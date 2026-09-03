@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { defaultWordmarkStyleId, wordmarkStyleIds } from "../blocks/wordmarks";
+import { defaultWordmarkStyleId } from "../blocks/wordmarks";
 import { createCatalogBlock, type CatalogDependencies, type CatalogInsertConfig } from "../block-library";
 import { createId, type CatalogBlockKind, type ReceiptBlock } from "../receipt/model";
 
@@ -38,7 +38,7 @@ export const draftBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("agenda"), date: z.string().max(100).optional(), events: z.array(z.object({ start: z.string().min(1).max(40), end: z.string().max(40).optional(), title: z.string().min(1).max(300), detail: z.string().max(300).optional() })).min(1).max(16) }),
   z.object({ type: z.literal("habits"), title: z.string().max(120).optional(), period: z.string().max(120).optional(), habits: z.array(z.string().min(1).max(80)).min(1).max(10) }),
   z.object({ type: z.literal("form"), form: z.enum(writeInForms) }),
-  z.object({ type: z.literal("logo"), name: z.string().min(1).max(40), tagline: z.string().max(40).optional(), mark: z.enum(wordmarkStyleIds).optional() }),
+  z.object({ type: z.literal("logo"), name: z.string().min(1).max(40), tagline: z.string().max(40).optional() }),
 ]);
 
 export type DraftBlock = z.infer<typeof draftBlockSchema>;
@@ -108,7 +108,10 @@ export async function compileDraftBlock(block: DraftBlock, dependencies?: Catalo
     case "form":
       return catalog(block.form, undefined, dependencies);
     case "logo":
-      return catalog("logo", { style: block.mark ?? defaultWordmarkStyleId, primary: block.name, secondary: block.tagline }, dependencies);
+      // No `mark` here on purpose. The wordmark is the printer's identity, set once
+      // in personalisation; letting an agent restyle it per receipt makes a person's
+      // own shelf of paper look like it came from six different shops.
+      return catalog("logo", { style: defaultWordmarkStyleId, primary: block.name, secondary: block.tagline }, dependencies);
   }
 }
 

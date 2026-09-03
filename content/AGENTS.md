@@ -31,7 +31,7 @@ Browser agents use WebMCP. Headless clients use the conventional MCP server buil
 
 1. `get_app_status` to confirm the editor and printer are ready.
 2. `list_receipt_recipes` or `list_receipt_blocks` to choose a receipt shape.
-3. `draft_receipt` or `edit_receipt` to make the paper. Give the receipt a distinctive title — that name is the drafts list, not the heading on the paper. Use `rename_receipt` to change it later.
+3. `draft_receipt` or `edit_receipt` to make the paper. Give the receipt a distinctive title — that name is the drafts list, not the heading on the paper. Use `rename_receipt` to change it later. Use `setCopy` on `edit_receipt` to change heading or text wording without replacing the block. `save_receipt_template` keeps the current receipt as a named starting point; `load_receipt_template` brings one back.
 4. `preview_receipt` to inspect the exact dimensions and text.
 5. `request_receipt_print` to create a revision-bound print request.
 

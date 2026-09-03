@@ -37,6 +37,7 @@ export function createServer(backend: BridgeBackend) {
     instructions: [
       "OpenReceipt turns a described situation into a receipt on an 80mm thermal printer.",
       "When someone describes a moment rather than naming blocks — travelling, a morning, a shopping trip — call list_receipt_recipes first, ask only for details you genuinely need, then draft_receipt in one call.",
+      "Use setCopy on edit_receipt to change heading or text wording without replacing the block. save_receipt_template keeps a named starting point in the browser editor; load_receipt_template brings a built-in or saved template onto the current receipt.",
       "After drafting, tell them the editor URL from get_app_status so they can see and adjust it. Printing is consequential: it may wait for them to tap approve in that browser tab.",
     ].join(" "),
   });

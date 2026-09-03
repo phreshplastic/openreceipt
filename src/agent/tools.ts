@@ -2,8 +2,9 @@ import { z } from "zod";
 import type { CatalogDependencies } from "../block-library";
 import type { PrintResult } from "../printing/coordinator";
 import { receiptDocumentSchema, type ReceiptBlock, type ReceiptDocument } from "../receipt/model";
-import { keepSign } from "../receipt/templates";
-import { addChild, blockLabel, collectionFor, removeChild, viewCollection, writeChild } from "../receipt/collections";
+import { keepSign, receiptTemplates } from "../receipt/templates";
+import { addChild, blockLabel, collectionFor, removeChild, setBlockCopy, viewCollection, writeChild } from "../receipt/collections";
+import type { ReceiptTemplateInfo } from "../state/shelf";
 import type { ReceiptState } from "../receipt/controller";
 import { refreshCatalogBlock } from "../block-library";
 import {
@@ -14,6 +15,7 @@ import {
   captionForPhase,
   captionForPrint,
   captionForRename,
+  captionForTemplate,
   changedBlockIds,
   type AgentPhase,
 } from "./captions";
@@ -43,6 +45,9 @@ export type AgentBackend = {
   openEditor?(highlight?: string[]): void;
   dependencies?: CatalogDependencies;
   onActivity?(activity: AgentActivity): void;
+  listTemplates?(): ReceiptTemplateInfo[] | undefined | Promise<ReceiptTemplateInfo[] | undefined>;
+  saveTemplate?(name: string, document: ReceiptDocument): (ReceiptTemplateInfo & { updated: boolean }) | Promise<ReceiptTemplateInfo & { updated: boolean }>;
+  resolveTemplate?(idOrName: string): (ReceiptTemplateInfo & { document: ReceiptDocument }) | undefined | Promise<(ReceiptTemplateInfo & { document: ReceiptDocument }) | undefined>;
 };
 
 export type AgentToolResult = { text: string; data: Record<string, unknown>; isError?: boolean };
@@ -81,6 +86,7 @@ const editOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("remove"), at: position }).strict(),
   z.object({ op: z.literal("move"), at: position, to: position }).strict(),
   z.object({ op: z.literal("refresh"), at: position }).strict(),
+  z.object({ op: z.literal("setCopy"), at: position, text: z.string().min(1).max(4_000) }).strict(),
   z.object({ op: z.literal("addItem"), at: position, group: groupRef.optional(), text: z.string().min(1).max(300), checked: z.boolean().optional(), fields: childFields.optional() }).strict(),
   z.object({ op: z.literal("setItem"), at: position, item: itemRef, text: z.string().min(1).max(300).optional(), checked: z.boolean().optional(), fields: childFields.optional() }).strict(),
   z.object({ op: z.literal("checkItem"), at: position, item: itemRef, checked: z.boolean().optional() }).strict(),
@@ -109,6 +115,14 @@ const openInput = z.object({ highlight: z.array(z.string()).max(20).optional() }
 const renameInput = z.object({
   title: z.string().min(1).max(160),
   expectedRevision: revision.optional(),
+}).strict();
+const saveTemplateInput = z.object({
+  name: z.string().min(1).max(80).describe("Name on the Templates gallery; a matching saved template is updated"),
+}).strict();
+const loadTemplateInput = z.object({
+  template: z.string().min(1).max(80).describe("Id or name from list_receipt_templates"),
+  expectedRevision: revision.optional(),
+  dryRun: z.boolean().optional(),
 }).strict();
 
 /** Resolves a 1-based position against the current block list. */
@@ -166,6 +180,10 @@ async function applyEditOperations(document: ReceiptDocument, operations: EditOp
       replaceBlock(document, index, await refreshCatalogBlock(target, dependencies));
       continue;
     }
+    if (operation.op === "setCopy") {
+      replaceBlock(document, index, setBlockCopy(target, operation.text));
+      continue;
+    }
 
     // Item operations, so one change never rewrites a whole block while a human is typing in it.
     const descriptor = collectionFor(target);
@@ -208,6 +226,27 @@ function reportChange(before: ReceiptDocument, after: ReceiptDocument, revisionA
       nextAction: dryRun ? "Call again without dryRun to apply this." : "Check the visible receipt, then request_receipt_print when it is right.",
     },
   };
+}
+
+function builtinTemplates(): ReceiptTemplateInfo[] {
+  return receiptTemplates.map((template) => ({ id: template.id, name: template.name, kind: "builtin" }));
+}
+
+async function listedTemplates(backend: AgentBackend): Promise<ReceiptTemplateInfo[]> {
+  const fromBackend = backend.listTemplates ? await backend.listTemplates() : undefined;
+  return fromBackend ?? builtinTemplates();
+}
+
+async function resolvedTemplate(backend: AgentBackend, idOrName: string) {
+  if (backend.resolveTemplate) {
+    const resolved = await backend.resolveTemplate(idOrName);
+    if (resolved) return resolved;
+  }
+  const needle = idOrName.trim().toLowerCase();
+  const template = receiptTemplates.find((candidate) => candidate.id === idOrName)
+    ?? receiptTemplates.find((candidate) => candidate.name.trim().toLowerCase() === needle)
+    ?? receiptTemplates.find((candidate) => candidate.name.toLowerCase().includes(needle));
+  return template ? { id: template.id, name: template.name, kind: "builtin" as const, document: template.create() } : undefined;
 }
 
 export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
@@ -308,6 +347,24 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     },
 
     {
+      name: "list_receipt_templates",
+      title: "List templates",
+      description: "The built-in templates and any the person has saved from a receipt. Use the id or name with load_receipt_template. A saved template is a starting point, not a trusted print path.",
+      inputSchema: emptyInput,
+      readOnly: true,
+      untrustedContent: false,
+      async execute(input) {
+        emptyInput.parse(input ?? {});
+        const templates = await listedTemplates(backend);
+        const text = templates.map((template) => `${template.id} — ${template.name}${template.kind === "user" ? " (saved)" : ""}`).join("\n");
+        return {
+          text: clampOutput(text).text,
+          data: { status: "ok", templates, nextAction: "Call load_receipt_template with an id or name, or save_receipt_template to keep the current receipt." },
+        };
+      },
+    },
+
+    {
       name: "draft_receipt",
       title: "Draft a receipt",
       description: "Replaces the whole receipt with a new one, composed from the block vocabulary. This is the main tool: one call turns a described situation into finished paper. Give it a short distinctive title — that name is how the person finds it on the drafts shelf, and it is not the heading printed on the paper. It never prints. Pass dryRun to see the result and its paper length without changing anything.",
@@ -336,7 +393,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     {
       name: "edit_receipt",
       title: "Edit the receipt",
-      description: "Changes part of the receipt without rewriting it. Blocks are addressed by 1-based position from get_receipt. The item operations touch a single line — use them whenever someone may be editing the same receipt by hand. They reach checklists, facts, tables, agendas, habit rows, countdown milestones, grouped lists, meal plans, meeting notes and workout logs; `group` picks a section and `fields` sets named attributes like owner, due, sets or value. Pass dryRun to preview.",
+      description: "Changes part of the receipt without rewriting it. Blocks are 1-based from get_receipt. setCopy changes the words on a heading, text, logo, countdown or groups block and keeps its style. Item ops touch one line on lists, facts, tables, agendas, habits, countdowns, groups, meals, meetings and workouts; group picks a section and fields sets owner, due, sets or value. Pass dryRun to preview.",
       inputSchema: editInput,
       readOnly: false,
       untrustedContent: true,
@@ -359,7 +416,7 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
     {
       name: "rename_receipt",
       title: "Name the receipt",
-      description: "Sets the receipt's title — the name in the editor header and the drafts list, not the heading printed on the paper. Use this whenever you draft something new or the current name is generic (Today, Untitled). A clear title is how a person tells receipts apart.",
+      description: "Sets the receipt's title — the name in the editor header and the drafts list, not the heading printed on the paper. Use this whenever you draft something new or the current name is generic (Morning briefing, Untitled). A clear title is how a person tells receipts apart.",
       inputSchema: renameInput,
       readOnly: false,
       untrustedContent: false,
@@ -371,6 +428,57 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
         const named = captionForRename(parsed.title);
         const committed = await backend.commit(state.revision, next, named, signal);
         notify({ phase: "complete", message: named });
+        return reportChange(state.document, committed.document, committed.revision, false);
+      },
+    },
+
+    {
+      name: "save_receipt_template",
+      title: "Save as a template",
+      description: "Saves the current receipt as a named template the person can reuse from Templates. If a saved template already has this name, it is updated rather than duplicated. Does not change the receipt on screen and does not print.",
+      inputSchema: saveTemplateInput,
+      readOnly: false,
+      untrustedContent: false,
+      async execute(input, signal) {
+        const parsed = saveTemplateInput.parse(input);
+        if (!backend.saveTemplate) throw new Error("Saving a template is only available in the browser editor.");
+        const state = await backend.getState(signal);
+        notify({ phase: "editing", message: "Saving a template" });
+        const saved = await backend.saveTemplate(parsed.name, state.document);
+        const message = captionForTemplate(saved.name, saved.updated);
+        notify({ phase: "complete", message });
+        const templates = await listedTemplates(backend);
+        return {
+          text: clampOutput(`${message}. ${templates.length} templates on the shelf.`).text,
+          data: { status: saved.updated ? "updated" : "saved", template: saved, templates, nextAction: "The person will see it under Templates. Load it later with load_receipt_template." },
+        };
+      },
+    },
+
+    {
+      name: "load_receipt_template",
+      title: "Load a template",
+      description: "Replaces the current receipt with a template from list_receipt_templates. Built-in templates stamp a fresh copy; a saved template loads exactly as stored. It never prints. Pass dryRun to preview.",
+      inputSchema: loadTemplateInput,
+      readOnly: false,
+      untrustedContent: false,
+      async execute(input, signal) {
+        const parsed = loadTemplateInput.parse(input);
+        const state = await requireState(parsed.expectedRevision, signal);
+        const resolved = await resolvedTemplate(backend, parsed.template);
+        if (!resolved) {
+          const templates = await listedTemplates(backend);
+          throw new Error(`No template matching “${parsed.template}”. Present: ${templates.map((template) => template.name).join(", ") || "none"}.`);
+        }
+        const next = receiptDocumentSchema.parse({ ...state.document, title: resolved.document.title, blocks: resolved.document.blocks }) as ReceiptDocument;
+        const loaded = captionForTemplate(resolved.name, false, "load");
+        if (parsed.dryRun) {
+          notify({ phase: "complete", message: "Previewed a template" });
+          return reportChange(state.document, next, undefined, true);
+        }
+        notify({ phase: "editing", message: loaded });
+        const committed = await backend.commit(state.revision, next, loaded, signal);
+        notify({ phase: "complete", message: loaded, blockIds: agentFocusBlockIds(committed.document.blocks, changedBlockIds(state.document, committed.document)) });
         return reportChange(state.document, committed.document, committed.revision, false);
       },
     },

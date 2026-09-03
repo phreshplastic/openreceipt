@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, Cpu, Globe2, Laptop, Plus } from "lucide-react";
 import siteContent from "../../content/site.json";
 import { Brand } from "../components/Brand";
 import { MomentsCarousel } from "../components/MomentsCarousel";
@@ -7,7 +7,7 @@ import { HowItWorksDemo } from "../components/HowItWorksDemo";
 import { PrinterDemo } from "../components/PrinterDemo";
 import { createLandingDemo, createMoments } from "./landing-demo";
 
-export function LandingPage({ configured }: { configured: boolean; publicMode?: boolean }) {
+export function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number>(-1);
   const [pastHero, setPastHero] = useState(false);
   const heroRef = useRef<HTMLElement>(null);
@@ -16,8 +16,9 @@ export function LandingPage({ configured }: { configured: boolean; publicMode?: 
     [],
   );
   const demo = useMemo(() => createLandingDemo(), []);
-  const cta = configured ? "Open my printer" : "Try it in your browser";
+  const cta = siteContent.hero.publicCta;
   const ctaHref = "/app";
+  const setupIcons = { browser: Globe2, laptop: Laptop, pi: Cpu } as const;
 
   useEffect(() => {
     const hero = heroRef.current;
@@ -81,6 +82,27 @@ export function LandingPage({ configured }: { configured: boolean; publicMode?: 
               <span>{tool.copy}</span>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="landing-section landing-setup" id="setup">
+        <div className="landing-setup-heading">
+          <h2 className="landing-heading">{siteContent.setup.heading}</h2>
+        </div>
+        <div className="landing-setup-grid">
+          {siteContent.setup.options.map((option) => {
+            const Icon = setupIcons[option.visual as keyof typeof setupIcons];
+            return (
+              <article className="landing-setup-card" key={option.title}>
+              <div className={`landing-setup-visual landing-setup-visual-${option.visual}`} aria-hidden="true">
+                <Icon size={34} strokeWidth={1.7} />
+              </div>
+              <h3>{option.title}</h3>
+              <p>{option.copy}</p>
+              <a href={option.href}>{option.link}<ArrowRight size={15} /></a>
+              </article>
+            );
+          })}
         </div>
       </section>
 
