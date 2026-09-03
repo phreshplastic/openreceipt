@@ -219,7 +219,7 @@ function AppContent() {
       queued = await decidePrintRequest(queued.id, "approve", { kind: "human", label: "Browser" }, signal);
     }
     setPrintStatus("Printing…");
-    const complete = await waitForPrintJob(queued.id, 30_000, signal);
+    const complete = await waitForPrintJob(queued.id, 30_000, signal, requester === "human" ? "print-jobs" : "print-requests");
     void refreshPrintActivity();
     if (complete.status === "succeeded") {
       setPrintStage("complete");
@@ -416,7 +416,7 @@ function AppContent() {
     const rendered = renderReceiptSvg(document);
     const raster = await rasterizeReceipt(rendered);
     const queued = await submitPrintJob(document, rendered, raster, crypto.randomUUID());
-    const complete = await waitForPrintJob(queued.id);
+    const complete = await waitForPrintJob(queued.id, 30_000, undefined, "print-jobs");
     if (complete.status !== "succeeded") throw new Error(complete.error || "The test print did not print.");
   };
 

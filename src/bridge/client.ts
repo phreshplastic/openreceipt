@@ -171,8 +171,8 @@ export async function listPrintRequests(status?: PrintJobStatus, signal?: AbortS
   return readJson<{ items: PrintJob[] }>(await apiFetch(`/api/v1/print-requests${query}`, { signal, cache: "no-store" }));
 }
 
-export async function getPrintJob(jobId: string, signal?: AbortSignal) {
-  return readJson<PrintJob>(await apiFetch(`/api/v1/print-requests/${encodeURIComponent(jobId)}`, { cache: "no-store", signal }));
+export async function getPrintJob(jobId: string, signal?: AbortSignal, collection: "print-requests" | "print-jobs" = "print-requests") {
+  return readJson<PrintJob>(await apiFetch(`/api/v1/${collection}/${encodeURIComponent(jobId)}`, { cache: "no-store", signal }));
 }
 
 function abortableDelay(milliseconds: number, signal?: AbortSignal) {
@@ -191,12 +191,12 @@ function abortableDelay(milliseconds: number, signal?: AbortSignal) {
   });
 }
 
-export async function waitForPrintJob(jobId: string, timeoutMs = 30_000, signal?: AbortSignal) {
+export async function waitForPrintJob(jobId: string, timeoutMs = 30_000, signal?: AbortSignal, collection: "print-requests" | "print-jobs" = "print-requests") {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    const job = await getPrintJob(jobId, signal);
+    const job = await getPrintJob(jobId, signal, collection);
     if (["succeeded", "failed", "unknown"].includes(job.status)) return job;
     await abortableDelay(350, signal);
   }
-  return getPrintJob(jobId, signal);
+  return getPrintJob(jobId, signal, collection);
 }
