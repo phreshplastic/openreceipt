@@ -82,6 +82,18 @@ export function ensureBrowserSession() {
   return sessionPromise;
 }
 
+/**
+ * EventSource cannot set request headers, and the public site's cross-site cookie is
+ * dropped whenever the browser blocks third-party cookies. The stream therefore carries
+ * the same short-lived session token apiFetch sends as a header, in the query string.
+ * The bridge accepts it only on this read-only endpoint.
+ */
+export function bridgeEventsUrl(after: number) {
+  const query = new URLSearchParams({ after: String(after) });
+  if (sessionToken) query.set("session", sessionToken);
+  return bridgeUrl(`/api/v1/events?${query.toString()}`);
+}
+
 async function apiFetch(input: string, init: RequestInit = {}, unsafe = false) {
   const csrfToken = await ensureBrowserSession();
   const headers = new Headers(init.headers);

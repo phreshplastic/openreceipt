@@ -340,3 +340,22 @@ def test_trusted_template_policy_queues_only_trusted_sources_and_rejection_is_te
         assert client.post(f"/api/v1/print-requests/{untrusted['id']}/decision", headers=headers, json={
             "mutationId": str(uuid4()), "decision": "approve", "actor": {"kind": "human"},
         }).status_code == 409
+
+
+def test_events_accept_a_query_session_token_but_writes_never_do(tmp_path):
+    """EventSource cannot send headers, so the read-only stream takes the token in the
+    query string. Nothing that mutates state may be authorized that way."""
+    store = BridgeStore(tmp_path)
+    manager = PrinterManager(store, transport_factory=SuccessfulTransport)
+    app = create_app(tmp_path, manager=manager)
+    with TestClient(app) as client:
+        session = client.post("/api/v1/session").json()
+        token = session["sessionToken"]
+        client.cookies.clear()
+
+        assert client.get("/api/v1/events?after=0").status_code == 401
+        assert client.get("/api/v1/events?after=0&session=bogus.deadbeef").status_code == 401
+
+        configuration = {"adapter": "virtual", "profileId": "80mm-576"}
+        assert client.put(f"/api/v1/configuration?session={token}", json=configuration).status_code == 401
+        assert client.get(f"/api/v1/receipt?session={token}").status_code == 401

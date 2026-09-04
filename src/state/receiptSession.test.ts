@@ -94,6 +94,32 @@ describe("ReceiptSession", () => {
     session.dispose();
   });
 
+  it("backs off between reconnects so a bridgeless browser does not retry forever at 2s", async () => {
+    const initial = createReceiptState(createDefaultDocument());
+    const ensureSession = vi.fn(async () => { throw new Error("no bridge"); });
+    const session = new ReceiptSession(initial, {
+      onShared: vi.fn(), onConflict: vi.fn(), onStatus: vi.fn(),
+    }, {
+      ensureSession, readReceipt: vi.fn(), commitReceipt: vi.fn(), createEvents: eventSource,
+    });
+    await session.start();
+    expect(ensureSession).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2_100);
+    await settle();
+    expect(ensureSession).toHaveBeenCalledTimes(2);
+
+    // The second wait is 4s, so nothing fires at the old fixed interval.
+    await vi.advanceTimersByTimeAsync(2_100);
+    await settle();
+    expect(ensureSession).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(2_100);
+    await settle();
+    expect(ensureSession).toHaveBeenCalledTimes(3);
+    session.dispose();
+  });
+
   it("rebases keep-my-version one revision above the shared receipt", async () => {
     const initial = createReceiptState(createDefaultDocument());
     localStorage.setItem("petes-printer:receipt-sync:v1", JSON.stringify({ serverRevision: 0, dirty: true }));

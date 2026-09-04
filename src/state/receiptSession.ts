@@ -1,9 +1,14 @@
-import { ApiError, commitCanonicalReceipt, ensureBrowserSession, getCanonicalReceipt, type ApiActor, type CanonicalReceipt } from "../bridge/client";
+import { ApiError, bridgeEventsUrl, commitCanonicalReceipt, ensureBrowserSession, getCanonicalReceipt, type ApiActor, type CanonicalReceipt } from "../bridge/client";
 import { createReceiptState, type ReceiptState } from "../receipt";
 
 const SYNC_KEY = "petes-printer:receipt-sync:v1";
 const COMMIT_DELAY = 280;
 const HUMAN_PRIORITY_MS = 8_000;
+// A browser with no bridge running must not retry forever at a fixed interval: on the
+// public site every attempt is a blocked cross-origin call to localhost, and a tab left
+// open all afternoon would log thousands of them. Back off instead, and reset on success.
+const RETRY_MIN_MS = 2_000;
+const RETRY_MAX_MS = 60_000;
 
 type SyncMetadata = { serverRevision: number | null; dirty: boolean };
 export type ReceiptSyncStatus = "connecting" | "saved" | "saving" | "offline" | "conflict";
@@ -21,7 +26,10 @@ const defaultDependencies: Dependencies = {
   ensureSession: ensureBrowserSession,
   readReceipt: getCanonicalReceipt,
   commitReceipt: commitCanonicalReceipt,
-  createEvents: (after) => new EventSource(`/api/v1/events?after=${after}`),
+  // Absolute bridge URL, not a relative path: the public site and the direct-bridge local
+  // app both serve the app from an origin that is not the bridge, so a relative stream URL
+  // resolves to the web host and never reaches the daemon.
+  createEvents: (after) => new EventSource(bridgeEventsUrl(after), { withCredentials: true }),
 };
 
 export class ReceiptSession {
@@ -41,6 +49,7 @@ export class ReceiptSession {
   private lastEventId = 0;
   private lastHumanPublishAt = 0;
   private preferringLocal = false;
+  private offlineAttempts = 0;
 
   constructor(
     initial: ReceiptState,
@@ -72,7 +81,7 @@ export class ReceiptSession {
         if (!(error instanceof ApiError) || error.code !== "receipt_not_initialized") throw error;
       }
       if (this.stopped) return;
-      this.online = true;
+      this.goOnline();
       if (!shared) {
         this.serverRevision = null;
         this.dirty = true;
@@ -145,7 +154,7 @@ export class ReceiptSession {
     try {
       const committed = await this.dependencies.commitReceipt(submitted, this.serverRevision, this.pendingActor, this.pendingSummary, mutationId);
       if (this.stopped) return;
-      this.online = true;
+      this.goOnline();
       this.serverRevision = committed.revision;
       this.dirty = this.latest.revision !== submitted.revision || JSON.stringify(this.latest.document) !== JSON.stringify(submitted.document);
       this.writeMetadata();
@@ -206,10 +215,18 @@ export class ReceiptSession {
     }
   }
 
+  private goOnline() {
+    this.online = true;
+    this.offlineAttempts = 0;
+  }
+
   private goOffline() {
     this.online = false;
     this.callbacks.onStatus("offline");
-    if (!this.stopped) this.retryTimer = window.setTimeout(() => void this.reconnect(), 2_000);
+    if (this.stopped) return;
+    const delay = Math.min(RETRY_MAX_MS, RETRY_MIN_MS * 2 ** this.offlineAttempts);
+    this.offlineAttempts += 1;
+    this.retryTimer = window.setTimeout(() => void this.reconnect(), delay);
   }
 
   private async reconnect() {
@@ -219,7 +236,7 @@ export class ReceiptSession {
       if (this.stopped) return;
       const shared = await this.dependencies.readReceipt();
       if (this.stopped) return;
-      this.online = true;
+      this.goOnline();
       if (this.dirty && shared.revision === this.serverRevision) await this.flush();
       else if (this.dirty) this.raiseConflict(shared, "reconnect");
       else this.acceptShared(shared);

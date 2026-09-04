@@ -145,7 +145,7 @@ def create_app(data_directory: Path, web_directory: Path | None = None, manager:
 
     @app.get("/api/v1/events")
     async def events(request: Request, after: int = 0):
-        auth.authorize(request, {"events:read"})
+        auth.authorize(request, {"events:read"}, allow_query_token=True)
         header = request.headers.get("last-event-id")
         cursor = max(after, int(header)) if header and header.isdigit() else after
 

@@ -59,7 +59,15 @@ class AuthManager:
         # same short-lived session credential so the frontend can send it explicitly.
         return {"csrfToken": csrf, "sessionToken": f"{nonce}.{signature}"}
 
-    def authorize(self, request: Request, required_scopes: set[str], *, unsafe: bool = False, ui_only: bool = False) -> dict:
+    def authorize(
+        self,
+        request: Request,
+        required_scopes: set[str],
+        *,
+        unsafe: bool = False,
+        ui_only: bool = False,
+        allow_query_token: bool = False,
+    ) -> dict:
         authorization = request.headers.get("authorization", "")
         if authorization.startswith("Bearer ") and not ui_only:
             record = self.store.token_for_bearer(authorization[7:])
@@ -70,7 +78,13 @@ class AuthManager:
                 raise HTTPException(status_code=403, detail="The API token does not grant the required scope.")
             return {"kind": "api", "tokenId": record["id"], "scopes": sorted(scopes)}
 
+        # EventSource cannot send headers, and a blocked third-party cookie leaves the
+        # stream with no credential at all. Read-only endpoints may therefore take the
+        # session token from the query string. Unsafe requests never may: keeping the
+        # token out of those URLs keeps it out of request logs on the paths that mutate.
         cookie = request.headers.get(SESSION_HEADER, "") or request.cookies.get(SESSION_COOKIE, "")
+        if not cookie and allow_query_token and not unsafe:
+            cookie = request.query_params.get("session", "")
         try:
             nonce, signature = cookie.rsplit(".", 1)
         except ValueError as error:
