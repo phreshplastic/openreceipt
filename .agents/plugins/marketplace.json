@@ -1,0 +1,21 @@
+{
+  "name": "openreceipt-video",
+  "interface": {
+    "displayName": "OpenReceipt video tooling"
+  },
+  "plugins": [
+    {
+      "name": "remotion",
+      "description": "Remotion agent skills vendored in .agents/skills for the demo video edit.",
+      "source": {
+        "source": "local",
+        "path": "../../.cursor-plugin"
+      },
+      "policy": {
+        "installation": "AVAILABLE"
+      },
+      "category": "Design",
+      "tags": ["remotion", "video", "react", "animation"]
+    }
+  ]
+}

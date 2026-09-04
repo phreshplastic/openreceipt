@@ -10,9 +10,9 @@ One quiet, observational shot — the aspiration, before the product. Used 1–2
 
 | File | Source | Creator |
 | --- | --- | --- |
-| `surf-wax-closeup.mp4` | [pexels.com/video/7425423](https://www.pexels.com/video/person-waxing-a-surfboard-7425423/) | Kindel Media |
+| `surf-aerial.mp4` | [pexels.com/video/2867957](https://www.pexels.com/video/people-surfing-2867957/) | Evgenia Kirpichnikova |
 
-Chosen over the "surfer holding board at the beach" results from the same search — those read as stock tourism footage (full-body, posed, waves-breaking B-roll). A tactile hands-on-wax close-up is candid and observational instead, and doesn't compete with the real Ericeira surf-chart payoff later in the film.
+Replaced an earlier wax-closeup pick — Pete's call, the aerial reads better as the opening image than a tight hands-on-board close-up does.
 
 ## Beat 2 — `same-flow` (56.64s–65.68s), "grocery list, morning brief, reminder, meeting notes"
 
@@ -25,6 +25,14 @@ The one place a quick montage genuinely serves the line, instead of more UI. Thr
 | `sticky-note-writing.mp4` | [pexels.com/video/10797881](https://www.pexels.com/video/close-up-on-writing-on-sticky-notes-10797881/) | Ramon Hughley | "a reminder" |
 
 Left out a fourth clip for "meeting notes" deliberately — every candidate that matched showed people at a table (staged office/teamwork territory, on the brief's avoid list). Three clean clips beat four with one weak link.
+
+## `end-card` (75.31s–78.18s) — the site's own hero recipe, not new B-roll language
+
+| File | Source | Creator |
+| --- | --- | --- |
+| `street-murals-walk.mp4` | [pexels.com/video/12886093](https://www.pexels.com/video/a-narrow-street-decorated-with-murals-and-garlands-12886093/) | Matthias Groeneveld |
+
+Full-bleed lifestyle shot with the real receipt overlaid on top — this is exactly the landing page's `.moments-hero` treatment (full-bleed photo, multi-stop dark scrim for legibility, receipt to one side with a drop-shadow, no other chrome), reused rather than a new look invented for the film. See `Direction-End-Card` in `edit/src/studies/DirectionStudy.tsx`; confirmation still rendered.
 
 ## Deliberately no B-roll
 

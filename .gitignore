@@ -17,8 +17,10 @@ bridge/data/
 .gstack/
 public/generated/
 
-# Agent skill installers may scatter copies outside .agents/skills; keep the lockfile
-# and .agents/skills/remotion-* instead.
+# Agent skill installers scatter copies outside .agents/skills, and the Remotion set
+# vendors ~270 files with several nested duplicates of the same trees. Keep
+# skills-lock.json instead: `npm run skills:remotion` reinstalls the exact versions.
+.agents/skills/remotion-*/
 /skills/
 /agent/
 /data/

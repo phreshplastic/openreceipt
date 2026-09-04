@@ -1,0 +1,66 @@
+{
+  "_comment": [
+    "The exact draft_receipt arguments that build the demo receipt, kept so the",
+    "document is reproducible rather than a one-off someone poked into an editor.",
+    "",
+    "To rebuild: open the app with ?webmcp=shim and call",
+    "  await window.__webmcpShim.call('draft_receipt', <the `arguments` below>)",
+    "",
+    "Order is by when you use it: count the days, pack the bag, travel, then surf.",
+    "The weather block is deliberately absent — it and surf are both line charts",
+    "with a three-column stat row, and on an 80mm strip they read as the same block",
+    "twice. Surf is the distinctive one and the reason for the trip.",
+    "",
+    "The wordmark is 'Pete's' over 'Printer' because that is the two-part form the",
+    "western mark is built for, and what its own suggest() returns. The renderer",
+    "shouts both lines whatever case is typed."
+  ],
+  "tool": "draft_receipt",
+  "arguments": {
+    "title": "Surfing Trip",
+    "blocks": [
+      { "type": "logo", "name": "Pete's", "tagline": "Printer" },
+      { "type": "heading", "text": "Surf trip", "size": "display" },
+      { "type": "rule", "style": "solid" },
+
+      {
+        "type": "countdown",
+        "event": "Wheels up",
+        "date": "Thu 10 Sep · 08:20",
+        "days": 7,
+        "label": "days out",
+        "milestones": ["Board bag", "Check in", "Car"]
+      },
+      { "type": "rule", "style": "dashed" },
+
+      {
+        "type": "groups",
+        "title": "Packing",
+        "note": "tick as you go",
+        "groups": [
+          { "name": "Board bag", "items": ["6-4 shortboard", "Fins + key", "Traction pad", "Board socks"] },
+          { "name": "Wetsuit", "items": ["3/2 steamer", "Booties", "Wax - cool water", "Changing towel"] },
+          { "name": "Carry-on", "items": ["Passport", "Adapter", "Headphones", "Sunscreen"] },
+          { "name": "Before the door", "items": ["Bins out", "Thermostat down", "Water the plants"] }
+        ]
+      },
+      { "type": "rule", "style": "dashed" },
+
+      { "type": "heading", "text": "Getting there", "size": "section" },
+      {
+        "type": "facts",
+        "dividers": true,
+        "rows": [
+          { "label": "Flight", "value": "TP204 · 08:20" },
+          { "label": "Land", "value": "LIS · 11:05" },
+          { "label": "Car", "value": "Terminal 1 · desk 14" },
+          { "label": "Drive", "value": "LIS → Ericeira · 50 min", "emphasis": true },
+          { "label": "Keys", "value": "Casa da Vaga · after 15:00" }
+        ]
+      },
+      { "type": "rule", "style": "dashed" },
+
+      { "type": "surf", "city": "Ericeira" }
+    ]
+  }
+}

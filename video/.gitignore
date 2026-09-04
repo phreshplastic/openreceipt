@@ -20,3 +20,13 @@ exports/final/*
 !exports/review/.gitkeep
 !exports/final/.gitkeep
 !exports/final/release-check.md
+# The Remotion edit is source-only in git. Whisper is a separate upstream clone, and the
+# capture footage, licensed music bed, voiceover, and standin frames are heavy local media
+# that the finished film on YouTube already carries. Same rule as assets/ and exports/ above.
+edit/whisper.cpp/
+edit/public/footage/
+edit/public/audio/
+edit/public/voiceover/
+edit/public/standin/
+
+exports/devpost/

@@ -1,0 +1,83 @@
+{
+  "width": 576,
+  "height": 1943,
+  "blocks": [
+    {
+      "index": 0,
+      "id": "afe44892-94b6-4982-9f94-395fa974220f",
+      "kind": "logo",
+      "y": 28,
+      "height": 113
+    },
+    {
+      "index": 1,
+      "id": "ee2aa0c1-129e-49bb-bf79-83cbbcd1cade",
+      "kind": "heading",
+      "y": 167,
+      "height": 36
+    },
+    {
+      "index": 2,
+      "id": "d1b8d3f0-8955-46cb-9b47-c4e0a0cb0ae7",
+      "kind": "divider",
+      "y": 227,
+      "height": 20
+    },
+    {
+      "index": 3,
+      "id": "c58d297c-67bd-4e20-accc-884e547be051",
+      "kind": "countdown",
+      "y": 265,
+      "height": 163
+    },
+    {
+      "index": 4,
+      "id": "2e378996-a5d9-4806-9f50-4754a5858e8c",
+      "kind": "divider",
+      "y": 446,
+      "height": 20
+    },
+    {
+      "index": 5,
+      "id": "0582cc09-094c-495c-bcb1-682ec3a02eb3",
+      "kind": "checklistGroups",
+      "y": 484,
+      "height": 822
+    },
+    {
+      "index": 6,
+      "id": "4d05e3dc-2bcd-47ba-b8f1-cd793698c036",
+      "kind": "divider",
+      "y": 1324,
+      "height": 20
+    },
+    {
+      "index": 7,
+      "id": "1185303b-0c3c-4bde-9a25-bc2d8cba1cf5",
+      "kind": "heading",
+      "y": 1362,
+      "height": 21
+    },
+    {
+      "index": 8,
+      "id": "259a23b6-303f-45ec-ba12-85a783f0bc71",
+      "kind": "keyValue",
+      "y": 1409,
+      "height": 180
+    },
+    {
+      "index": 9,
+      "id": "dec3fa49-0db5-415d-981c-44ee7d0105de",
+      "kind": "divider",
+      "y": 1607,
+      "height": 20
+    },
+    {
+      "index": 10,
+      "id": "f89e61c7-139e-438f-9f66-5e27f685b838",
+      "kind": "surf",
+      "y": 1645,
+      "height": 270
+    }
+  ]
+}

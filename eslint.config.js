@@ -5,7 +5,9 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "bridge/src/**/web", "bridge/.venv", "playwright-report", "test-results"] },
+  // Vendored third-party trees: agent skill installs and the whisper.cpp checkout used for
+  // caption timing. None of it is our code, and all of it is gitignored.
+  { ignores: ["dist", "bridge/src/**/web", "bridge/.venv", "playwright-report", "test-results", ".agents/skills", ".claude/skills", "video/edit/whisper.cpp"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

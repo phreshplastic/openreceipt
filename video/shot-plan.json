@@ -27,16 +27,20 @@
       "start": 0.0,
       "end": 1.81,
       "sentence": "Let's say you're planning an upcoming trip.",
-      "primaryAssets": ["screen-agent-prompt"],
-      "visual": "The agent host, prompt field empty or just starting. This is the frame the video opens on — VO begins at 0:00 under it, no silent pre-roll.",
+      "primaryAssets": [
+        "screen-agent-prompt"
+      ],
+      "visual": "The agent host, prompt field empty or just starting. This is the frame the video opens on \u2014 VO begins at 0:00 under it, no silent pre-roll.",
       "proof": "Establishes the situation before any product UI is explained."
     },
     {
       "id": "ask-agent",
       "start": 2.14,
       "end": 10.73,
-      "sentence": "You tell your agent about it – you know, like Codex, OpenClaw, or Hermes – and you ask it to put together a list of everything you'll need to head out the door.",
-      "primaryAssets": ["screen-agent-prompt"],
+      "sentence": "You tell your agent about it \u2013 you know, like Codex, OpenClaw, or Hermes \u2013 and you ask it to put together a list of everything you'll need to head out the door.",
+      "primaryAssets": [
+        "screen-agent-prompt"
+      ],
       "visual": "The real prompt being typed and sent, in whichever single host is actually captured. The three names spoken are examples in the voiceover, not a requirement to show three different interfaces.",
       "proof": "Real typed prompt, real send action.",
       "caution": "The submission rules require the video to behave as it claims. Whichever agent is actually shown on screen should be one of the three named here."
@@ -46,17 +50,22 @@
       "start": 10.81,
       "end": 20.12,
       "sentence": "OpenReceipt gives it real tools to make something for the real world: not just a text reply in the chat, but a beautiful, minimal, utilitarian to-go receipt.",
-      "primaryAssets": ["screen-agent-prompt", "screen-draft"],
+      "primaryAssets": [
+        "screen-agent-prompt",
+        "screen-draft"
+      ],
       "visual": "Cut to visible WebMCP tool activity firing (list_receipt_recipes / draft_receipt), then the first receipt blocks landing in the editor.",
-      "proof": "list_receipt_recipes, draft_receipt — named tool calls, not a canned template."
+      "proof": "list_receipt_recipes, draft_receipt \u2014 named tool calls, not a canned template."
     },
     {
       "id": "blocks-assemble",
       "start": 20.24,
       "end": 28.06,
       "sentence": "Your agent can add a countdown, a packing list, even a surf forecast, all meticulously laid out and ready to read.",
-      "primaryAssets": ["screen-draft"],
-      "visual": "The real Surfing Trip receipt finishing its draft: countdown, packing groups, surf forecast all visible. Punch in on the surf block specifically — it is the one WebMCP argument that needs no explanation once seen.",
+      "primaryAssets": [
+        "screen-draft"
+      ],
+      "visual": "The real Surfing Trip receipt finishing its draft: countdown, packing groups, surf forecast all visible. Punch in on the surf block specifically \u2014 it is the one WebMCP argument that needs no explanation once seen.",
       "proof": "draft_receipt result, the receipt built in video/assets/generated/surfing-trip.json."
     },
     {
@@ -64,8 +73,10 @@
       "start": 28.06,
       "end": 34.48,
       "sentence": "Then, you can review the agent's first draft, edit it yourself, or ask your agent to change something in the copy.",
-      "primaryAssets": ["screen-editor"],
-      "visual": "A real direct edit: click into a line, retype it by hand. This is the single most important shot in the film — it is what proves two hands on one document rather than a chatbot taking turns.",
+      "primaryAssets": [
+        "screen-editor"
+      ],
+      "visual": "A real direct edit: click into a line, retype it by hand. This is the single most important shot in the film \u2014 it is what proves two hands on one document rather than a chatbot taking turns.",
       "proof": "A human editing the same document the agent just produced, live."
     },
     {
@@ -73,17 +84,21 @@
       "start": 34.72,
       "end": 42.97,
       "sentence": "With WebMCP, you and your agent are working on the same shared canvas at the same time, so making edits is easy as can be.",
-      "primaryAssets": ["screen-granular-edit"],
+      "primaryAssets": [
+        "screen-granular-edit"
+      ],
       "visual": "The agent's own edit_receipt call landing: one line changes, agent highlight and Undo visible, the rest of the document undisturbed.",
-      "proof": "get_receipt → edit_receipt, revision-checked."
+      "proof": "get_receipt \u2192 edit_receipt, revision-checked."
     },
     {
       "id": "preview",
       "start": 43.2,
       "end": 47.08,
       "sentence": "When everything looks right, you get a preview of the exact receipt.",
-      "primaryAssets": ["screen-preview"],
-      "visual": "preview_receipt response on screen with the real dot width and paper length — whatever the capture actually shows, not a placeholder number.",
+      "primaryAssets": [
+        "screen-preview"
+      ],
+      "visual": "preview_receipt response on screen with the real dot width and paper length \u2014 whatever the capture actually shows, not a placeholder number.",
       "proof": "preview_receipt, real measurements."
     },
     {
@@ -91,8 +106,12 @@
       "start": 47.28,
       "end": 51.47,
       "sentence": "Then it's one button press to print, right from your own home thermal printer.",
-      "primaryAssets": ["screen-approve-feed", "physical-cold-open", "physical-full-print"],
-      "visual": "Approve click on screen, match-cut to the real printer starting — macro on the motor, then pull back to the paper actually emerging.",
+      "primaryAssets": [
+        "screen-approve-feed",
+        "physical-cold-open",
+        "physical-full-print"
+      ],
+      "visual": "Approve click on screen, match-cut to the real printer starting \u2014 macro on the motor, then pull back to the paper actually emerging.",
       "proof": "request_receipt_print approved, then the real print. This is the film's one match cut."
     },
     {
@@ -100,8 +119,10 @@
       "start": 52.74,
       "end": 56.52,
       "sentence": "If you're feeling adventurous, you can even allow your agent to print completely on its own.",
-      "primaryAssets": ["physical-full-print"],
-      "visual": "Stay on the printer running — this is a four-second aside about a real settings toggle (printPolicy: \"autonomous\", src/state/storage.ts:13), not worth cutting away to a new screen for.",
+      "primaryAssets": [
+        "physical-full-print"
+      ],
+      "visual": "Stay on the printer running \u2014 this is a four-second aside about a real settings toggle (printPolicy: \"autonomous\", src/state/storage.ts:13), not worth cutting away to a new screen for.",
       "proof": "A true, shipped feature, mentioned without a dedicated screen shot so pacing doesn't stall."
     },
     {
@@ -109,8 +130,10 @@
       "start": 56.64,
       "end": 65.68,
       "sentence": "This same flow works for a grocery list, a morning brief, a reminder, meeting notes, anything that's more useful on physical paper than stuck in a digital chat.",
-      "primaryAssets": ["screen-recipes"],
-      "visual": "Quick montage proving breadth: the list_receipt_recipes catalogue (daily_brief, reminder, grocery_run, meeting_prep) or a few seconds scrolling the block library. Not a new demo — evidence that the surf trip is one instance of a general capability.",
+      "primaryAssets": [
+        "screen-recipes"
+      ],
+      "visual": "Quick montage proving breadth: the list_receipt_recipes catalogue (daily_brief, reminder, grocery_run, meeting_prep) or a few seconds scrolling the block library. Not a new demo \u2014 evidence that the surf trip is one instance of a general capability.",
       "proof": "The product's own recipe/block catalogue, real and already built."
     },
     {
@@ -118,8 +141,11 @@
       "start": 65.92,
       "end": 70.76,
       "sentence": "OpenReceipt turns your ideas into something you can actually carry and use through the day.",
-      "primaryAssets": ["physical-tear", "physical-use"],
-      "visual": "The torn receipt, then held or placed somewhere it's actually useful — board bag, by the door, on the dash.",
+      "primaryAssets": [
+        "physical-tear",
+        "physical-use"
+      ],
+      "visual": "The torn receipt, then held or placed somewhere it's actually useful \u2014 board bag, by the door, on the dash.",
       "proof": "The physical payoff the whole film has been building to."
     },
     {
@@ -127,8 +153,10 @@
       "start": 70.88,
       "end": 75.27,
       "sentence": "Open-source, local-first, WebMCP-enabled.",
-      "primaryAssets": ["physical-use"],
-      "visual": "Three short on-screen badges, one per phrase, timed to the words, over continued physical B-roll. No new screen needed — this is a list of facts, not a demo.",
+      "primaryAssets": [
+        "physical-use"
+      ],
+      "visual": "Three short on-screen badges, one per phrase, timed to the words, over continued physical B-roll. No new screen needed \u2014 this is a list of facts, not a demo.",
       "proof": "Matches the repository's actual licence and architecture."
     },
     {
@@ -136,8 +164,10 @@
       "start": 75.31,
       "end": 78.18,
       "sentence": "OpenReceipt. A printer your agent can reach.",
-      "primaryAssets": [],
-      "visual": "Wordmark and the existing approved tagline from content/site.json.",
+      "primaryAssets": [
+        "broll-street-murals-walk"
+      ],
+      "visual": "Real B-roll (a narrow street strung with garlands and murals, Pexels) full-bleed, the site's own hero scrim (exact gradient from src/styles.css .hero-experiment .moments-hero .moments-scrim) for legibility, the real Surfing Trip receipt sitting to the right with only a drop-shadow \u2014 the landing page's own recipe, not an invented one. See Direction-End-Card still.",
       "proof": "Closes on the same line the product's own hero section uses."
     }
   ],
@@ -161,8 +191,8 @@
     "music": "assets/audio/music-bed.wav"
   },
   "assetStatus": {
-    "vo-final": "done — real ElevenLabs v3 take, 78.18s, transcribed and sentence-timed",
-    "music": "not chosen yet — see LOOK.md for source recommendations",
+    "vo-final": "done \u2014 real ElevenLabs v3 take, 78.18s, transcribed and sentence-timed",
+    "music": "not chosen yet \u2014 see LOOK.md for source recommendations",
     "screen-*": "not captured yet",
     "physical-*": "not captured yet"
   }
