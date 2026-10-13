@@ -49,9 +49,9 @@ describe("receipt renderer", () => {
     const headingBox = rendered.blocks.find((block) => block.type === "heading")!;
     const textBox = rendered.blocks.find((block) => block.type === "text")!;
 
-    expect(headingBox.height).toBe(36);
+    expect(headingBox.height).toBe(40);
     expect(textBox.y - (headingBox.y + headingBox.height)).toBe(18);
-    expect(textBox.height).toBe(20);
+    expect(textBox.height).toBe(24);
   });
 
   it("renders explicit text emphasis without changing the document font", () => {
@@ -65,7 +65,7 @@ describe("receipt renderer", () => {
     document.blocks = [text];
 
     const rendered = renderReceiptSvg(document);
-    expect(rendered.svg).toContain('font-weight="720"');
+    expect(rendered.svg.replace(/<defs><style>[\s\S]*?<\/style><\/defs>/g, "")).toContain('font-weight="700"');
     expect(rendered.svg).toContain('font-style="italic"');
     expect(rendered.svg).toContain('text-decoration="underline"');
   });

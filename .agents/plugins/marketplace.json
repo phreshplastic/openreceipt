@@ -1,7 +1,7 @@
 {
-  "name": "openreceipt-video",
+  "name": "openreceipt",
   "interface": {
-    "displayName": "OpenReceipt video tooling"
+    "displayName": "OpenReceipt"
   },
   "plugins": [
     {
@@ -15,7 +15,24 @@
         "installation": "AVAILABLE"
       },
       "category": "Design",
-      "tags": ["remotion", "video", "react", "animation"]
+      "tags": [
+        "remotion",
+        "video",
+        "react",
+        "animation"
+      ]
+    },
+    {
+      "name": "openreceipt",
+      "source": {
+        "source": "local",
+        "path": "./plugins/openreceipt"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
     }
   ]
 }

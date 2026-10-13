@@ -1,11 +1,12 @@
 # OpenReceipt bridge
 
 The bridge is the local runtime for OpenReceipt. It serves the compiled app on loopback, stores
-the active receipt and print jobs in SQLite, handles approval state, and sends validated monochrome
+named receipts, templates, and print jobs in SQLite, handles approval state, and sends validated monochrome
 PNG artifacts to the tested Epson TM-L90 over USB.
 
-It refuses non-loopback bind addresses because v1 has no remote-access authentication. Run it on
-the laptop or Raspberry Pi that is physically connected to the printer.
+It binds to loopback by default. Docker permits an explicit container-internal bind while publishing
+only on host loopback; use Tailscale for private access. Headless clients use scoped bearer credentials.
+The [installation guide](../deploy/README.md) covers Docker, agent permissions, backups, and the ChatGPT tunnel.
 
 ## Install and run
 
@@ -22,7 +23,8 @@ petes-printer --web-dist ./dist
 The app is available at `http://127.0.0.1:8731`. Set `PETES_PRINTER_TRANSPORT=dummy` to write
 ESC/POS bytes to a local file instead of opening USB.
 
-The live browser app can connect to a laptop bridge at `http://127.0.0.1:8731`. The bridge allows
+Use the editor served by this bridge for physical printing. The public browser build is a demo and
+does not contact a local bridge. For legacy clients, the bridge allows
 `https://openreceipt.phreshplastic.com` by default and rejects other cross-origin state changes.
 Override the list with `PETES_PRINTER_ALLOWED_ORIGINS`, using comma-separated origins.
 

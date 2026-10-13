@@ -238,7 +238,8 @@ export type Moment = {
   id: "morning" | "run" | "cook" | "travel" | "trail";
   /** Not shown; it names the slide for the carousel's tab controls. */
   caption: string;
-  ink: string;
+  ink?: string;
+  inkSrc?: string;
   /** Ink height in printer dots. The paper outline is drawn in the same units. */
   inkHeight: number;
   /** Where the slip sits over the photograph, chosen per frame so it lands on a quiet area. */

@@ -6,7 +6,7 @@ export type PrintSnapshot = {
 };
 
 export type PrintApprovalDecision = "approve" | "reject" | "stale";
-export type PrintResultStatus = "succeeded" | "rejected" | "cancelled" | "stale" | "busy" | "failed" | "unknown" | "awaiting_approval";
+export type PrintResultStatus = "succeeded" | "rejected" | "cancelled" | "stale" | "busy" | "failed" | "unknown" | "awaiting_approval" | "queued" | "waiting_for_printer" | "sending";
 
 export type PrintResult = {
   status: PrintResultStatus;

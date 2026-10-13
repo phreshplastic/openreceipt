@@ -1,0 +1,2 @@
+# Restrict this permission to the tested TM-L90. Set OPENRECEIPT_USB_GID to `getent group plugdev`'s numeric GID.
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b8", ATTR{idProduct}=="0202", MODE="0660", GROUP="plugdev"

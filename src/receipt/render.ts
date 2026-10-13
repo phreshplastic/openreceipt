@@ -1,11 +1,12 @@
 import { renderCatalogReceiptPart } from "../block-library/registry";
 import { signFontFace, usesSignFace } from "../blocks/wordmarks";
+import { bodyFontFace } from "./fonts";
 import { receiptDocumentSchema, type ReceiptBlock, type ReceiptDocumentV1, type ReceiptDocumentV2 } from "./model";
-import { escapeXml, estimatedWidth, renderTextPart, textAttributes, thermalType as styles, wrapText, type SvgPart } from "./layout";
+import { escapeXml, estimatedWidth, renderTextPart, renderChecklistRows, textAttributes, thermalType as styles, wrapText, type SvgPart } from "./layout";
 
 export { wrapText } from "./layout";
 
-export const RENDERER_VERSION = "receipt-svg-v2";
+export const RENDERER_VERSION = "receipt-svg-v4";
 
 export type BlockGeometry = {
   id: string;
@@ -22,6 +23,8 @@ export type RenderedReceipt = {
   height: number;
   rendererVersion: string;
   blocks: BlockGeometry[];
+  png?: string;
+  previewPng?: string;
 };
 
 function blockPart(block: ReceiptBlock, width: number): SvgPart {
@@ -43,20 +46,7 @@ function blockPart(block: ReceiptBlock, width: number): SvgPart {
     return { markup: `<line x1="0" y1="10" x2="${width}" y2="10" stroke="#000" stroke-width="2"${dash}/>`, height: 20 };
   }
 
-  if (block.type === "checklist") {
-    let y = 0;
-    let markup = "";
-    for (const item of block.items) {
-      const lines = wrapText(item.text, width - 42, styles.body);
-      const rowHeight = Math.max(34, lines.length * styles.body.lineHeight + 8);
-      const boxY = y + 5;
-      markup += `<rect x="0" y="${boxY}" width="22" height="22" rx="2" fill="${item.checked ? "#000" : "#fff"}" stroke="#000" stroke-width="2"/>`;
-      if (item.checked) markup += `<path d="M5 ${boxY + 11} l5 5 l9 -11" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
-      markup += lines.map((line, index) => `<text x="38" y="${y + styles.body.size + index * styles.body.lineHeight}" ${textAttributes(styles.body)}>${escapeXml(line)}</text>`).join("");
-      y += rowHeight;
-    }
-    return { markup, height: Math.max(30, y) };
-  }
+  if (block.type === "checklist") return renderChecklistRows(block.items, width);
 
   if (block.type === "keyValue") {
     let y = 0;
@@ -66,9 +56,12 @@ function blockPart(block: ReceiptBlock, width: number): SvgPart {
       const labelWidth = estimatedWidth(row.label, { ...styles.body, weight });
       const valueWidth = estimatedWidth(row.value, { ...styles.body, weight });
       const stacked = labelWidth + valueWidth > width - 24;
-      const rowHeight = stacked ? 58 : 36;
-      markup += `<text x="0" y="${y + styles.body.size}" ${textAttributes(styles.body, weight)}>${escapeXml(row.label)}</text>`;
-      markup += `<text x="${stacked ? 0 : width}" y="${y + styles.body.size + (stacked ? 27 : 0)}" text-anchor="${stacked ? "start" : "end"}" ${textAttributes(styles.body, weight)}>${escapeXml(row.value)}</text>`;
+      const labelLines = wrapText(row.label, width, { ...styles.body, weight });
+      const valueLines = wrapText(row.value, width, { ...styles.body, weight });
+      const valueY = stacked ? labelLines.length * styles.body.lineHeight + 4 : 0;
+      const rowHeight = stacked ? valueY + valueLines.length * styles.body.lineHeight + 10 : 36;
+      markup += labelLines.map((line, lineIndex) => `<text x="0" y="${y + styles.body.size + lineIndex * styles.body.lineHeight}" ${textAttributes(styles.body, weight)}>${escapeXml(line)}</text>`).join("");
+      markup += valueLines.map((line, lineIndex) => `<text x="${stacked ? 0 : width}" y="${y + styles.body.size + valueY + lineIndex * styles.body.lineHeight}" text-anchor="${stacked ? "start" : "end"}" ${textAttributes(styles.body, weight)}>${escapeXml(line)}</text>`).join("");
       y += rowHeight;
       if (block.dividers && index < block.rows.length - 1) markup += `<line x1="0" y1="${y - 5}" x2="${width}" y2="${y - 5}" stroke="#000" stroke-width="1" opacity=".45"/>`;
     });
@@ -79,7 +72,8 @@ function blockPart(block: ReceiptBlock, width: number): SvgPart {
   let markup = "";
   const columnWidth = width / block.columns;
   block.rows.forEach((row, rowIndex) => {
-    const lineSets = row.cells.slice(0, block.columns).map((cell) => wrapText(cell, columnWidth - 16, styles.small));
+    const weight = block.header && rowIndex === 0 ? 720 : styles.small.weight;
+    const lineSets = row.cells.slice(0, block.columns).map((cell) => wrapText(cell, columnWidth - 16, { ...styles.small, weight }));
     const rowHeight = Math.max(31, ...lineSets.map((lines) => lines.length * styles.small.lineHeight + 8));
     row.cells.slice(0, block.columns).forEach((cell, columnIndex) => {
       const lines = lineSets[columnIndex];
@@ -132,7 +126,7 @@ export function renderReceiptSvg(input: ReceiptDocumentV1 | ReceiptDocumentV2): 
   const height = Math.max(120, Math.ceil(y + padding));
   // A mark carries its own face, since the raster path draws this SVG in an <img>
   // where no stylesheet reaches it. Receipts without a mark stay lean.
-  const font = usesSignFace(body) ? signFontFace() : "";
+  const font = bodyFontFace(body) + (usesSignFace(body) ? signFontFace() : "");
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeXml(document.title)}">${font}<rect width="${width}" height="${height}" fill="#fff"/>${body}</svg>`;
   return { svg, width, height, rendererVersion: RENDERER_VERSION, blocks };
 }

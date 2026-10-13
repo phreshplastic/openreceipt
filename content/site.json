@@ -48,7 +48,7 @@
     "options": [
       {
         "title": "Explore without hardware",
-        "copy": "Use the editor and WebMCP tools in your browser. Nothing prints until you connect a local bridge.",
+        "copy": "Try the editor and WebMCP tools in your browser, then use your own bridge-hosted app for physical printing.",
         "link": "Try the browser editor",
         "href": "/app",
         "visual": "browser"
@@ -92,7 +92,7 @@
     },
     {
       "question": "Which printers are supported?",
-      "answer": "The tested path is an Epson TM-L90 over native USB, with 80 mm (576-dot) and 58 mm (420-dot) paper profiles. Other ESC/POS printers may need different setup, so OpenReceipt does not claim they work here."
+      "answer": "Physical printing is verified with an Epson TM-L90 over USB and 80 mm paper. The 58 mm layout renders, but physical 58 mm printing and other printers are unverified."
     },
     {
       "question": "Is OpenReceipt free?",
@@ -113,7 +113,7 @@
     {
       "slug": "epson-tm-l90-ai-printer-setup",
       "title": "Set up an Epson TM-L90 with OpenReceipt",
-      "description": "Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local bridge, and make your first print.",
+      "description": "Connect the TM-L90 by USB, run the local bridge with the verified 80 mm setup, and make your first print.",
       "media": {
         "src": "/generated/tm-l90.png",
         "alt": "Epson TM-L90 thermal printer used with OpenReceipt",

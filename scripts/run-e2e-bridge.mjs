@@ -16,7 +16,7 @@ for (let attempt = 0; attempt < 300; attempt += 1) {
 const dataDirectory = await mkdtemp(join(tmpdir(), "petes-printer-e2e-"));
 const child = spawn(resolve("bridge/.venv/bin/petes-printer"), [
   "--port", "8732", "--data-dir", dataDirectory, "--web-dist", resolve("dist"),
-], { stdio: "inherit", env: { ...process.env, PETES_PRINTER_TRANSPORT: "dummy" } });
+], { stdio: "inherit", env: { ...process.env, PETES_PRINTER_TRANSPORT: "dummy", PETES_PRINTER_RENDER_PORT: "8735", PETES_PRINTER_RENDER_URL: "http://127.0.0.1:8735" } });
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => child.kill(signal));

@@ -88,3 +88,14 @@ describe("wordmark size", () => {
     expect(parsedLogo?.type === "catalog" && parsedLogo.kind === "logo" && parsedLogo.data.size).toBe("medium");
   });
 });
+
+describe("grouped list paper layout", () => {
+  it.each([576, 420] as const)("retains every wrapped item and shares checkbox geometry at %s dots", (width) => {
+    const text = "Bring the long charging cable, travel adapter, notebook, medication and a warm layer for the evening before heading out the door";
+    const result = renderPrototypeBlock("checklistGroups", { title: "A long packing heading for the whole family before leaving for the airport", groups: [{ name: "Carry-on", items: [{ text, checked: false }] }] }, width);
+    const drawn = [...result.svg.matchAll(/<text\b[^>]*>([^<]*)<\/text>/g)].map((match) => match[1]).join(" ");
+    expect(drawn).toContain("heading out the door");
+    expect(result.svg).toContain('width="22" height="22"');
+    expect(drawn).toContain("CHECKED");
+  });
+});

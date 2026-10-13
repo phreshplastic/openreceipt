@@ -36,8 +36,8 @@ class LocalApplication:
     def _checksum(cls, value: Any) -> str:
         return hashlib.sha256(cls._canonical(value).encode()).hexdigest()
 
-    def read_receipt(self) -> dict[str, Any] | None:
-        row = self.store.receipt()
+    def read_receipt(self, receipt_id: str | None = None) -> dict[str, Any] | None:
+        row = self.store.receipt(receipt_id)
         if not row:
             return None
         return {
@@ -49,15 +49,19 @@ class LocalApplication:
             "updatedAt": row["updated_at"],
         }
 
-    def commit_receipt(self, request: ReceiptCommitRequest) -> tuple[dict[str, Any], bool]:
+    def commit_receipt(self, request: ReceiptCommitRequest, receipt_id: str | None = None) -> tuple[dict[str, Any], bool]:
         errors = sorted(self.receipt_validator.iter_errors(request.document), key=lambda error: list(error.path))
         if errors:
             error = errors[0]
             path = ".".join(str(part) for part in error.path) or "document"
             raise ContractValidationError(f"{path}: {error.message}")
-        current = self.store.receipt()
+        if receipt_id and request.document.get("id") != receipt_id:
+            raise ContractValidationError("The document ID must match the requested receipt.")
+        current = self.store.receipt(receipt_id)
         current_revision = current["revision"] if current else None
         if not self.store.mutation(str(request.mutationId)):
+            if current_revision != request.expectedRevision:
+                raise RevisionConflictError(current)
             if request.proposedRevision <= (current_revision if current_revision is not None else -1):
                 raise ContractValidationError("proposedRevision must be greater than the current revision.")
             base = current_revision if current_revision is not None else 0
@@ -84,6 +88,8 @@ class LocalApplication:
                 "summary": request.summary,
                 "changedBlockIds": changed,
             },
+            receipt_id=receipt_id,
+            expected_receipt_id=str(request.expectedReceiptId) if request.expectedReceiptId else None,
         )
 
     def read_settings(self) -> dict[str, Any]:
@@ -115,7 +121,12 @@ class LocalApplication:
             actor=request.actor.model_dump(exclude_none=True),
         )
 
-    def create_print_request(self, metadata: PrintRequestMetadata, artifact: bytes) -> tuple[dict[str, Any], bool]:
+    def create_print_request(self, metadata: PrintRequestMetadata, artifact: bytes, automatic_allowed: bool = True) -> tuple[dict[str, Any], bool]:
+        # Receipt/revision validation and durable insertion share one transaction lock.
+        with self.store.lock:
+            return self._create_print_request(metadata, artifact, automatic_allowed)
+
+    def _create_print_request(self, metadata: PrintRequestMetadata, artifact: bytes, automatic_allowed: bool) -> tuple[dict[str, Any], bool]:
         mutation_id = str(metadata.mutationId)
         mutation_checksum = self._checksum(metadata.model_dump(mode="json"))
         replay = self.store.mutation(mutation_id)
@@ -134,8 +145,8 @@ class LocalApplication:
                 cutMode=metadata.cutMode,
             )
             self.printer.validate_artifact(replay_metadata, artifact)
-            return result, True
-        receipt = self.store.receipt()
+            return self.store.get_job(result["id"]), True
+        receipt = self.store.receipt(str(metadata.receiptId) if metadata.receiptId else None)
         if not receipt or receipt["revision"] != metadata.expectedRevision:
             raise RevisionConflictError(receipt)
         generic = PrintMetadata(
@@ -157,7 +168,7 @@ class LocalApplication:
             and source.get("kind") == "template"
             and source.get("id") in settings["trustedTemplateIds"]
         )
-        status = "queued" if settings["printPolicy"] == "autonomous" or trusted else "awaiting_approval"
+        status = "queued" if automatic_allowed and (settings["printPolicy"] == "autonomous" or trusted) else "awaiting_approval"
         job, replay = self.store.create_job(
             generic,
             artifact,

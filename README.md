@@ -1,237 +1,96 @@
 # OpenReceipt
 
-OpenReceipt is a local-first receipt editor for people and AI agents. An agent can draft a useful
-receipt, a person can edit the same paper, and an explicit approval sends the result to an Epson
-TM-L90 thermal printer.
+OpenReceipt turns useful lists, reminders, and briefs into thermal receipts. People and agents share revision-checked drafts; a local bridge stores receipts, templates, and print jobs beside the printer. Agents can update a shopping list without printing, show its preview, and print when requested. Trusted credentials can also print automatically under the owner's policy.
 
-The browser exposes the receipt through WebMCP, so an agent works with named tools instead of
-clicking through the interface. The local bridge keeps the receipt, approval, and print job on the
-machine beside the printer. There is no account or cloud print queue in this release.
+This is an **experimental, self-hosted project**. The verified physical setup is an Epson TM-L90 USB interface (`04b8:0202`) with an 80 mm roll, on macOS and an ARM64 Raspberry Pi running Docker. Both 80 mm and 58 mm layouts render; physical 58 mm printing, other interface boards, and other printers are unverified. See [verification and remaining checks](deploy/VERIFICATION.md).
 
-- [Source code](https://github.com/phreshplastic/openreceipt)
-- [MIT License](LICENSE)
-- [Printer setup guide](content/guides/epson-tm-l90-ai-printer-setup.md)
-- [How agents use OpenReceipt](content/guides/how-ai-agents-print-with-webmcp.md)
+The source and plugin are reusable. Each owner runs their own bridge and keeps their own receipts, credentials, and optional OpenAI tunnel private. There is no shared print service or maintainer tunnel to connect to. The project uses the [MIT license](LICENSE); bundled font licenses live in `src/assets/fonts`.
 
-## Choose a setup
+## Choose your setup
 
-| You want to… | Use this path |
+| Goal | Start here |
 | --- | --- |
-| Try the editor or WebMCP without hardware | Use the public browser build or run the app locally in dummy mode. |
-| Print while you are working at your desk | Connect the TM-L90 to your laptop by USB and run the bridge there. |
-| Leave the printer ready with the laptop off | Connect the TM-L90 to a Raspberry Pi, run the bridge on the Pi, and use the Pi as the local OpenReceipt host. |
+| Try the editor without a printer | Run the laptop setup below in dummy mode. |
+| Print at your desk | Run the same bridge with the TM-L90 attached over USB. |
+| Leave printing ready on a Pi | Follow the [Docker and private networking guide](deploy/README.md). |
+| Use Codex with your printer | Follow the [OpenReceipt plugin setup](plugins/openreceipt/README.md). |
+| Use ChatGPT with your Pi | Run the optional tunnel wizard after the Docker setup. |
 
-The public site can edit receipts and register WebMCP tools. For physical printing, start the local
-bridge on the same laptop as the browser; the live app connects to that loopback bridge. A Raspberry
-Pi setup still requires the Pi-hosted app or an SSH tunnel because the live site does not reach across
-your network.
+## First run on a laptop
 
-## Direct USB setup on a laptop
+Install Node.js 24+, Python 3.12+, and libusb for USB printing. On macOS, `brew install libusb` supplies the USB library; on Debian-based Linux, use `sudo apt install libusb-1.0-0`. Clone and build:
 
-This is the shortest path and the hardware path tested by the project. You need an Epson TM-L90
-with a USB interface, an 80 mm or 58 mm thermal roll, Node.js 22 or newer, Python 3.12 or newer,
-and permission for your user account to access the printer.
-
-Clone the repository and install the app and bridge:
-
-~~~bash
+```bash
 git clone https://github.com/phreshplastic/openreceipt.git
 cd openreceipt
-npm install
+npm ci
 python3 -m venv bridge/.venv
 . bridge/.venv/bin/activate
 pip install -e './bridge[dev]'
-npm run build
-~~~
-
-Start OpenReceipt with the compiled app:
-
-~~~bash
-petes-printer --web-dist ./dist
-~~~
-
-Open [http://127.0.0.1:8731](http://127.0.0.1:8731), or open the live app at
-`https://openreceipt.phreshplastic.com/app` to use the bridge from the public site. Connect the TM-L90 by USB, and complete the
-single setup screen. Choose the detected Epson, choose the width of the roll that is loaded, and
-press **Test connection**. When the connection slip looks right, use **Finish setup** from the
-setup page or return to the editor and press **Print**.
-
-The tested adapter expects Epson USB vendor/product ID `04b8:0202`, interface `0`, OUT endpoint
-`01`, and IN endpoint `82`. Some TM-L90 interface boards report different values, so compare the
-printer in front of you if detection fails.
-
-### Try it without a printer
-
-Dummy mode writes printer bytes to a local file instead of touching USB:
-
-~~~bash
+npm run build:local
 PETES_PRINTER_TRANSPORT=dummy petes-printer --data-dir ./bridge/data --web-dist ./dist
-~~~
+```
 
-The output appears at `bridge/data/last-print.bin`. Dummy mode checks the editor, renderer, queue,
-and approval flow; only a real USB print checks paper feed and cutting.
+Open [http://127.0.0.1:8731/app](http://127.0.0.1:8731/app). Choose virtual output to explore the editor and review flow. Dummy output writes `bridge/data/last-print.bin`; it does not print paper. The bridge starts its Node renderer automatically.
 
-## Raspberry Pi setup
+For physical printing, stop that process, connect the powered TM-L90, then restart without the dummy override:
 
-The Pi can sit beside the TM-L90 and remain powered on while your laptop is off. It runs the same
-bridge and the same compiled web app; the printer still connects by USB, and OpenReceipt still
-binds to loopback for safety.
+```bash
+petes-printer --data-dir ./bridge/data --web-dist ./dist
+```
 
-Install Node.js 22+, Python 3.12+, and libusb on the Pi, then install the repository:
+Choose Epson USB in setup and the width of the loaded roll, then test and print a short receipt. Linux USB access needs the [narrow udev rule](deploy/99-openreceipt.rules); use the Docker guide for the exact installation commands. `petes-printer --diagnose` distinguishes a stopped bridge from missing USB, permission, or occupied-interface problems. A hosted browser page cannot discover a Pi's USB device: use the editor served by that Pi.
 
-~~~bash
-sudo apt update
-sudo apt install libusb-1.0-0
-git clone https://github.com/phreshplastic/openreceipt.git
-cd openreceipt
-npm install
-python3 -m venv bridge/.venv
-. bridge/.venv/bin/activate
-pip install -e './bridge[dev]'
-npm run build
-~~~
+## Always-on Raspberry Pi
 
-Linux may need a udev rule before an unprivileged bridge can open the printer. Confirm the device
-with `lsusb`, then add a rule scoped to the Epson USB ID rather than running OpenReceipt as root:
+Use a 64-bit Linux Pi with Docker Compose, Python 3 for the setup helper, and a powered TM-L90. Clone the repository **on the Pi**, copy `.env.example` to `.env`, configure USB permissions, and start the stack as described in [deploy/README.md](deploy/README.md):
 
-~~~bash
-lsusb
-sudoedit /etc/udev/rules.d/99-openreceipt-tm-l90.rules
-~~~
+```bash
+cp .env.example .env
+docker compose up -d --build --wait
+docker compose ps
+```
 
-Use the confirmed vendor and product IDs in the rule, reload udev, and reconnect the printer. The
-[python-escpos USB installation guide](https://github.com/python-escpos/python-escpos/blob/master/doc/user/installation.rst)
-explains the Linux permission pattern.
+One worker owns USB access. Unsent jobs wait through disconnects and survive restarts; an interrupted transmission becomes unknown and requires a paper check before reprinting. The owner can pause the queue and cancel unsent jobs. Receipts, templates, and history stay in SQLite on a persistent volume. Physical reconnect recovery still needs the checks listed in the verification notes.
 
-For the tested device, the rule can contain:
+Ports bind to host loopback. Use your own Tailscale installation or an SSH forward for private access. The owner editor trusts that private network boundary; MCP clients additionally need scoped credentials. [Backup, restore, upgrade, and rollback](deploy/README.md#backup-restore-upgrade-rollback) are documented. This stack does not install or change Home Assistant.
 
-~~~text
-SUBSYSTEM=="usb", ATTR{idVendor}=="04b8", ATTR{idProduct}=="0202", MODE="0660", GROUP="plugdev"
-~~~
+## Connect agents
 
-Add your account to `plugdev` if needed, reload udev, and reconnect the printer:
+The [plugin guide](plugins/openreceipt/README.md) covers creating a scoped credential, copying its private file, configuring the client, installing `openreceipt@openreceipt`, and checking status and previews without printing. Default credentials require review. Automatic printing requires both an explicit `print:automatic` credential and the owner's compatible bridge policy.
 
-~~~bash
-sudo usermod -aG plugdev "$USER"
-sudo udevadm control --reload-rules
-sudo udevadm trigger
-~~~
+For ChatGPT, run this from the laptop checkout after the Pi stack is healthy:
 
-Log out and back in after changing group membership.
+```bash
+bash scripts/setup-chatgpt-tunnel.sh
+```
 
-Start the bridge on the Pi:
+The wizard asks for **your** SSH host and directories, installs the official checksum-verified tunnel client and wrapper, creates a dedicated bridge credential, guides your own OpenAI account/workspace linking, captures the runtime key privately, and installs a supervised service. Choose Tunnel and No authentication in ChatGPT because the private wrapper supplies the bridge credential. This package does not implement OAuth discovery or a public Plugins Directory listing. See the [tunnel guide](deploy/README.md#chatgpt-through-secure-mcp-tunnel) for prerequisites and troubleshooting.
 
-~~~bash
-petes-printer --web-dist ./dist
-~~~
+Ask an agent to find or create a named shopping list, add items without printing, preview it, then print once. Saved lists have their own `receiptId` and revision, so updating one need not replace another receipt open in the editor. Reuse a stable print `requestId` for a retry; check the existing job instead of submitting a new copy. Previews return a smooth image and an editable receipt link. Screen and paper layouts use the same SVG and bundled fonts, with a native monochrome raster for printing.
 
-Open `http://127.0.0.1:8731` in a browser on the Pi to complete setup and run the test print. The
-Pi can then keep the local app and printer ready without your laptop.
+Codex's installed connection and ChatGPT's personal tunnel have been exercised; a separate interactive Codex chat remains a manual check. Other platforms receive standard MCP configuration without tested compatibility claims. Agents provide scheduling and content intelligence; OpenReceipt owns storage, rendering, permissions, and the queue.
 
-If you want to operate the Pi-hosted editor from your laptop, create an SSH tunnel. This preserves
-the loopback-only bridge instead of exposing it to the network:
+## Browser demo and development
 
-~~~bash
-ssh -N -L 8731:127.0.0.1:8731 pi@raspberrypi.local
-~~~
+The browser also exposes WebMCP tools. The [public site](https://openreceipt.phreshplastic.com) is a browser demo; its editor does not run your Pi installation. The public build makes demo previews without contacting a local bridge. Open the private bridge-hosted editor for physical printing:
 
-Then open [http://127.0.0.1:8731](http://127.0.0.1:8731) on the laptop. For an agent that runs on
-the Pi without an open browser, build the headless MCP server and connect it to the local bridge.
-Drafting and preview work without a browser; the default print policy still requires approval in
-the local editor. The bridge-specific token and MCP configuration are in [bridge/README.md](bridge/README.md).
-
-Do not bind the bridge to a LAN address or expose it through a public URL. The v1 bridge has no
-remote-access authentication, and its loopback boundary protects receipts, settings, and print
-approval.
-
-## Public browser build
-
-The public build is for exploring the editor and WebMCP without installing the bridge. It does not
-print because the browser tab has no local USB access.
-
-~~~bash
+```bash
+npm run dev
 PETES_PRINTER_PUBLIC_URL=https://your-domain.example npm run build:public
 node scripts/serve-public.mjs
-~~~
+```
 
-The build pre-renders the landing page and guides, then loads the browser editor and WebMCP tools
-progressively. A browser with WebMCP support can call the tools; other browsers still get the human
-editor.
+The development server uses the local bridge at port 8731. `npm run build:mcp` builds the headless server and canonical renderer. Focused verification:
 
-## What OpenReceipt provides
-
-- A receipt canvas that people can edit while an agent drafts or updates the same revision-checked document.
-- Structured blocks for headings, text, checklists, facts, tables, groups, countdowns, agendas, and write-in forms.
-- Exact SVG preview and monochrome PNG rasterization at the selected 80 mm / 576-dot or 58 mm / 420-dot profile.
-- Approval-bound printing: an edit made while a print is waiting invalidates that print request.
-- A local FastAPI bridge that stores state and sends the approved raster to the tested Epson TM-L90 USB path.
-- Dummy output for development and physical USB output for the supported printer setup.
-
-## WebMCP and agents
-
-The browser registers the same core tool definitions used by the headless MCP server. The most
-useful tools are:
-
-| Tool | Purpose |
-| --- | --- |
-| `get_app_status` | Check setup, bridge, printer, and print-policy state. |
-| `list_receipt_recipes` | Choose a receipt shape for a situation such as travel or a morning brief. |
-| `list_receipt_templates` | See built-in starters and any templates saved from a receipt. |
-| `draft_receipt` | Compose a complete receipt from a situation and confirmed details. |
-| `edit_receipt` | Change blocks or one checklist, table, agenda, or group item without rewriting siblings. Use `setCopy` to change heading or text wording without resetting style. |
-| `rename_receipt` | Set the shelf and editor title without changing the heading printed on paper. |
-| `save_receipt_template` | Keep the current receipt as a named template. A matching name updates the saved copy. |
-| `load_receipt_template` | Replace the current receipt with a built-in or saved template. |
-| `preview_receipt` | Inspect dot dimensions, paper length, text, and warnings before printing. |
-| `request_receipt_print` | Submit a revision-bound print request that may wait for human approval. |
-
-See [How agents use OpenReceipt](content/guides/how-ai-agents-print-with-webmcp.md) for the full
-tool behavior and examples. Printing stays consequential: the default policy requires a person to
-approve it.
-
-## Development
-
-Run the browser app with the local WebMCP shim:
-
-~~~bash
-npm run dev
-~~~
-
-The development server expects the bridge at `http://127.0.0.1:8731`. For the full local app,
-build the project and run `petes-printer --web-dist ./dist` as shown above. Build the headless MCP
-server with `npm run build:mcp`; its setup and token options are documented in [bridge/README.md](bridge/README.md).
-
-Focused checks:
-
-~~~bash
+```bash
 npm run lint
+npm run build:mcp
 npm test
-bridge/.venv/bin/pytest bridge/tests
-~~~
+bridge/.venv/bin/python -m pytest bridge/tests
+python3 scripts/tests/test_setup_host.py
+node --test scripts/tests/*.test.mjs
+bash -n scripts/setup-chatgpt-tunnel.sh
+```
 
-## Troubleshooting
-
-**The page says the bridge is unavailable.** Start `petes-printer` and open the local URL on the
-same machine. A public deployment cannot connect to a laptop or Pi bridge.
-
-**The TM-L90 is not detected.** Check power, the USB cable, and `04b8:0202`. On Linux, confirm
-the device with `lsusb` and fix udev permissions instead of running the app as root.
-
-**The receipt is clipped or too narrow.** Select the width that matches the roll and the printer’s
-paper guide. The preview uses printer dots, so browser zoom does not change the printed layout.
-
-**The paper prints but does not cut.** Confirm that the TM-L90 has a working cutter and that its
-own self-test can activate it.
-
-**A print result is unknown.** Check the paper before printing again. Once transmission starts,
-the bridge cannot know whether the printer stopped halfway or finished, so an automatic retry could
-produce a duplicate.
-
-## Hardware and license
-
-OpenReceipt currently claims one physical path: an Epson TM-L90 over USB with 80 mm or 58 mm
-paper. Other ESC/POS printers may work with additional adapter work, but they are not tested or
-advertised as supported.
-
-OpenReceipt is available under the [MIT License](LICENSE). See [SECURITY.md](SECURITY.md) for the
-loopback boundary and vulnerability-reporting guidance.
+MCP integration tests require the bridge virtual environment and temporary loopback servers. Browser checks use Playwright; set `PLAYWRIGHT_CHANNEL=chrome` to use an installed Chrome. See [SECURITY.md](SECURITY.md) for the private access boundary and vulnerability reports.

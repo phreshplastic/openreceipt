@@ -53,6 +53,7 @@ class ReceiptSource(StrictModel):
 class ReceiptCommitRequest(StrictModel):
     mutationId: UUID
     expectedRevision: int | None = Field(default=None, ge=0)
+    expectedReceiptId: UUID | None = None
     proposedRevision: int = Field(ge=0)
     document: dict[str, Any]
     source: ReceiptSource | None = None
@@ -98,6 +99,7 @@ class PrintRequestMetadata(StrictModel):
     checksum: str = Field(pattern=r"^[a-f0-9]{64}$")
     rendererVersion: str = Field(min_length=1, max_length=80)
     expectedRevision: int = Field(ge=0)
+    receiptId: UUID | None = None
     requester: PrintRequester
     reason: str | None = Field(default=None, max_length=500)
     width: int = Field(ge=240, le=640)

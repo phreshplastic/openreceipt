@@ -3,6 +3,7 @@ import { acceptPrinterProfile, defaultPrinterProfile, type PrinterProfile } from
 import { guessHomeDefaults, type UnitPreference } from "./defaults";
 
 const RECEIPT_KEY = "petes-printer:receipt:v1";
+export const hasCachedReceipt = () => localStorage.getItem(RECEIPT_KEY) !== null;
 const SETTINGS_KEY = "petes-printer:settings:v1";
 
 export type PrintPolicyMode = "confirm" | "approved" | "autonomous";

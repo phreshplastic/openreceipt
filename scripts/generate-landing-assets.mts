@@ -2,7 +2,8 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { Resvg } from "@resvg/resvg-js";
-import { createLandingDemo } from "../src/pages/landing-demo";
+import { createLandingDemo, createMoments } from "../src/pages/landing-demo";
+import { renderSmoothSvg } from "../mcp/render";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const output = resolve(root, "public/generated");
@@ -14,6 +15,12 @@ await writeFile(resolve(output, "landing-hero.svg"), demo.hero.svg);
 await Promise.all(demo.samples.map((sample, index) =>
   writeFile(resolve(output, `landing-${sampleNames[index]}.svg`), sample.rendered.svg),
 ));
+const moments = createMoments();
+await Promise.all(moments.map((moment) => writeFile(resolve(output, `landing-moment-${moment.id}.png`), renderSmoothSvg(moment.ink!))));
+await writeFile(resolve(root, "src/pages/landing-assets.json"), JSON.stringify({
+  hero: { width: demo.hero.width, height: demo.hero.height },
+  moments: moments.map(({ ink: _ink, ...moment }) => ({ ...moment, inkSrc: `/generated/landing-moment-${moment.id}.png` })),
+}, null, 2) + "\n");
 const printerPath = resolve(root, "src/assets/tm-l90.png");
 await copyFile(printerPath, resolve(output, "tm-l90.png"));
 await copyFile(resolve(root, "src/assets/scenes/run-2048.webp"), resolve(output, "hero-run.webp"));

@@ -103,7 +103,9 @@ export function MomentsCarousel({ moments, variant = "section" }: { moments: Mom
                 <svg className="moments-paper-edge" viewBox={`0 0 ${PAPER_WIDTH} ${paperHeight}`} aria-hidden="true">
                   <path d={paperOutline(paperHeight)} vectorEffect="non-scaling-stroke" />
                 </svg>
-                <div className="moments-ink" dangerouslySetInnerHTML={{ __html: moment.ink }} />
+                {moment.inkSrc
+                  ? <div className="moments-ink"><img src={moment.inkSrc} alt="" width={576} height={moment.inkHeight} loading={position === 0 ? "eager" : "lazy"} /></div>
+                  : <div className="moments-ink" dangerouslySetInnerHTML={{ __html: moment.ink ?? "" }} />}
               </div>
             </div>
           );

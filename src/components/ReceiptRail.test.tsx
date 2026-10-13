@@ -19,7 +19,7 @@ describe("ReceiptRail", () => {
   // This project's vitest setup does not auto-clean, so renders would otherwise stack up.
   afterEach(cleanup);
 
-  it("lists drafts, a new-from-template action, and a short print queue", () => {
+  it("lists drafts, template creation, and the complete recent print history", () => {
     const printJobs = [
       { id: "job-1", status: "succeeded", document: { title: "Lisbon" }, updatedAt: "2026-09-02T12:11:00.000Z" },
       { id: "job-2", status: "succeeded", document: { title: "Morning" }, updatedAt: "2026-09-02T12:20:00.000Z" },
@@ -31,7 +31,7 @@ describe("ReceiptRail", () => {
     expect(screen.getByRole("button", { name: "New from template" })).toBeInTheDocument();
     expect(screen.getByText("Groceries")).toBeInTheDocument();
     expect(screen.getByText("Lisbon")).toBeInTheDocument();
-    expect(screen.queryByText("Hidden extra")).toBeNull();
+    expect(screen.getByText("Hidden extra")).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Print queue" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Save this receipt/ })).toBeNull();
     expect(screen.queryByText("Blank receipt")).toBeNull();

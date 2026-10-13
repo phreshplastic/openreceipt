@@ -1,4 +1,4 @@
-import { escapeXml, textAttributes, thermalType, wrapText, type TextStyle } from "../receipt/layout";
+import { escapeXml, estimatedWidth, textAttributes, thermalType, wrapText, renderChecklistRows, type TextStyle } from "../receipt/layout";
 import { renderThermalChart } from "../charts/thermal";
 import type { PaperWidthDots, PrototypeBlockId, PrototypeDataMap, RenderedPrototype } from "./types";
 import { renderLogo, signFontFace, usesSignFace } from "./wordmarks";
@@ -32,8 +32,9 @@ function emptyBox(x: number, y: number, size = 18) {
 }
 
 function sectionTag(text: string, x: number, y: number) {
-  const width = Math.max(58, text.length * 8 + 20);
-  return `<rect x="${x}" y="${y}" width="${width}" height="25" fill="#000"/><text x="${x + 9}" y="${y + 17}" font-family="Inter,Arial,sans-serif" font-size="11" font-weight="760" letter-spacing=".8" fill="#fff">${escapeXml(text.toUpperCase())}</text>`;
+  const copy = text.toUpperCase();
+  const width = Math.max(58, estimatedWidth(copy, { size: 16, lineHeight: 22, weight: 700, tracking: .5 }) + 20);
+  return `<rect x="${x}" y="${y}" width="${width}" height="32" fill="#000"/><text x="${x + 10}" y="${y + 23}" font-family="Inter,Arial,sans-serif" font-size="16" font-weight="700" letter-spacing=".5" fill="#fff">${escapeXml(copy)}</text>`;
 }
 
 function shortTeam(value: string) {
@@ -179,7 +180,7 @@ function renderEarthquakes(data: PrototypeDataMap["earthquakes"], width: number)
     const place = lines(event.place, width - magnitudeWidth - 12, thermalType.body, magnitudeWidth + 12, y + 5, { weight: 650, max: 2 });
     const rowHeight = Math.max(70, place.height + 31);
     markup += rule(y, width);
-    markup += `<rect x="0" y="${y + 10}" width="${magnitudeWidth}" height="44" fill="#000"/><text x="${magnitudeWidth / 2}" y="${y + 42}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="27" font-weight="780" fill="#fff">M ${event.magnitude.toFixed(1)}</text>`;
+    markup += `<rect x="0" y="${y + 10}" width="${magnitudeWidth}" height="44" fill="#000"/><text x="${magnitudeWidth / 2}" y="${y + 42}" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="27" font-weight="800" fill="#fff">M ${event.magnitude.toFixed(1)}</text>`;
     markup += place.markup + `<text x="${magnitudeWidth + 12}" y="${y + rowHeight - 9}" ${textAttributes(thermalType.label, 540)}>${event.depth} KM DEEP · ${escapeXml(event.age)} AGO</text>`;
     y += rowHeight;
   });
@@ -301,7 +302,7 @@ function renderWorkoutLog(data: PrototypeDataMap["workoutLog"], width: number): 
   const top = 108;
   const columns = [0, width * .49, width * .65, width * .79, width];
   markup += `<rect x="0" y="${top}" width="${width}" height="31" fill="#000"/>`;
-  ["Exercise", "Sets", "Reps", "Load"].forEach((heading, index) => { markup += `<text x="${columns[index] + 7}" y="${top + 20}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="720" letter-spacing=".5" fill="#fff">${heading.toUpperCase()}</text>`; });
+  ["Exercise", "Sets", "Reps", "Load"].forEach((heading, index) => { markup += `<text x="${columns[index] + 7}" y="${top + 20}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700" letter-spacing=".5" fill="#fff">${heading.toUpperCase()}</text>`; });
   let y = top + 31;
   // Always leave a couple of blank lines: a plan you cannot add to at the rack is no use.
   const rows = [...data.exercises, ...Array.from({ length: Math.max(2, 5 - data.exercises.length) }, () => undefined)];
@@ -434,7 +435,7 @@ function renderPackingList(data: PrototypeDataMap["packingList"], width: number)
   const essentials = ["Keys", "Wallet", "Phone", "ID"];
   essentials.forEach((item, index) => {
     const x = index * width / essentials.length + 10;
-    markup += `<rect x="${x}" y="${y + 16}" width="14" height="14" fill="#fff" stroke="#fff"/><text x="${x + 20}" y="${y + 28}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="680" letter-spacing=".4" fill="#fff">${item.toUpperCase()}</text>`;
+    markup += `<rect x="${x}" y="${y + 16}" width="14" height="14" fill="#fff" stroke="#fff"/><text x="${x + 20}" y="${y + 28}" font-family="Inter,Arial,sans-serif" font-size="10" font-weight="700" letter-spacing=".4" fill="#fff">${item.toUpperCase()}</text>`;
   });
   return { markup, height: y + 50 };
 }
@@ -442,27 +443,22 @@ function renderPackingList(data: PrototypeDataMap["packingList"], width: number)
 function renderChecklistGroups(data: PrototypeDataMap["checklistGroups"], width: number): Part {
   let markup = label("Checklist", 0, 0);
   if (data.note) markup += `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.note.toUpperCase())}</text>`;
-  const title = lines(data.title, width, thermalType.heading, 0, 31, { weight: 780, max: 2 });
+  const title = lines(data.title, width, thermalType.heading, 0, 31, { weight: 780 });
   markup += title.markup;
   let y = 31 + title.height + 18;
   let total = 0;
   let done = 0;
-  const textLeft = 31;
   data.groups.forEach((group) => {
     markup += sectionTag(group.name, 0, y);
-    y += 34;
-    group.items.forEach((item) => {
-      total += 1;
-      if (item.checked) done += 1;
-      const wrapped = lines(item.text, width - textLeft, thermalType.body, textLeft, y, { max: 2 });
-      markup += emptyBox(0, y + 3, 17);
-      if (item.checked) markup += `<path d="M4 ${y + 12} L8 ${y + 16} L16 ${y + 6}" fill="none" stroke="#000" stroke-width="3" stroke-linecap="square"/>`;
-      markup += wrapped.markup;
-      y += Math.max(30, wrapped.height + 8);
-    });
+    y += 40;
+    total += group.items.length;
+    done += group.items.filter((item) => item.checked).length;
+    const rows = renderChecklistRows(group.items, width);
+    markup += `<g transform="translate(0 ${y})">${rows.markup}</g>`;
+    y += rows.height;
     y += 12;
   });
-  markup += rule(y, width, 2) + `<text x="0" y="${y + 25}" ${textAttributes(thermalType.label, 600)}>PACKED</text><text x="${width}" y="${y + 25}" text-anchor="end" ${textAttributes(thermalType.section, 680)}>${done} / ${total}</text>`;
+  markup += rule(y, width, 2) + `<text x="0" y="${y + 25}" ${textAttributes(thermalType.label, 600)}>CHECKED</text><text x="${width}" y="${y + 25}" text-anchor="end" ${textAttributes(thermalType.section, 680)}>${done} / ${total}</text>`;
   return { markup, height: y + 30 };
 }
 
@@ -486,7 +482,7 @@ function renderDelivery(data: PrototypeDataMap["delivery"], width: number): Part
 function renderCountdown(data: PrototypeDataMap["countdown"], width: number): Part {
   let markup = label(data.label, 0, 0) + `<text x="${width}" y="${thermalType.label.size}" text-anchor="end" ${textAttributes(thermalType.label, 560)}>${escapeXml(data.date.toUpperCase())}</text>`;
   const valueY = 91;
-  markup += `<text x="0" y="${valueY}" font-family="Inter,Arial,sans-serif" font-size="78" font-weight="820" letter-spacing="-3" fill="#000">${data.days}</text>`;
+  markup += `<text x="0" y="${valueY}" font-family="Inter,Arial,sans-serif" font-size="78" font-weight="800" letter-spacing="-3" fill="#000">${data.days}</text>`;
   markup += `<text x="${width}" y="65" text-anchor="end" ${textAttributes(thermalType.heading, 760)}>${escapeXml(data.event)}</text><text x="${width}" y="91" text-anchor="end" ${textAttributes(thermalType.label, 600)}>DAYS TO GO</text>`;
   const railTop = 122;
   const cell = width / data.milestones.length;

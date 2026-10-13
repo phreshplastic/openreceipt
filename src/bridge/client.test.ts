@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { bridgeEventsUrl, ensureBrowserSession, preferredSetupAdapter, usbPrinterConnected } from "./client";
+import { bridgeEventsUrl, ensureBrowserSession, preferredSetupAdapter, resolveBridgeOrigin, usbPrinterConnected } from "./client";
 
 describe("usbPrinterConnected", () => {
   it("is false for dummy output even when the bridge reports connected", () => {
@@ -13,8 +13,8 @@ describe("usbPrinterConnected", () => {
 });
 
 describe("preferredSetupAdapter", () => {
-  it("selects the virtual printer when Epson is missing or dummy", () => {
-    expect(preferredSetupAdapter({ adapter: "epson-tm-l90-usb", transport: "usb", connected: false })).toBe("virtual");
+  it("preserves USB configuration when unplugged, and selects virtual only explicitly", () => {
+    expect(preferredSetupAdapter({ adapter: "epson-tm-l90-usb", transport: "usb", connected: false })).toBe("epson-tm-l90-usb");
     expect(preferredSetupAdapter({ adapter: "virtual", transport: "dummy", connected: true })).toBe("virtual");
     expect(preferredSetupAdapter({ adapter: "epson-tm-l90-usb", transport: "dummy", connected: true })).toBe("virtual");
   });
@@ -22,6 +22,13 @@ describe("preferredSetupAdapter", () => {
   it("selects Epson only when USB is actually connected", () => {
     expect(preferredSetupAdapter({ adapter: "epson-tm-l90-usb", transport: "usb", connected: true })).toBe("epson-tm-l90-usb");
   });
+});
+
+it("uses the Pi serving origin, keeping public loopback and explicit overrides", () => {
+  expect(resolveBridgeOrigin("production")).toBe("");
+  expect(resolveBridgeOrigin("development")).toBe("");
+  expect(resolveBridgeOrigin("public")).toBe("http://localhost:8731");
+  expect(resolveBridgeOrigin("production", "https://printer.example/")).toBe("https://printer.example");
 });
 
 describe("bridgeEventsUrl", () => {

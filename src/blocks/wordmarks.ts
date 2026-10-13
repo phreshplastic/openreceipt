@@ -7,9 +7,8 @@ import { SIGN_ADVANCES, SIGN_CAP_HEIGHT, SIGN_FALLBACK_ADVANCE } from "./sign-me
  * all six against their own and keep the one that fits. What differs is the form —
  * an arch, a bar, a rule pair — never a slogan.
  *
- * These deliberately avoid the app's UI face. A receipt is rasterised through an
- * <img>, where a web font would not load, so each mark is built from families a
- * machine already has — the preview and the paper then agree.
+ * Receipt SVGs embed these bundled faces, and the canonical renderer loads the
+ * same files so paper and previews keep their typography on every host.
  */
 export type WordmarkStyleId =
   | "owners-printer-western"
@@ -66,7 +65,7 @@ type Face = { family: string; width: number; cap: number; advance?: number; adva
  * we measured. It rides inside the SVG as a data URI: a receipt is rasterised through
  * an <img>, which cannot reach a stylesheet, so the font has to travel with it.
  */
-const SIGN: Face = { family: `${SIGN_FAMILY},Georgia,serif`, width: 1, cap: SIGN_CAP_HEIGHT, advances: SIGN_ADVANCES };
+const SIGN: Face = { family: `${SIGN_FAMILY},'Liberation Serif',serif`, width: 1, cap: SIGN_CAP_HEIGHT, advances: SIGN_ADVANCES };
 
 /** Emitted into any SVG that draws a mark in the sign face, and only those. */
 export function signFontFace() {
@@ -82,12 +81,12 @@ export function signFontBytes() {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
-const SERIF: Face = { family: "Georgia,'Times New Roman',Times,serif", width: 1.143, cap: 0.693 };
-const SANS: Face = { family: "'Helvetica Neue',Helvetica,Arial,sans-serif", width: 1.025, cap: 0.714 };
-const HEAVY: Face = { family: "'Arial Black','Helvetica Neue',Helvetica,Arial,sans-serif", width: 1.143, cap: 0.716 };
-const CONDENSED: Face = { family: "'Arial Narrow',Impact,'Helvetica Neue',Helvetica,Arial,sans-serif", width: 0.838, cap: 0.716 };
+const SERIF: Face = { family: "'Liberation Serif',serif", width: 1.143, cap: 0.693 };
+const SANS: Face = { family: "'Liberation Sans',sans-serif", width: 1.025, cap: 0.714 };
+const HEAVY: Face = { family: "Inter,sans-serif", width: 1.143, cap: 0.716 };
+const CONDENSED: Face = { family: "'Liberation Sans',sans-serif", width: 0.838, cap: 0.716 };
 // Courier sets every glyph on one 0.6 em advance, so it is measured by character count.
-const MONO: Face = { family: "'Courier New',Courier,monospace", width: 1, cap: 0.592, advance: 0.6 };
+const MONO: Face = { family: "'Liberation Mono',monospace", width: 1, cap: 0.592, advance: 0.6 };
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
@@ -134,7 +133,7 @@ function draw({ text, face, size, tracking }: Line, { x, y, anchor = "middle", w
   // A tracked run carries one trailing gap; nudging by half of it re-centres the word.
   const offset = anchor === "middle" ? tracking / 2 : anchor === "end" ? tracking : 0;
   const thicken = stroke > 0 ? ` stroke="${fill}" stroke-width="${round(stroke)}" stroke-linejoin="round" paint-order="stroke"` : "";
-  return `<text x="${round(x + offset)}" y="${round(y)}" text-anchor="${anchor}" font-family="${face.family}" font-size="${round(size)}" font-weight="${weight}" letter-spacing="${round(tracking)}" fill="${fill}"${thicken}>${escapeXml(text)}</text>`;
+  return `<text x="${round(x + offset)}" y="${round(y)}" text-anchor="${anchor}" font-family="${face.family}" font-size="${round(size)}" font-weight="${Math.min(900, Math.round(weight / 100) * 100)}" letter-spacing="${round(tracking)}" fill="${fill}"${thicken}>${escapeXml(text)}</text>`;
 }
 
 const rule = (y: number, x: number, span: number, weight: number, dash = "") =>

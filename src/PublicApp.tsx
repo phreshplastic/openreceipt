@@ -10,7 +10,7 @@ const publicFallback = <main className="private-public-shell"><div><h1>Openingâ€
 
 export function PublicApp() {
   const path = window.location.pathname.replace(/\/$/, "") || "/";
-  if (path === "/app") return <Suspense fallback={publicFallback}><LocalEditor /></Suspense>;
+  if (path === "/app") return <Suspense fallback={publicFallback}><LocalEditor runtimeMode="demo" /></Suspense>;
   if (path === "/guides") return <Suspense fallback={publicFallback}><GuidesPage /></Suspense>;
   if (path.startsWith("/guides/")) return <Suspense fallback={publicFallback}><GuidePage slug={decodeURIComponent(path.slice("/guides/".length))} /></Suspense>;
   return <>

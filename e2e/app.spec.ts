@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { renderCanonical } from "../mcp/render";
 
 /** The landing copy lives in content/site.json; read it so these assertions cannot drift from it. */
 const site = JSON.parse(readFileSync(new URL("../content/site.json", import.meta.url), "utf8"));
@@ -17,7 +18,18 @@ const capabilities = {
   ],
 };
 
+async function mockCanonicalPrinting(page: import("@playwright/test").Page) {
+  await page.route("**/api/v1/render", (route) => route.fulfill({ json: renderCanonical(route.request().postDataJSON().document) }));
+}
+
 test.beforeEach(async ({ page }) => {
+  await page.route("**/api/v1/**", (route) => route.fulfill({ status: 404, json: { error: { code: "test_endpoint_missing" } } }));
+  await page.route("**/api/v1/queue", (route) => route.fulfill({ json: { paused: false } }));
+  // These tests exercise the browser cache; shared SQLite shelves have a live API spec.
+  await page.route("**/api/v1/shelf/import", (route) => route.fulfill({ status: 503, json: {} }));
+  await page.route("**/api/v1/receipts", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/api/v1/templates", (route) => route.fulfill({ json: { items: [] } }));
+  await page.route("**/api/v1/configuration", (route) => route.fulfill({ json: capabilities }));
   let receipt: Record<string, unknown> | undefined;
   let settings = { revision: 1, initialized: true, configured: true, printPolicy: "confirm", trustedTemplateIds: [] as string[], defaultLocation: "", defaultUnit: "fahrenheit", printerProfile: { completed: false, ownerFirstName: "", identityId: "owners-printer-western", useCaseIds: [] as string[] }, updatedAt: new Date().toISOString() };
   await page.route("**/api/v1/session", (route) => route.fulfill({ json: { csrfToken: "e2e-csrf" } }));
@@ -95,8 +107,8 @@ test("landing opens a receipt-first editor without setup", async ({ page }) => {
   const rail = page.getByRole("complementary", { name: "Drafts and print queue" });
   await expect(rail).toBeVisible();
   await expect(rail).toHaveCSS("background-color", "rgb(250, 250, 250)");
-  await expect(rail.getByText(/WebMCP/i)).toHaveCount(0);
-  await expect(rail.getByRole("region", { name: "Print queue" })).toHaveCount(0);
+  await expect(rail.getByRole("button", { name: /WebMCP tools/ })).toBeVisible();
+  await expect(rail.getByRole("region", { name: "Print queue" })).toBeVisible();
   await expect(rail.getByRole("button", { name: "New blank" })).toBeVisible();
   await expect(rail.getByRole("button", { name: "New from template" })).toBeVisible();
   const paperWidthBeforeZoom = await page.locator(".receipt-shell").evaluate((element) => element.getBoundingClientRect().width);
@@ -177,6 +189,7 @@ test("demo print never opens Epson setup", async ({ page }) => {
 });
 
 test("continues the original print after first-print setup", async ({ page }) => {
+  await mockCanonicalPrinting(page);
   let settings = { revision: 0, initialized: true, configured: false, printPolicy: "confirm", trustedTemplateIds: [], defaultLocation: "", defaultUnit: "fahrenheit", printerProfile: { completed: false, ownerFirstName: "", identityId: "owners-printer-western", useCaseIds: [] }, updatedAt: new Date().toISOString() };
   await page.route("**/api/v1/settings", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: settings });
@@ -185,12 +198,12 @@ test("continues the original print after first-print setup", async ({ page }) =>
   });
   const submitted: string[] = [];
   const now = new Date().toISOString();
-  await page.route("**/api/v1/print-requests", async (route) => {
+  await page.route("**/api/v1/print-jobs", async (route) => {
     if (route.request().method() === "GET") return route.fulfill({ json: { items: [] } });
     submitted.push(route.request().postData() ?? "");
     return route.fulfill({ json: { id: "first-print", status: "queued", checksum: "test", createdAt: now, updatedAt: now } });
   });
-  await page.route("**/api/v1/print-requests/first-print", (route) => route.fulfill({ json: { id: "first-print", status: "succeeded", checksum: "test", createdAt: now, updatedAt: now } }));
+  await page.route("**/api/v1/print-jobs/first-print", (route) => route.fulfill({ json: { id: "first-print", status: "succeeded", checksum: "test", createdAt: now, updatedAt: now } }));
 
   await page.goto("/app");
   await expect(page.getByRole("button", { name: "Save as, saved" })).toBeVisible();
@@ -337,12 +350,13 @@ test("empty Format names the receipt instead of showing the sign gallery", async
 });
 
 test("uses one physical paper surface without animating the preview on print", async ({ page }) => {
+  await mockCanonicalPrinting(page);
   const now = new Date().toISOString();
-  await page.route("**/api/v1/print-requests", async (route) => {
+  await page.route("**/api/v1/print-jobs", async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     await route.fulfill({ json: { id: "visual-print", status: "queued", checksum: "test", createdAt: now, updatedAt: now } });
   });
-  await page.route("**/api/v1/print-requests/visual-print", (route) => route.fulfill({ json: { id: "visual-print", status: "succeeded", checksum: "test", createdAt: now, updatedAt: now } }));
+  await page.route("**/api/v1/print-jobs/visual-print", (route) => route.fulfill({ json: { id: "visual-print", status: "succeeded", checksum: "test", createdAt: now, updatedAt: now } }));
 
   await page.goto("/app");
   const paper = page.locator(".receipt-paper");
@@ -362,7 +376,7 @@ test("uses one physical paper surface without animating the preview on print", a
   await expect(page.locator(".agent-activity")).toHaveCount(0);
   await expect(page.locator(".agent-changed")).toHaveCount(0);
   await expect(page.getByText("The agent is printing the approved receipt")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Printing" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Printing", exact: true })).toBeDisabled();
   await expect(page.locator(".print-pixel-grid")).toBeVisible();
   await expect(page.getByRole("button", { name: "Printed", exact: true })).toBeVisible();
   await expect(page.locator(".receipt-shell")).not.toHaveClass(/is-feeding/);
@@ -408,6 +422,7 @@ test("inserts between blocks, keeps shared undo history, and collapses secondary
 });
 
 test("clears selection off-block and accepts a reorder from blank canvas space", async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 1600 });
   await page.goto("/app");
   const blocks = page.locator('.receipt-svg g[data-block-id]');
   const before = await blocks.evaluateAll((elements) => elements.map((element) => element.getAttribute("data-block-id")));
@@ -443,7 +458,7 @@ test("shows printer connection on the destination menu instead of a separate sta
   await expect(destinations.nth(1)).toHaveAccessibleName(/Epson printer/);
   const printerItem = page.getByRole("menuitemradio", { name: /Epson printer/ });
   await expect(printerItem.locator(".status-dot")).toHaveClass(/offline/);
-  await expect(printerItem.getByText("Not connected")).toBeVisible();
+  await expect(printerItem.getByText("USB printer disconnected")).toBeVisible();
   const demoItem = page.getByRole("menuitemradio", { name: /Demo print/ });
   await expect(demoItem.locator(".status-dot")).toHaveClass(/online/);
 
@@ -467,7 +482,7 @@ test("does not treat dummy file output as a connected Epson", async ({ page }) =
   await expect(destination.locator(".status-dot")).toHaveClass(/online/);
   await destination.click();
   await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).locator(".status-dot")).toHaveClass(/offline/);
-  await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).getByText("Not connected")).toBeVisible();
+  await expect(page.getByRole("menuitemradio", { name: /Epson printer/ }).getByText("USB printer disconnected")).toBeVisible();
   await expect(page.getByRole("menuitemradio", { name: /Demo print/ }).locator(".status-dot")).toHaveClass(/online/);
 });
 
@@ -569,7 +584,7 @@ type ShimWindow = Window & { __webmcpShim: { tools: Map<string, unknown>; call(n
 /** The production build only installs the local WebMCP host when it is asked for. */
 const shimUrl = (path: string) => `${path}?webmcp=shim`;
 const shimReady = (page: import("@playwright/test").Page) =>
-  expect.poll(() => page.evaluate(() => (window as unknown as ShimWindow).__webmcpShim?.tools.size ?? 0)).toBe(11);
+  expect.poll(() => page.evaluate(() => (window as unknown as ShimWindow).__webmcpShim?.tools.size ?? 0)).toBe(14);
 
 test("turns a described situation into a designed receipt", async ({ page }) => {
   await page.goto(shimUrl("/app"));
@@ -679,6 +694,7 @@ test("binds agent print approval to one visible revision", async ({ page }) => {
     const state = await target.__webmcpShim.call("get_receipt", {});
     target.__printPromise = target.__webmcpShim.call("request_receipt_print", { expectedRevision: state.structuredContent.revision, reason: "The revised reminder is ready." });
   });
+  await mockCanonicalPrinting(page);
   await page.getByRole("button", { name: "Approve and print" }).click();
   const printed = await page.evaluate(() => (window as unknown as ShimWindow).__printPromise) as { structuredContent: Record<string, unknown> };
   expect(printed.structuredContent).toMatchObject({ status: "succeeded", jobId: "agent-print" });

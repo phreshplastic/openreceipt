@@ -21,6 +21,7 @@ ALL_SCOPES = {
     "print:approve",
     "print:status",
     "print:direct",
+    "print:automatic",
 }
 SESSION_COOKIE = "petes_printer_session"
 SESSION_HEADER = "x-bridge-session"
