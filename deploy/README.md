@@ -88,6 +88,8 @@ Run `node scripts/configure-plugin.mjs --url https://YOUR-PI.YOUR-TAILNET.ts.net
 
 ## ChatGPT through Secure MCP Tunnel
 
+For Claude on the web or phone, use the separate [Claude connection guide](claude.md). That route makes only the authenticated HTTP MCP listener internet-reachable; the owner editor remains private. The OpenAI tunnel does not provide Claude's network connection.
+
 Use the [official tunnel setup](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels). Create a tunnel associated with your personal OpenAI organization and ChatGPT workspace, and store its runtime API key locally rather than in this repository. Run the official `tunnel-client` beside OpenReceipt and configure its MCP stdio command to invoke the Node server through a wrapper that loads a dedicated ChatGPT bridge token.
 
 On the Pi, the wrapper can use `docker compose exec -T -e PETES_PRINTER_TOKEN mcp node dist-mcp/server.mjs`; the host wrapper reads the token from a mode-0600 file and exports it before execution. The child server talks to `http://bridge:8731` inside Compose. The tunnel's remote admin UI stays private. Supervise `tunnel-client run --profile openreceipt` with a service restart policy.

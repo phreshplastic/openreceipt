@@ -15,6 +15,7 @@ The source and plugin are reusable. Each owner runs their own bridge and keeps t
 | Leave printing ready on a Pi | Follow the [Docker and private networking guide](deploy/README.md). |
 | Use Codex with your printer | Follow the [OpenReceipt plugin setup](plugins/openreceipt/README.md). |
 | Use ChatGPT with your Pi | Run the optional tunnel wizard after the Docker setup. |
+| Connect Claude on web or mobile | Follow the [credential-protected MCP route guide](deploy/claude.md); Claude requires HTTPS port 443, and request-header support is account dependent. |
 
 ## First run on a laptop
 

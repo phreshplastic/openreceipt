@@ -4,7 +4,7 @@ Verified on October 13, 2026 with an Epson TM-L90 over USB and an 80 mm roll. Th
 
 ## Installed setup
 
-The ARM64 Pi runs the bridge, canonical Node renderer, and HTTP MCP server in the OpenReceipt Compose stack. The editor/API and MCP ports bind to host loopback; existing Tailscale Serve exposes them privately. SQLite, print artifacts, and client credentials live in a persistent Docker volume. Home Assistant and the other application container configurations were left unchanged.
+The ARM64 Pi runs the bridge, canonical Node renderer, and HTTP MCP server in the OpenReceipt Compose stack. The editor/API and MCP ports bind to host loopback; existing Tailscale Serve exposes the owner editor privately. An explicitly approved Funnel route on port 8443 exposes only the bearer-protected HTTP MCP listener for other cloud clients. SQLite, print artifacts, and client credentials live in a persistent Docker volume. Home Assistant and the other application container configurations were left unchanged.
 
 The previous printer bridge container was stopped and its restart policy disabled so only OpenReceipt owns USB. Stop other printer services before starting this stack; restoring another bridge requires stopping OpenReceipt first.
 
@@ -18,6 +18,7 @@ Codex uses the installed OpenReceipt plugin and a private token file. ChatGPT us
 - The final Pi build passed Compose health checks. A live backup was created before a full Pi reboot. A paused, unsent job and the pause setting survived that reboot; resuming the queue sent the same job successfully without a second submission. The Mac bridge was stopped for this check.
 - After reboot, the installed Codex plugin read live USB readiness, saved receipts, the revised PNG preview, and the completed job. The owner confirmed that the revised Shopping slip printed and looked better.
 - ChatGPT listed receipts and provided a link to the editable live receipt after the reboot, then printed successfully again. Image content is returned by MCP; this ChatGPT interface chose the exact-layout editor link rather than an inline image.
+- The owner confirmed receipt listing, preview, and physical printing from the ChatGPT phone app with Tailscale off, verifying the mobile path through the Pi's outbound OpenAI tunnel.
 - A backup was restored into a disposable volume, preserving four receipts and four jobs. The restored volume was removed after checking it. The pre-upgrade backup and the final installed backup remain on the Pi with private permissions.
 - The implementation passed 203 TypeScript/MCP tests. The final hardening pass then reran 52 focused TypeScript/MCP checks, all 34 Python tests, and 35 Chrome browser tests. All 34 Python tests also passed inside the built ARM64 production image. Builds, type checks, and whitespace checks passed. The full lint run reported no errors and twelve warnings; lint on the final changed TypeScript files passed without warnings.
 
@@ -44,6 +45,10 @@ The reusable `openreceipt@openreceipt` plugin version 0.4.0 was installed and ch
 Compatible dependency fixes were applied to the lockfiles. The Docker Node runtime dependency audit reported no vulnerabilities. Four moderate npm findings remain in the guide build's `gray-matter` dependency chain; guides are checked-in trusted source, and the proposed forced downgrade was not applied. See [SECURITY.md](../SECURITY.md).
 
 ## Remaining hardware and client checks
+
+The owner approved making only the authenticated HTTP MCP listener internet-reachable through Tailscale Funnel on port 8443. The editor on port 443 remains tailnet-only. A dedicated Claude credential passed status, saved-receipt listing and image preview through a public ingress IP with TLS verification enabled, rather than through local MagicDNS. Public unauthenticated GET/POST requests to `/mcp` returned 401; `/app` and `/api/v1/session` returned 404. Public DNS initially returned NXDOMAIN, then published after a route refresh and propagation. Claude itself still failed to connect; Anthropic's pinned troubleshooting note documents that its backend connects only on standard HTTPS port 443.
+
+On October 14, the owner explicitly approved a separate Vercel relay, including Vercel handling the client's bearer credential and receipt traffic in transit. The isolated `openreceipt-mcp-relay` project forwards exactly `/mcp` to the protected Funnel endpoint and disables rewrite caching. The owner added the single `mcp` CNAME at Porkbun; Vercel verified the domain and issued TLS for `mcp.phreshplastic.com`. Through that final port-443 hostname, missing and invalid credentials returned 401, the root and owner editor/API paths returned 404, and an authenticated MCP client initialized, listed tools and six saved receipts, read status, and obtained a PNG preview. That preview's bytes exactly matched the direct Pi endpoint at the same receipt revision. No print was sent by either relay preflight. Existing portfolio routes, DNS nameservers, private editor routing, and the independent OpenAI tunnel were not changed. Recreating the Claude connector and verifying actual Claude account/mobile operations remain outstanding; Muse personal-agent setup remains unverified.
 
 The final fresh USB discovery fix has automated coverage, but unplug/reconnect recovery without restarting the service has not been physically proven on the final Pi build. Earlier Pi attempts resumed after service restarts. The owner chose to defer further reconnect cycles because this installation will normally stay connected.
 
