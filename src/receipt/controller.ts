@@ -136,7 +136,10 @@ export class ReceiptController {
 
   acceptShared(state: ReceiptState, recordHistory = true) {
     const next = createReceiptState(state.document, state.revision, state.source);
-    if (recordHistory && JSON.stringify(this.current.document) !== JSON.stringify(next.document)) {
+    if (this.current.document.id !== next.document.id) {
+      this.past = [];
+      this.future = [];
+    } else if (recordHistory && JSON.stringify(this.current.document) !== JSON.stringify(next.document)) {
       this.past.push(this.snapshot(this.current));
       this.future = [];
     }
@@ -145,7 +148,8 @@ export class ReceiptController {
   }
 
   private record(next: ReceiptState) {
-    this.past.push(this.snapshot(this.current));
+    if (this.current.document.id !== next.document.id) this.past = [];
+    else this.past.push(this.snapshot(this.current));
     this.future = [];
     this.current = next;
   }

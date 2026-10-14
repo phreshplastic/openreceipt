@@ -87,3 +87,9 @@ docs/hero/
 docs/logo/
 .vercel
 .env*
+!.env.example
+*.token
+*.sqlite3*
+*.tar.gz
+__pycache__/
+*.pyc

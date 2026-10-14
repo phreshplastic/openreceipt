@@ -15,11 +15,16 @@ type Props = {
   onNewBlank(): void;
   onBrowseTemplates(): void;
   webMcpAvailable: boolean;
+  queuePaused?: boolean;
+  queueError?: string;
+  onToggleQueue?(): void;
+  onCancelJob?(id: string): void;
 };
 
 const jobLabels: Record<PrintJob["status"], string> = {
   awaiting_approval: "Needs approval",
   queued: "Queued",
+  waiting_for_printer: "Waiting for printer",
   sending: "Printing",
   succeeded: "Printed",
   failed: "Failed",
@@ -58,6 +63,7 @@ export function formatDraftAge(value: string, now = Date.now()) {
 export function ReceiptRail({
   printJobs, drafts, activeDraftId, saveNotice,
   onOpenDraft, onDeleteDraft, onNewBlank, onBrowseTemplates, webMcpAvailable,
+  queuePaused, queueError, onToggleQueue, onCancelJob,
 }: Props) {
   const orderedDrafts = [...drafts].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
@@ -85,15 +91,19 @@ export function ReceiptRail({
         </div>)}
       </section>
 
-      {printJobs.length > 0 && <section className="rail-section print-queue-section" aria-labelledby="print-queue-heading">
+      {(printJobs.length > 0 || onToggleQueue) && <section className="rail-section print-queue-section" aria-labelledby="print-queue-heading">
         <h2 id="print-queue-heading" className="rail-heading-plain">Print queue</h2>
+        {onToggleQueue && <button type="button" className="text-button" onClick={onToggleQueue}>{queuePaused ? "Resume printing" : "Pause printing"}</button>}
+        {queueError && <p role="status">{queueError}</p>}
         <ol className="print-activity-list">
-          {printJobs.slice(0, 2).map((job) => <li key={job.id} className={`print-activity-row status-${job.status}`}>
+          {printJobs.map((job) => <li key={job.id} className={`print-activity-row status-${job.status}`}>
             <span className="print-activity-mark"><JobMark status={job.status} /></span>
             <span>
               <strong>{job.document?.title || "Receipt"}</strong>
               <small>{jobLabels[job.status]}{job.updatedAt ? ` · ${formatTime(job.updatedAt)}` : ""}</small>
+              {job.error && <small>{job.error}</small>}
             </span>
+            {onCancelJob && ["queued", "waiting_for_printer", "awaiting_approval"].includes(job.status) && <button type="button" className="rail-row-action" aria-label={`Cancel print ${job.document?.title || "Receipt"}`} onClick={() => onCancelJob(job.id)}><X size={13} /></button>}
           </li>)}
         </ol>
       </section>}

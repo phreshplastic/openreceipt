@@ -26,7 +26,8 @@ test("opens the real browser editor without a local API", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Printing" })).toBeDisabled();
   await expect(page.locator(".print-pixel-grid")).toBeVisible();
   await expect(page.locator(".receipt-shell")).not.toHaveClass(/is-feeding/);
-  expect(page.context().pages()).toHaveLength(1);
+  // Reserving the preview tab on the click avoids popup blocking after the feed animation.
+  expect(page.context().pages()).toHaveLength(2);
   const popup = await popupPromise;
   await expect(popup.locator("svg")).toBeVisible();
   await expect(page.getByRole("button", { name: "Demo print", exact: true })).toBeVisible();

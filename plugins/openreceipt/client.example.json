@@ -1,0 +1,6 @@
+{
+  "OPENRECEIPT_HOME": "/absolute/path/to/openreceipt",
+  "PETES_PRINTER_URL": "https://your-pi.your-tailnet.ts.net",
+  "PETES_PRINTER_EDITOR_URL": "https://your-pi.your-tailnet.ts.net",
+  "PETES_PRINTER_TOKEN_FILE": "/absolute/path/to/private/codex.token"
+}

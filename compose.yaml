@@ -1,0 +1,66 @@
+name: openreceipt
+services:
+  runtime:
+    image: openreceipt-runtime:${OPENRECEIPT_VERSION:-local}
+    pull_policy: never
+    build:
+      context: .
+      target: runtime
+    environment:
+      PETES_PRINTER_RENDER_HOST: 0.0.0.0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8734/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+  bridge:
+    stop_grace_period: 60s
+    image: openreceipt-bridge:${OPENRECEIPT_VERSION:-local}
+    pull_policy: never
+    build:
+      context: .
+      target: bridge
+    environment:
+      PETES_PRINTER_RENDER_URL: http://runtime:8734
+      PETES_PRINTER_TRANSPORT: ${PETES_PRINTER_TRANSPORT:-usb}
+      PETES_PRINTER_ALLOWED_ORIGINS: ${PETES_PRINTER_ALLOWED_ORIGINS:-http://127.0.0.1:8731,http://localhost:8731}
+    group_add:
+      - "${OPENRECEIPT_USB_GID:-46}"
+    volumes:
+      - openreceipt-data:/data
+      - /dev/bus/usb:/dev/bus/usb
+    device_cgroup_rules:
+      - "c 189:* rw"
+    ports:
+      - "127.0.0.1:${OPENRECEIPT_PORT:-8731}:8731"
+    depends_on:
+      runtime:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,json; assert json.load(urllib.request.urlopen('http://127.0.0.1:8731/healthz'))['workerAlive']"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+  mcp:
+    image: openreceipt-runtime:${OPENRECEIPT_VERSION:-local}
+    pull_policy: never
+    command: ["node", "dist-mcp/server.mjs", "--http"]
+    environment:
+      PETES_PRINTER_MCP_HOST: 0.0.0.0
+      PETES_PRINTER_URL: http://bridge:8731
+      PETES_PRINTER_EDITOR_URL: ${PETES_PRINTER_EDITOR_URL:-http://127.0.0.1:8731}
+      PETES_PRINTER_MCP_ALLOWED_HOSTS: ${PETES_PRINTER_MCP_ALLOWED_HOSTS:-localhost:8733,127.0.0.1:8733}
+    ports:
+      - "127.0.0.1:${OPENRECEIPT_MCP_PORT:-8733}:8733"
+    depends_on:
+      bridge:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8733/mcp').then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+volumes:
+  openreceipt-data:

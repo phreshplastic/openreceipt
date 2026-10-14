@@ -1,3 +1,10 @@
+@font-face { font-family: Inter; src: url("./assets/fonts/inter-regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url("./assets/fonts/inter-medium.ttf") format("truetype"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url("./assets/fonts/inter-bold.ttf") format("truetype"); font-weight: 750; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url("./assets/fonts/inter-regular-italic.ttf") format("truetype"); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: Inter; src: url("./assets/fonts/inter-medium-italic.ttf") format("truetype"); font-weight: 600; font-style: italic; font-display: swap; }
+@font-face { font-family: Inter; src: url("./assets/fonts/inter-bold-italic.ttf") format("truetype"); font-weight: 750; font-style: italic; font-display: swap; }
+
 :root {
   font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, sans-serif;
   color: #1d1d1f;

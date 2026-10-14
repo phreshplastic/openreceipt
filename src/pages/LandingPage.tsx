@@ -5,7 +5,7 @@ import { Brand } from "../components/Brand";
 import { MomentsCarousel } from "../components/MomentsCarousel";
 import { HowItWorksDemo } from "../components/HowItWorksDemo";
 import { PrinterDemo } from "../components/PrinterDemo";
-import { createLandingDemo, createMoments } from "./landing-demo";
+import { landingHero, createMoments } from "./landing-assets";
 
 export function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number>(-1);
@@ -15,7 +15,6 @@ export function LandingPage() {
     () => createMoments().filter(({ id }) => id === "run" || id === "cook" || id === "trail"),
     [],
   );
-  const demo = useMemo(() => createLandingDemo(), []);
   const cta = siteContent.hero.publicCta;
   const ctaHref = "/app";
   const setupIcons = { browser: Globe2, laptop: Laptop, pi: Cpu } as const;
@@ -124,7 +123,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <PrinterDemo slipSrc="/generated/landing-hero.svg" svgWidth={demo.hero.width} svgHeight={demo.hero.height} ctaHref={ctaHref} />
+      <PrinterDemo slipSrc="/generated/landing-hero.svg" svgWidth={landingHero.width} svgHeight={landingHero.height} ctaHref={ctaHref} />
     </main>
   );
 }

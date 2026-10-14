@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { ApprovalPanel, ReceiptConflictPanel } from "./components/Overlays";
-import { decidePrintRequest, ensureBrowserSession, getCanonicalSettings, getCapabilities, listPrintRequests, submitPrintJob, submitPrintRequest, updateCanonicalSettings, usbPrinterConnected, waitForPrintJob, type PaperProfile, type PrintJob } from "./bridge/client";
+import { decidePrintRequest, ensureBrowserSession, getCanonicalSettings, getCapabilities, listPrintRequests, renderCanonicalReceipt, submitPrintJob, submitPrintRequest, updateCanonicalSettings, usbPrinterConnected, waitForPrintJob, type PaperProfile, type PrintJob } from "./bridge/client";
 import { loadBlockLibraryPreferences, prepareReceiptCommands, saveBlockLibraryPreferences, toggleFavorite as toggleBlockFavorite, type BlockLibraryPreferences, type ReceiptCommand } from "./block-library";
-import { createReceiptState, createDefaultDocument, createFromTemplate, rasterizeReceipt, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
+import { createReceiptState, createDefaultDocument, createFromTemplate, ReceiptController, renderReceiptSvg, type ReceiptDocument, type ReceiptOperation, type ReceiptState } from "./receipt";
 import { documentSeed } from "./onboarding/profile";
 import { PrintCoordinator, type PrintApprovalDecision, type PrintResult, type PrintSnapshot } from "./printing/coordinator";
 import { resolvePrintAction, type PrintDestination } from "./printing/destination";
 import { playDemoPrint, PRINT_DONE_HOLD_MS } from "./printing/preview";
-import { EditorPage } from "./pages/EditorPage";
+import { EditorPage, type RuntimeMode } from "./pages/EditorPage";
 import { BlocksPage } from "./pages/BlocksPage";
 import { ChartLabPage } from "./pages/ChartLabPage";
 import { LandingPage } from "./pages/LandingPage";
@@ -33,7 +33,7 @@ type ApprovalRequest = {
 export type PrintStage = "idle" | "rendering" | "feeding" | "complete" | "failed" | "unknown";
 export type EditorActivity = AgentActivity & { id: number; blockIds: string[] };
 
-function AppContent() {
+function AppContent({ runtimeMode }: { runtimeMode: RuntimeMode }) {
   const navigate = useNavigate();
   const [settings, setSettings] = useState(loadSettings);
   const [receiptController] = useState(() => new ReceiptController(loadReceipt(createReceiptState(createDefaultDocument(documentSeed(settings.printerProfile))))));
@@ -46,7 +46,7 @@ function AppContent() {
   const [printerConnected, setPrinterConnected] = useState(false);
   const [webMcpAvailable, setWebMcpAvailable] = useState(false);
   const [editorActivity, setEditorActivity] = useState<EditorActivity>();
-  const [syncStatus, setSyncStatus] = useState<ReceiptSyncStatus>("connecting");
+  const [syncStatus, setSyncStatus] = useState<ReceiptSyncStatus>(runtimeMode === "demo" ? "offline" : "connecting");
   const [receiptConflict, setReceiptConflict] = useState<ReceiptConflict>();
   const [externalApproval, setExternalApproval] = useState<PrintJob>();
   const [recentPrintJobs, setRecentPrintJobs] = useState<PrintJob[]>([]);
@@ -77,6 +77,7 @@ function AppContent() {
     settingsRef.current = next;
     setSettings(next);
     saveSettings(next);
+    if (runtimeMode === "demo") return;
     if (!receiptSessionRef.current?.isOnline) {
       setPrintStatus("Settings saved on this device; the local API will catch up when it reconnects.");
       return;
@@ -91,7 +92,7 @@ function AppContent() {
     } catch (error) {
       setPrintStatus(error instanceof Error ? error.message : "Settings could not be saved.");
     }
-  }, []);
+  }, [runtimeMode]);
   const commitBlockLibraryPreferences = useCallback((next: BlockLibraryPreferences) => { setBlockLibraryPreferences(next); saveBlockLibraryPreferences(next); }, []);
   const clearActivity = useCallback(() => {
     if (activityTimer.current) window.clearTimeout(activityTimer.current);
@@ -136,6 +137,7 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    if (runtimeMode === "demo") return;
     const session = new ReceiptSession(receiptRef.current, {
       onShared: (shared, event) => {
         const next = receiptController.acceptShared(shared);
@@ -158,13 +160,20 @@ function AppContent() {
       onEvent: () => void refreshPrintActivity(),
     });
     receiptSessionRef.current = session;
-    void session.start().then(() => void refreshPrintActivity());
+    void session.start().then(async () => {
+      const receiptId = new URLSearchParams(window.location.search).get("receiptId");
+      if (receiptId && session.isOnline) {
+        try { await session.openSaved(receiptId); }
+        catch (error) { setPrintStatus(error instanceof Error ? error.message : "Could not open receipt."); }
+      }
+      await refreshPrintActivity();
+    });
 
     return () => {
       session.dispose();
       if (receiptSessionRef.current === session) receiptSessionRef.current = undefined;
     };
-  }, [announceAgentActivity, receiptController, refreshCanonicalSettings, refreshPrintActivity]);
+  }, [announceAgentActivity, receiptController, refreshCanonicalSettings, refreshPrintActivity, runtimeMode]);
 
   const applyOperations = useCallback((expectedRevision: number, operations: ReceiptOperation[]) => {
     clearActivity();
@@ -201,11 +210,18 @@ function AppContent() {
   const undo = useCallback(() => { clearActivity(); return publishReceipt(receiptController.undo()); }, [clearActivity, publishReceipt, receiptController]);
   const redo = useCallback(() => { clearActivity(); return publishReceipt(receiptController.redo()); }, [clearActivity, publishReceipt, receiptController]);
 
+  const sendDemo = useCallback(async (snapshot: PrintSnapshot) => {
+    setPrintStatus("");
+    const result = await playDemoPrint(snapshot.document, { onStage: setPrintStage });
+    return { status: "succeeded", revision: snapshot.revision,
+      message: `${result.opened ? "Browser demo print opened." : "Browser demo print downloaded as a preview."} For paper output, connect the TM-L90 and open your local OpenReceipt editor.` } as const;
+  }, []);
+
   const sendDocument = useCallback(async (snapshot: PrintSnapshot, requester: "human" | "webmcp", reason?: string, signal?: AbortSignal) => {
+    if (runtimeMode === "demo") return sendDemo(snapshot);
     setPrintStage("rendering");
     setPrintStatus("Rendering…");
-    const rendered = renderReceiptSvg(snapshot.document);
-    const raster = await rasterizeReceipt(rendered);
+    const { rendered, raster } = await renderCanonicalReceipt(snapshot.document, signal);
     if (signal?.aborted) throw signal.reason ?? new DOMException("Aborted", "AbortError");
     setPrintStage("feeding");
     setPrintStatus("Sending to printer…");
@@ -232,11 +248,23 @@ function AppContent() {
       setPrintStatus(message);
       return { status: "failed", jobId: complete.id, checksum: complete.checksum, message } as const;
     }
+    if (["queued", "waiting_for_printer", "sending"].includes(complete.status)) {
+      setPrintStage("idle");
+      const message = complete.status === "waiting_for_printer" ? "Saved in the queue. Printing will resume when the printer reconnects." : "Saved in the print queue.";
+      setPrintStatus(message);
+      return { status: complete.status as "queued" | "waiting_for_printer" | "sending", jobId: complete.id, checksum: complete.checksum, message };
+    }
+    if (["cancelled", "rejected", "stale"].includes(complete.status)) {
+      setPrintStage("idle");
+      const message = complete.status === "stale" ? "The receipt changed before approval. Preview the current receipt before printing." : complete.status === "rejected" ? "The print was declined." : "The print was cancelled.";
+      setPrintStatus(message);
+      return { status: complete.status as "cancelled" | "rejected" | "stale", jobId: complete.id, checksum: complete.checksum, message };
+    }
     const message = complete.status === "unknown" ? "Printer response unknown — check the paper before retrying." : "The print is still in progress — check the paper before retrying.";
     setPrintStage("unknown");
     setPrintStatus(message);
     return { status: "unknown", jobId: complete.id, checksum: complete.checksum, message } as const;
-  }, [refreshPrintActivity]);
+  }, [refreshPrintActivity, runtimeMode, sendDemo]);
 
   useEffect(() => {
     const coordinator = new PrintCoordinator({
@@ -303,13 +331,7 @@ function AppContent() {
     const current = receiptRef.current;
     const action = resolvePrintAction(destination, { configured: settingsRef.current.configured, bridgeOnline });
     if (action === "demo") {
-      setPrintStatus("");
-      const result = await playDemoPrint(current.document, { onStage: setPrintStage });
-      return {
-        status: "succeeded",
-        revision: current.revision,
-        message: result.opened ? "Opened a preview in this browser." : "Downloaded a preview because the browser blocked a new tab.",
-      } as PrintResult;
+      return sendDemo({ revision: current.revision, document: current.document });
     }
     const snapshot = { revision: current.revision, document: structuredClone(current.document) };
     if (action === "setup") {
@@ -317,23 +339,24 @@ function AppContent() {
       return { status: "cancelled", revision: snapshot.revision, message: "Printer setup is needed before printing." } as PrintResult;
     }
     return runPrintRequest(snapshot, false);
-  }, [bridgeOnline, clearActivity, runPrintRequest]);
+  }, [bridgeOnline, clearActivity, runPrintRequest, sendDemo]);
   const refreshBridge = useCallback(async (silent = false) => {
+    if (runtimeMode === "demo") return false;
     if (!silent) { setPrintStage("idle"); setPrintStatus("Checking printer…"); }
     const controller = new AbortController();
     try {
       const capabilities = await getCapabilities(controller.signal);
-      setBridgeOnline(capabilities.connected);
+      setBridgeOnline(true);
       setPrinterConnected(usbPrinterConnected(capabilities));
-      if (!silent) setPrintStatus(capabilities.connected ? "" : "Printer bridge is offline");
-      return capabilities.connected;
+      if (!silent) setPrintStatus(capabilities.connected ? "" : capabilities.detail || "Printer disconnected; bridge is running");
+      return true;
     } catch {
       setBridgeOnline(false);
       setPrinterConnected(false);
       if (!silent) setPrintStatus("Printer bridge is unavailable");
       return false;
     }
-  }, []);
+  }, [runtimeMode]);
   const requestAgentPrint = useCallback(async (expectedRevision: number, reason: string | undefined, signal?: AbortSignal): Promise<PrintResult> => {
     const current = receiptRef.current;
     if (current.revision !== expectedRevision) {
@@ -385,16 +408,17 @@ function AppContent() {
   }, [agentCommit, agentUndo, announceAgentActivity, navigate, requestAgentPrint]);
 
   useEffect(() => {
+    if (runtimeMode === "demo") return;
     const controller = new AbortController();
     getCapabilities(controller.signal).then((value) => {
-      setBridgeOnline(value.connected);
+      setBridgeOnline(true);
       setPrinterConnected(usbPrinterConnected(value));
     }).catch(() => {
       setBridgeOnline(false);
       setPrinterConnected(false);
     });
     return () => controller.abort();
-  }, []);
+  }, [runtimeMode]);
 
   const completeSetup = async (profile: PaperProfile) => {
     await commitSettings({ ...settingsRef.current, configured: true, printPolicy: "confirm" });
@@ -413,8 +437,7 @@ function AppContent() {
     const seed = documentSeed(settingsRef.current.printerProfile);
     const document = createDefaultDocument(seed);
     document.page = { paperWidthMm: profile.paperWidthMm, printableWidthDots: profile.printableWidthDots, paddingDots: profile.paddingDots };
-    const rendered = renderReceiptSvg(document);
-    const raster = await rasterizeReceipt(rendered);
+    const { rendered, raster } = await renderCanonicalReceipt(document);
     const queued = await submitPrintJob(document, rendered, raster, crypto.randomUUID());
     const complete = await waitForPrintJob(queued.id, 30_000, undefined, "print-jobs");
     if (complete.status !== "succeeded") throw new Error(complete.error || "The test print did not print.");
@@ -445,18 +468,18 @@ function AppContent() {
     <Route path="/guides" element={<GuidesPage />} />
     <Route path="/guides/:slug" element={<GuidePage />} />
     <Route path="/setup" element={<SetupPage onComplete={async (profile) => { await completeSetup(profile); }} onTestPrint={testPrint} />} />
-    <Route path="/app" element={<EditorPage runtimeMode="local" state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} printJobs={recentPrintJobs} printerConnected={printerConnected} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} loadDocument={loadDocument} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(true)} print={printCurrent} registerShelf={(shelf) => { shelfRef.current = shelf; }} />} />
+    <Route path="/app" element={<EditorPage runtimeMode={runtimeMode} openShared={runtimeMode === "local" ? async (id) => { await receiptSessionRef.current?.openSaved(id); } : undefined} state={receipt} settings={settings} blockLibraryPreferences={blockLibraryPreferences} webMcpAvailable={webMcpAvailable} printStatus={printStatus} printStage={printStage} printJobs={recentPrintJobs} printerConnected={printerConnected} syncStatus={syncStatus} history={receiptController.history} editorActivity={editorActivity} applyOperations={applyOperations} applyCommands={applyCommands} loadTemplate={loadTemplate} loadDocument={loadDocument} updateSettings={commitSettings} toggleBlockFavorite={(id) => commitBlockLibraryPreferences(toggleBlockFavorite(blockLibraryPreferences, id))} undo={undo} redo={redo} refreshBridge={() => refreshBridge(true)} print={printCurrent} registerShelf={(shelf) => { shelfRef.current = shelf; }} />} />
     <Route path="/blocks" element={<BlocksPage />} />
     <Route path="/blocks/charts" element={<ChartLabPage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>
     {receiptConflict && <ReceiptConflictPanel local={receiptConflict.local} shared={receiptConflict.shared} onUseShared={() => void receiptSessionRef.current?.resolveConflict("shared")} onKeepLocal={() => void receiptSessionRef.current?.resolveConflict("local")} />}
-    {approval && <ApprovalPanel title={approval.snapshot.document.title} reason={approval.reason} revision={approval.snapshot.revision} width={approval.width} height={approval.height} paperWidthMm={approval.snapshot.document.page.paperWidthMm} policy={approval.policy} onApprove={() => approval.resolve("approve")} onReject={() => approval.resolve("reject")} />}
+    {approval && <ApprovalPanel title={approval.snapshot.document.title} reason={approval.reason} revision={approval.snapshot.revision} width={approval.width} height={approval.height} paperWidthMm={approval.snapshot.document.page.paperWidthMm} policy={approval.policy} destination={runtimeMode === "demo" ? "Demo print · this browser" : undefined} approveLabel={runtimeMode === "demo" ? "Approve and demo print" : undefined} onApprove={() => approval.resolve("approve")} onReject={() => approval.resolve("reject")} />}
     {!approval && externalApproval?.document && <ApprovalPanel title={externalApproval.document.title} reason={externalApproval.reason ?? undefined} revision={externalApproval.receiptRevision ?? 0} width={externalApproval.width ?? externalApproval.document.page.printableWidthDots} height={externalApproval.height ?? 0} paperWidthMm={externalApproval.document.page.paperWidthMm} policy={settings.printPolicy} onApprove={() => void decideExternalApproval("approve")} onReject={() => void decideExternalApproval("reject")} />}
     {pendingSetupPrint && <SetupPage intent="print" onComplete={completeSetupAndPrint} onTestPrint={testPrint} onCancel={() => setPendingSetupPrint(undefined)} />}
   </>;
 }
 
-export default function App() {
-  return <BrowserRouter><AppContent /></BrowserRouter>;
+export default function App({ runtimeMode = "local" }: { runtimeMode?: RuntimeMode }) {
+  return <BrowserRouter><AppContent runtimeMode={runtimeMode} /></BrowserRouter>;
 }

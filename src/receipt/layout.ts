@@ -1,3 +1,5 @@
+import { fontAdvances } from "./font-metrics";
+
 export type TextStyle = {
   size: number;
   lineHeight: number;
@@ -12,15 +14,30 @@ export type SvgPart = {
 };
 
 export const thermalType = {
-  display: { size: 36, lineHeight: 42, weight: 790, tracking: -0.7 },
-  heading: { size: 28, lineHeight: 34, weight: 740, tracking: -0.35 },
-  section: { size: 21, lineHeight: 27, weight: 720, tracking: 0.4 },
-  large: { size: 24, lineHeight: 32, weight: 450 },
-  body: { size: 20, lineHeight: 27, weight: 440 },
-  small: { size: 16, lineHeight: 22, weight: 480, tracking: 0.15 },
-  label: { size: 13, lineHeight: 18, weight: 720, tracking: 1.1 },
+  display: { size: 40, lineHeight: 46, weight: 790, tracking: -0.7 },
+  heading: { size: 30, lineHeight: 38, weight: 740, tracking: -0.35 },
+  section: { size: 24, lineHeight: 30, weight: 720, tracking: 0.4 },
+  large: { size: 28, lineHeight: 36, weight: 450 },
+  body: { size: 24, lineHeight: 32, weight: 440 },
+  small: { size: 18, lineHeight: 25, weight: 480, tracking: 0.15 },
+  label: { size: 16, lineHeight: 21, weight: 720, tracking: .8 },
   numeric: { size: 34, lineHeight: 39, weight: 760, tracking: -0.4 },
 } satisfies Record<string, TextStyle>;
+
+/** The core list and grouped catalog list share the same paper geometry. */
+export function renderChecklistRows(items: { text: string; checked?: boolean }[], width: number): SvgPart {
+  let y = 0;
+  let markup = "";
+  for (const item of items) {
+    const lines = wrapText(item.text, width - 42, thermalType.body);
+    const boxY = y + 5;
+    markup += `<rect x="0" y="${boxY}" width="22" height="22" rx="2" fill="${item.checked ? "#000" : "#fff"}" stroke="#000" stroke-width="2"/>`;
+    if (item.checked) markup += `<path d="M5 ${boxY + 11} l5 5 l9 -11" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    markup += lines.map((line, index) => `<text x="38" y="${y + thermalType.body.size + index * thermalType.body.lineHeight}" ${textAttributes(thermalType.body)}>${escapeXml(line)}</text>`).join("");
+    y += Math.max(34, lines.length * thermalType.body.lineHeight + 8);
+  }
+  return { markup, height: Math.max(30, y) };
+}
 
 export const escapeXml = (value: string) => value
   .replaceAll("&", "&amp;")
@@ -30,13 +47,16 @@ export const escapeXml = (value: string) => value
   .replaceAll("'", "&apos;");
 
 export function estimatedWidth(text: string, style: TextStyle) {
+  const weight = Math.round(style.weight / 100) * 100;
+  const advances: Record<string, number> = fontAdvances[weight >= 700 ? "bold" : weight >= 600 ? "medium" : "regular"];
   const weightAdjustment = style.weight >= 700 ? 0.59 : 0.54;
   return [...text].reduce((width, character) => {
+    if (advances[character] !== undefined) return width + style.size * advances[character];
     if (/[MW@#%]/.test(character)) return width + style.size * 0.83;
     if (/[A-Z]/.test(character)) return width + style.size * 0.66;
     if (/[ilI1.,:;!' ]/.test(character)) return width + style.size * 0.3;
     return width + style.size * weightAdjustment;
-  }, 0);
+  }, 0) + Math.max(0, [...text].length - 1) * (style.tracking ?? 0);
 }
 
 export function wrapText(text: string, maxWidth: number, style: TextStyle) {
@@ -75,7 +95,9 @@ export function wrapText(text: string, maxWidth: number, style: TextStyle) {
 }
 
 export function textAttributes(style: TextStyle, weight = style.weight, effects: { italic?: boolean; underline?: boolean } = {}) {
-  return `font-family="Inter,Arial,sans-serif" font-size="${style.size}" font-weight="${weight}" font-style="${effects.italic ? "italic" : "normal"}" text-decoration="${effects.underline ? "underline" : "none"}" letter-spacing="${style.tracking ?? 0}" fill="#000"`;
+  // The printer renderer accepts SVG 1.1's 100-step weights, unlike browser CSS.
+  const svgWeight = Math.max(100, Math.min(900, Math.round(weight / 100) * 100));
+  return `font-family="Inter,Arial,sans-serif" font-size="${style.size}" font-weight="${svgWeight}" font-style="${effects.italic ? "italic" : "normal"}" text-decoration="${effects.underline ? "underline" : "none"}" letter-spacing="${style.tracking ?? 0}" fill="#000"`;
 }
 
 export function textAnchor(align: "left" | "center" | "right", width: number) {

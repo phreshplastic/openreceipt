@@ -1,0 +1,58 @@
+{
+  "hero": {
+    "width": 576,
+    "height": 827
+  },
+  "moments": [
+    {
+      "id": "morning",
+      "caption": "The morning brief",
+      "placement": {
+        "side": "left",
+        "align": "center"
+      },
+      "inkHeight": 771,
+      "inkSrc": "/generated/landing-moment-morning.png"
+    },
+    {
+      "id": "run",
+      "caption": "The training week",
+      "placement": {
+        "side": "right",
+        "align": "center"
+      },
+      "inkHeight": 385,
+      "inkSrc": "/generated/landing-moment-run.png"
+    },
+    {
+      "id": "cook",
+      "caption": "This week's dinners",
+      "placement": {
+        "side": "right",
+        "align": "start"
+      },
+      "inkHeight": 621,
+      "inkSrc": "/generated/landing-moment-cook.png"
+    },
+    {
+      "id": "travel",
+      "caption": "Counting down to the trip",
+      "placement": {
+        "side": "left",
+        "align": "end"
+      },
+      "inkHeight": 300,
+      "inkSrc": "/generated/landing-moment-travel.png"
+    },
+    {
+      "id": "trail",
+      "caption": "Packed for the woods",
+      "placement": {
+        "side": "right",
+        "align": "start"
+      },
+      "inkHeight": 650,
+      "inkSrc": "/generated/landing-moment-trail.png"
+    }
+  ]
+}

@@ -20,6 +20,8 @@
     "bridge": "python3 -m petes_printer_bridge.cli --web-dist dist",
     "bridge:test": "python3 -m pytest bridge/tests",
     "build:mcp": "vite build --config vite.mcp.config.ts",
+    "build:local": "npm run generate:landing-assets && tsc -b && vite build && npm run build:mcp",
+    "runtime": "node dist-mcp/runtime.mjs",
     "mcp": "npm run build:mcp && node dist-mcp/server.mjs",
     "mcp:http": "npm run build:mcp && node dist-mcp/server.mjs --http",
     "skills:remotion": "npx skills experimental_install",

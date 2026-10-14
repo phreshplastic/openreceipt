@@ -3,6 +3,7 @@ import { deflateSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 
 const liveBaseUrl = "http://127.0.0.1:8732";
+test.describe.configure({ mode: "serial" });
 
 function crc32(data: Buffer) {
   let crc = 0xffffffff;
@@ -42,6 +43,7 @@ test("shares HTTP edits and browser-approved dummy printing through the live loc
   const headless = await playwright.request.newContext({ baseURL: liveBaseUrl });
   const session = await headless.post("/api/v1/session");
   const { csrfToken } = await session.json() as { csrfToken: string };
+  await expect.poll(async () => (await headless.get("/api/v1/receipt")).status()).toBe(200);
   const current = await (await headless.get("/api/v1/receipt")).json() as { revision: number; document: Record<string, unknown> };
   const title = "Shared through the canonical API";
   const updatedDocument = { ...current.document, title };
@@ -52,8 +54,20 @@ test("shares HTTP edits and browser-approved dummy printing through the live loc
       document: updatedDocument, actor: { kind: "api", label: "Headless acceptance client" }, summary: "Headless client changed the title",
     },
   });
-  expect(updated.ok()).toBe(true);
+  expect(updated.ok(), await updated.text()).toBe(true);
   await expect(page.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue(title);
+  const canonical = await headless.post("/api/v1/render", { headers: { "X-CSRF-Token": csrfToken }, data: { document: updatedDocument } });
+  expect(canonical.ok()).toBe(true);
+  const pixels = (await canonical.json() as { previewPng: string }).previewPng;
+  await expect(page.getByRole("img", { name: "Receipt print preview" })).toHaveAttribute("src", `data:image/png;base64,${pixels}`);
+  const before = (await (await headless.get("/api/v1/receipts")).json() as { items: unknown[] }).items.length;
+  const fresh = await page.context().browser()!.newContext();
+  const secondBrowser = await fresh.newPage();
+  await secondBrowser.goto(`${liveBaseUrl}/app`);
+  await expect(secondBrowser.getByRole("textbox", { name: "Receipt title" }).first()).toHaveValue(title);
+  await expect(secondBrowser.getByRole("img", { name: "Receipt print preview" })).toBeVisible();
+  expect((await (await headless.get("/api/v1/receipts")).json() as { items: unknown[] }).items).toHaveLength(before);
+  await fresh.close();
 
   const artifact = monochromePng(576, 80);
   const jobId = crypto.randomUUID();
@@ -79,4 +93,36 @@ test("shares HTTP edits and browser-approved dummy printing through the live loc
   const completed = await (await headless.get(`/api/v1/print-requests/${jobId}`)).json() as { status: string };
   expect(completed.status).toBe("succeeded");
   await headless.dispose();
+});
+
+test("deleting a template during its save removes the durable server copy", async ({ page, playwright }) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let submitted!: () => void;
+  const uploadStarted = new Promise<void>((resolve) => { submitted = resolve; });
+  await page.route(`${liveBaseUrl}/api/v1/templates`, async (route) => {
+    if (route.request().method() === "POST") {
+      submitted();
+      await pending;
+    }
+    await route.continue();
+  });
+  const shelfReady = page.waitForResponse((response) => response.url().endsWith("/api/v1/templates") && response.request().method() === "GET");
+  await page.goto(`${liveBaseUrl}/app`);
+  await shelfReady;
+  const title = await page.getByRole("textbox", { name: "Receipt title" }).first().inputValue();
+  const saved = page.waitForResponse((response) => response.url().endsWith("/api/v1/templates") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Save as, saved" }).click();
+  await page.getByRole("menuitem", { name: "Save as template" }).click();
+  await uploadStarted;
+  await page.getByRole("button", { name: "New from template", exact: true }).click();
+  const removed = page.waitForResponse((response) => response.url().includes("/api/v1/templates/") && response.request().method() === "DELETE");
+  await page.getByRole("button", { name: `Delete template ${title}`, exact: true }).click();
+  release();
+  const { id } = await (await saved).json() as { id: string };
+  expect((await removed).request().url()).toBe(`${liveBaseUrl}/api/v1/templates/${encodeURIComponent(id)}`);
+  const api = await playwright.request.newContext({ baseURL: liveBaseUrl });
+  await api.post("/api/v1/session");
+  expect((await (await api.get("/api/v1/templates")).json() as { items: { id: string }[] }).items.map((item) => item.id)).not.toContain(id);
+  await api.dispose();
 });

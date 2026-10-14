@@ -82,9 +82,8 @@ for (const file of selected) {
   for (const privateMarker of ["/api/v1/session", "document.modelContext", "ReceiptEditor"]) assert(!javascript.includes(privateMarker), `Public JavaScript contains private application code (${privateMarker}).`);
   gzipBytes += gzipSync(source).byteLength;
 }
-// The landing renders real receipts with the app's own renderer, so the schema and block
-// painters are load-bearing rather than decoration. Everything optional — the WebGL
-// gradient, the editor, the guides, the WebMCP tools — is behind a dynamic import.
+// Landing receipts are generated with the canonical renderer at build time. Optional
+// runtime features — the gradient, editor, guides and WebMCP tools — stay behind imports.
 const budgetKb = 160;
 assert(gzipBytes <= budgetKb * 1024, `Initial public JavaScript is ${(gzipBytes / 1024).toFixed(1)} kB gzip; budget is ${budgetKb} kB.`);
 

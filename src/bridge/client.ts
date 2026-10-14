@@ -21,6 +21,11 @@ export type BridgeCapabilities = {
   profiles: PaperProfile[];
   configuredProfileId: string;
   detail?: string;
+  bridgeOnline?: boolean;
+  printerConnected?: boolean;
+  printerReady?: boolean;
+  queuePaused?: boolean;
+  code?: string;
 };
 
 /** Dummy/file output reports connected, but that is not an Epson TM-L90 on USB. */
@@ -30,11 +35,11 @@ export function usbPrinterConnected(capabilities: Pick<BridgeCapabilities, "conn
 
 /** First-run setup should not sit on Epson when that printer is not actually there. */
 export function preferredSetupAdapter(capabilities: Pick<BridgeCapabilities, "adapter" | "transport" | "connected">): PrinterAdapter {
-  if (capabilities.adapter === "virtual" || capabilities.transport === "dummy" || !capabilities.connected) return "virtual";
+  if (capabilities.adapter === "virtual" || capabilities.transport === "dummy") return "virtual";
   return "epson-tm-l90-usb";
 }
 
-export type PrintJobStatus = "awaiting_approval" | "queued" | "sending" | "succeeded" | "failed" | "unknown" | "rejected" | "stale" | "cancelled";
+export type PrintJobStatus = "awaiting_approval" | "queued" | "waiting_for_printer" | "sending" | "succeeded" | "failed" | "unknown" | "rejected" | "stale" | "cancelled";
 
 export type PrintJob = {
   id: string;
@@ -67,7 +72,10 @@ let sessionToken: string | undefined;
 // Use the bridge directly in both public and local-browser runs. The Vite
 // proxy is useful for development assets, but it can hide bridge failures and
 // make the printer appear disconnected while the daemon is healthy.
-const bridgeOrigin = import.meta.env.MODE === "test" ? "" : "http://localhost:8731";
+export function resolveBridgeOrigin(mode: string, override?: string) {
+  return override?.replace(/\/$/, "") ?? (mode === "public" ? "http://localhost:8731" : "");
+}
+const bridgeOrigin = resolveBridgeOrigin(import.meta.env.MODE, import.meta.env.VITE_BRIDGE_URL);
 const bridgeUrl = (path: string) => `${bridgeOrigin}${path}`;
 
 export function ensureBrowserSession() {
@@ -115,6 +123,42 @@ export async function getCapabilities(signal?: AbortSignal) {
   return readJson<BridgeCapabilities>(await fetch(bridgeUrl("/api/v1/capabilities"), { signal, cache: "no-store" }));
 }
 
+export async function getQueue() {
+  return readJson<{ paused: boolean }>(await apiFetch("/api/v1/queue"));
+}
+export async function setQueuePaused(paused: boolean) {
+  return readJson<{ paused: boolean }>(await apiFetch("/api/v1/queue", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paused }) }, true));
+}
+export async function cancelPrintJob(id: string) {
+  return readJson<PrintJob>(await apiFetch(`/api/v1/print-requests/${encodeURIComponent(id)}/cancel`, { method: "POST" }, true));
+}
+export async function renderCanonicalReceipt(document: ReceiptDocumentV2, signal?: AbortSignal) {
+  const value = await readJson<RenderedReceipt & { png: string; checksum: string }>(await apiFetch("/api/v1/render", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ document }) }, true));
+  const bytes = Uint8Array.from(atob(value.png), (character) => character.charCodeAt(0));
+  return { rendered: value, raster: { blob: new Blob([bytes], { type: "image/png" }), width: value.width, height: value.height, checksum: value.checksum } };
+}
+export async function listSharedReceipts() {
+  return readJson<{ items: CanonicalReceipt[] }>(await apiFetch("/api/v1/receipts"));
+}
+export async function listSharedTemplates() {
+  return readJson<{ items: { id: string; name: string; kind: "user"; document: ReceiptDocumentV2; createdAt: string }[] }>(await apiFetch("/api/v1/templates"));
+}
+export async function saveSharedTemplate(name: string, document: ReceiptDocumentV2) {
+  return readJson<{ id: string; name: string; kind: "user"; updated: boolean }>(await apiFetch("/api/v1/templates", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, document }) }, true));
+}
+export async function importSharedShelf(shelf: { drafts: unknown[]; templates: unknown[] }) {
+  return readJson<{ imported: number }>(await apiFetch("/api/v1/shelf/import", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(shelf) }, true));
+}
+export async function openSharedReceipt(id: string) {
+  return readJson<CanonicalReceipt>(await apiFetch(`/api/v1/receipts/${encodeURIComponent(id)}/open`, { method: "POST" }, true));
+}
+export async function archiveSharedReceipt(id: string) {
+  return readJson(await apiFetch(`/api/v1/receipts/${encodeURIComponent(id)}`, { method: "DELETE" }, true));
+}
+export async function deleteSharedTemplate(id: string) {
+  return readJson(await apiFetch(`/api/v1/templates/${encodeURIComponent(id)}`, { method: "DELETE" }, true));
+}
+
 export async function saveConfiguration(profileId: PaperProfile["id"], adapter: PrinterAdapter = "epson-tm-l90-usb") {
   return readJson<BridgeCapabilities>(await apiFetch("/api/v1/configuration", {
     method: "PUT",
@@ -127,11 +171,11 @@ export async function getCanonicalReceipt(signal?: AbortSignal) {
   return readJson<CanonicalReceipt>(await apiFetch("/api/v1/receipt", { signal, cache: "no-store" }));
 }
 
-export async function commitCanonicalReceipt(state: ReceiptState, expectedRevision: number | null, actor: ApiActor, summary?: string, mutationId = crypto.randomUUID(), signal?: AbortSignal) {
+export async function commitCanonicalReceipt(state: ReceiptState, expectedRevision: number | null, actor: ApiActor, summary?: string, mutationId = crypto.randomUUID(), signal?: AbortSignal, expectedReceiptId?: string) {
   return readJson<CanonicalReceipt>(await apiFetch("/api/v1/receipt", {
     method: "PUT", signal,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mutationId, expectedRevision, proposedRevision: state.revision, document: state.document, source: state.source, actor, summary }),
+    body: JSON.stringify({ mutationId, expectedRevision, expectedReceiptId, proposedRevision: state.revision, document: state.document, source: state.source, actor, summary }),
   }, true));
 }
 
@@ -166,7 +210,7 @@ export async function submitPrintJob(document: ReceiptDocumentV2, rendered: Rend
 export async function submitPrintRequest(snapshot: Pick<ReceiptState, "document" | "revision">, rendered: RenderedReceipt, raster: RasterizedReceipt, requester: ApiActor, reason?: string, jobId = crypto.randomUUID(), signal?: AbortSignal) {
   const metadata = {
     id: jobId, mutationId: crypto.randomUUID(), checksum: raster.checksum, rendererVersion: rendered.rendererVersion,
-    expectedRevision: snapshot.revision, requester, reason, width: raster.width, height: raster.height, feedLines: 4, cutMode: "full",
+    expectedRevision: snapshot.revision, receiptId: snapshot.document.id, requester, reason, width: raster.width, height: raster.height, feedLines: 4, cutMode: "full",
   };
   const form = new FormData();
   form.set("metadata", JSON.stringify(metadata));
@@ -210,7 +254,7 @@ export async function waitForPrintJob(jobId: string, timeoutMs = 30_000, signal?
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const job = await getPrintJob(jobId, signal, collection);
-    if (["succeeded", "failed", "unknown"].includes(job.status)) return job;
+    if (["succeeded", "failed", "unknown", "waiting_for_printer", "cancelled", "rejected", "stale"].includes(job.status)) return job;
     await abortableDelay(350, signal);
   }
   return getPrintJob(jobId, signal, collection);

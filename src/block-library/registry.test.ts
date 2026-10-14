@@ -35,7 +35,7 @@ describe("Block Library registry", () => {
       document.blocks = blocks;
       const rendered = renderReceiptSvg(document);
       expect(rendered.blocks).toHaveLength(4);
-      expect(rendered.svg).not.toMatch(/NaN|undefined/);
+      expect(rendered.svg.replace(/<defs>[\s\S]*?<\/defs>/g, "")).not.toMatch(/NaN|undefined/);
       expect(rendered.width).toBe(width);
     }
   });

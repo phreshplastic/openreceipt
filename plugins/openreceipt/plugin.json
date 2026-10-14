@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "openreceipt",
+  "version": "0.4.0",
+  "description": "Keep useful lists and print clean receipts through your own thermal printer.",
+  "license": "MIT",
+  "extensions": {
+    "com.openai": {
+      "onboardingSkill": "./skills/setup/SKILL.md",
+      "interface": {
+        "displayName": "OpenReceipt",
+        "shortDescription": "Save lists, preview paper, and print locally.",
+        "defaultPrompt": ["Add this to my shopping list", "Preview my shopping list", "Print a reminder"]
+      }
+    }
+  }
+}

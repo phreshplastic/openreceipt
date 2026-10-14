@@ -30,6 +30,25 @@ describe("ReceiptSession", () => {
 
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+  it("does not overwrite a different selected receipt at the same revision after restart", async () => {
+    const initial = createReceiptState(createDefaultDocument(), 1);
+    const other = createReceiptState(createDefaultDocument(), 1);
+    localStorage.setItem("petes-printer:receipt-sync:v1", JSON.stringify({ serverRevision: 1, serverReceiptId: initial.document.id, dirty: true }));
+    const commit = vi.fn();
+    const conflict = vi.fn();
+    const session = new ReceiptSession(initial, { onShared: vi.fn(), onConflict: conflict, onStatus: vi.fn() }, {
+      ensureSession: vi.fn(async () => "csrf"), readReceipt: vi.fn(async () => canonical(other)), commitReceipt: commit, createEvents: eventSource,
+    });
+    await session.start();
+    expect(commit).not.toHaveBeenCalled();
+    expect(conflict).toHaveBeenCalledWith(expect.objectContaining({ shared: expect.objectContaining({ document: expect.objectContaining({ id: other.document.id }) }) }));
+    commit.mockResolvedValue(canonical(initial));
+    await session.resolveConflict("local");
+    expect(commit.mock.calls[0][0].document.id).not.toBe(initial.document.id);
+    expect(commit.mock.calls[0][0].document.title).toContain("(recovered)");
+    session.dispose();
+  });
+
   it("initializes an empty API from the browser cache", async () => {
     const initial = createReceiptState(createDefaultDocument());
     const commit = vi.fn(async (state: ReceiptState, expected: number | null) => { void expected; return canonical(state); });
@@ -44,7 +63,7 @@ describe("ReceiptSession", () => {
     });
 
     await session.start();
-    expect(commit).toHaveBeenCalledWith(initial, null, expect.objectContaining({ kind: "human" }), undefined, expect.any(String));
+    expect(commit).toHaveBeenCalledWith(initial, null, expect.objectContaining({ kind: "human" }), undefined, expect.any(String), undefined, undefined);
     expect(statuses.at(-1)).toBe("saved");
     session.dispose();
   });

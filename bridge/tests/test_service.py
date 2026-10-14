@@ -89,7 +89,7 @@ def test_failures_before_and_after_sending_have_different_statuses(tmp_path):
     before_store = BridgeStore(tmp_path / "before")
     before_manager = PrinterManager(before_store, transport_factory=lambda: FakeTransport(fail_prepare=True))
     before, _ = before_manager.create_job(metadata(artifact), artifact)
-    assert before_manager.process_job(before["id"])["status"] == "failed"
+    assert before_manager.process_job(before["id"])["status"] == "waiting_for_printer"
 
     after_store = BridgeStore(tmp_path / "after")
     after_manager = PrinterManager(after_store, transport_factory=lambda: FakeTransport(fail_send=True))
@@ -105,4 +105,5 @@ def test_restart_turns_sending_into_unknown(tmp_path):
     store.set_status(job["id"], "sending")
     store.close()
     restarted = BridgeStore(tmp_path)
+    restarted.recover_jobs()
     assert restarted.get_job(job["id"])["status"] == "unknown"

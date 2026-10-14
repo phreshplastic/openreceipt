@@ -4,6 +4,16 @@ import { createBlock } from "./model";
 import { createDefaultDocument, createFromTemplate } from "./templates";
 
 describe("receipt controller", () => {
+  it("keeps undo history within the selected receipt", () => {
+    const controller = new ReceiptController(createReceiptState(createDefaultDocument()));
+    controller.apply(0, [{ type: "setTitle", title: "Shopping" }]);
+    controller.acceptShared(createReceiptState(createDefaultDocument(), 8));
+    expect(controller.history).toEqual({ canUndo: false, canRedo: false });
+    controller.undo();
+    expect(controller.state.revision).toBe(8);
+    controller.commitPrepared(8, createDefaultDocument());
+    expect(controller.history.canUndo).toBe(false);
+  });
   it("applies a batch atomically and increments one revision", () => {
     const state = createReceiptState(createDefaultDocument());
     const block = createBlock("divider");

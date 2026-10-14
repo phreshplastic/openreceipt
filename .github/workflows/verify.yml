@@ -11,9 +11,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m venv bridge/.venv
+      - run: bridge/.venv/bin/pip install -e 'bridge[dev]'
       - run: npm ci
+      - run: node --test scripts/tests/*.test.mjs
       - run: npm run check
       # The deployed site is a different build from the one `check` produces, so it gets
       # its own pass: pre-rendering, discovery files, and the initial-JavaScript budget.
@@ -31,3 +37,5 @@ jobs:
           cache: pip
       - run: pip install -e 'bridge[dev]'
       - run: pytest bridge/tests
+      - run: python scripts/tests/test_setup_host.py
+      - run: bash -n scripts/setup-chatgpt-tunnel.sh

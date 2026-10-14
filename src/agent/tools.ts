@@ -33,12 +33,16 @@ export type AgentAppStatus = {
   printPolicy: "confirm" | "approved" | "autonomous";
   syncStatus?: string;
   lastPrint?: { status: string; message: string };
+  printerConnected?: boolean;
+  printerReady?: boolean;
+  queuePaused?: boolean;
 };
 
 export type AgentBackend = {
   getState(signal?: AbortSignal): ReceiptState | Promise<ReceiptState>;
   commit(expectedRevision: number, document: ReceiptDocument, summary: string, signal?: AbortSignal): ReceiptState | Promise<ReceiptState>;
   requestPrint(expectedRevision: number, reason: string | undefined, signal?: AbortSignal): Promise<PrintResult>;
+  replayPrint?(expectedRevision: number, reason: string | undefined, signal?: AbortSignal): Promise<PrintResult | undefined>;
   status(signal?: AbortSignal): AgentAppStatus | Promise<AgentAppStatus>;
   undo?(): ReceiptState | Promise<ReceiptState | undefined> | undefined;
   focusPreview?(): void;
@@ -537,10 +541,13 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
       untrustedContent: false,
       async execute(input, signal) {
         const parsed = printInput.parse(input);
-        const state = await backend.getState(signal);
-        if (parsed.expectedRevision !== state.revision) throw new StaleRevision(parsed.expectedRevision, state.revision);
+        const replay = await backend.replayPrint?.(parsed.expectedRevision, parsed.reason, signal);
+        if (!replay) {
+          const state = await backend.getState(signal);
+          if (parsed.expectedRevision !== state.revision) throw new StaleRevision(parsed.expectedRevision, state.revision);
+        }
         notify({ phase: "waitingForApproval", message: captionForPhase("waitingForApproval") });
-        const result = await backend.requestPrint(parsed.expectedRevision, parsed.reason, signal);
+        const result = replay ?? await backend.requestPrint(parsed.expectedRevision, parsed.reason, signal);
         const failed = result.status === "failed" || result.status === "unknown";
         notify({
           phase: result.status === "awaiting_approval" ? "waitingForApproval" : failed ? "error" : "complete",
@@ -552,6 +559,8 @@ export function createAgentTools(backend: AgentBackend): AgentToolDefinition[] {
             ...result,
             nextAction: result.status === "succeeded" ? (result.jobId ? "It printed. Nothing further is needed." : "The demo print opened. Nothing was sent to a printer.")
               : result.status === "awaiting_approval" ? "Tell them to tap “Approve and print” in the browser, then confirm with get_print_job_status. Do not resubmit."
+              : ["queued", "waiting_for_printer", "sending"].includes(result.status) ? "The job is saved. Check get_print_job_status; do not submit another print request."
+              : result.status === "cancelled" ? "The job was cancelled. Only print again if the person requests it."
               : result.status === "unknown" ? "Check the printer itself before trying again — the job may have partly printed."
               : result.status === "rejected" ? "The person declined. Ask what to change."
               : "Read the receipt again and try once more.",

@@ -34,18 +34,19 @@ function textMetrics(block: Extract<ReceiptBlock, { type: "heading" | "text" }>)
   if (block.type === "heading") {
     const baseWeight = block.level === "display" ? 790 : block.level === "section" ? 720 : 740;
     const weight = block.weight === "bold" ? baseWeight : block.weight === "medium" ? 590 : 440;
-    if (block.level === "display") return { size: 36, lineHeight: 42, weight };
-    if (block.level === "section") return { size: 21, lineHeight: 27, weight };
-    return { size: 28, lineHeight: 34, weight };
+    if (block.level === "display") return { size: 40, lineHeight: 46, weight };
+    if (block.level === "section") return { size: 24, lineHeight: 30, weight };
+    return { size: 30, lineHeight: 38, weight };
   }
-  const sizes = { small: [16, 22], body: [20, 27], large: [24, 32] } as const;
+  const sizes = { small: [18, 25], body: [24, 32], large: [28, 36] } as const;
   const [size, lineHeight] = sizes[block.size];
   return { size, lineHeight, weight: block.weight === "bold" ? 720 : block.weight === "medium" ? 590 : 440 };
 }
 
 type MenuState = { index: number; left: number; top: number; placement: "up" | "down" };
 
-const ReceiptInk = memo(function ReceiptInk({ svg }: { svg: string }) {
+const ReceiptInk = memo(function ReceiptInk({ svg, png }: { svg: string; png?: string }) {
+  if (png) return <img className="receipt-svg" src={`data:image/png;base64,${png}`} alt="Receipt print preview" style={{ display: "block", width: "100%", height: "auto" }} />;
   return <div className="receipt-svg" dangerouslySetInnerHTML={{ __html: svg }} />;
 });
 
@@ -159,7 +160,7 @@ export function ReceiptCanvas({ rendered, blocks, selectedId, recentAgentBlockId
   return <div className={`receipt-shell ${draggingId ? "is-reordering" : ""}`}>
     <div className="receipt-stage" ref={paper}>
       <PaperSurface className="receipt-paper" style={{ aspectRatio: `${rendered.width} / ${rendered.height}` }}>
-        <ReceiptInk svg={rendered.svg} />
+        <ReceiptInk svg={rendered.svg} png={rendered.previewPng ?? rendered.png} />
       </PaperSurface>
       <div className="receipt-hit-layer">
         {rendered.blocks.map((geometry) => {

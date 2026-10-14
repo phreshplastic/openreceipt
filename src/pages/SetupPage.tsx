@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Check, FileText, Printer, RefreshCw, Usb, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Brand } from "../components/Brand";
-import { getCapabilities, preferredSetupAdapter, saveConfiguration, type BridgeCapabilities, type PaperProfile, type PrinterAdapter } from "../bridge/client";
+import { getCapabilities, preferredSetupAdapter, saveConfiguration, usbPrinterConnected, type BridgeCapabilities, type PaperProfile, type PrinterAdapter } from "../bridge/client";
 
 type Props = {
   onComplete(profile: PaperProfile): Promise<void>;
@@ -16,7 +16,7 @@ const fallbackProfile = { id: "80mm-576", label: "80 mm · 576 dots", paperWidth
 export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCancel }: Props) {
   const navigate = useNavigate();
   const [capabilities, setCapabilities] = useState<BridgeCapabilities>();
-  const [adapter, setAdapter] = useState<PrinterAdapter>("virtual");
+  const [adapter, setAdapter] = useState<PrinterAdapter>("epson-tm-l90-usb");
   const [profileId, setProfileId] = useState<PaperProfile["id"]>("80mm-576");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,7 @@ export function SetupPage({ onComplete, onTestPrint, intent = "standalone", onCa
   const [failed, setFailed] = useState(false);
   const adapterChosen = useRef(false);
 
-  const connected = Boolean(capabilities?.connected);
+  const connected = capabilities ? usbPrinterConnected(capabilities) : false;
   const bridgeUnreachable = !loading && capabilities === undefined;
   const profile = capabilities?.profiles.find((item) => item.id === profileId) ?? fallbackProfile;
 

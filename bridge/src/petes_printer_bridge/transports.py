@@ -6,6 +6,7 @@ from typing import Protocol
 
 from PIL import Image
 from escpos.printer import Dummy, Usb
+import usb.backend.libusb1
 
 
 class PrintTransport(Protocol):
@@ -47,7 +48,14 @@ class DummyFileTransport(EscposTransport):
 
 
 def create_usb_transport() -> PrintTransport:
-    return EscposTransport(Usb(0x04B8, 0x0202, interface=0, in_ep=0x82, out_ep=0x01, timeout=30_000))
+    cached = usb.backend.libusb1.get_backend()
+    if cached is None:
+        raise RuntimeError("The libusb backend is unavailable.")
+    # libusb's cached context can miss host hotplug events inside Docker. PyUSB
+    # exposes no public uncached factory; isolate this version-pinned seam here.
+    # The Device retains the backend until its resources have been released.
+    fresh = usb.backend.libusb1._LibUSB(cached.lib)
+    return EscposTransport(Usb(0x04B8, 0x0202, interface=0, in_ep=0x82, out_ep=0x01, timeout=30_000, usb_args={"backend": fresh}))
 
 
 def create_dummy_transport(output_path: Path) -> PrintTransport:

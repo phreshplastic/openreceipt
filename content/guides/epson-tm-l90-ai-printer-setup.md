@@ -1,9 +1,9 @@
 ---
 slug: epson-tm-l90-ai-printer-setup
 title: Set up an Epson TM-L90 with OpenReceipt
-description: Connect the tested TM-L90 by USB, choose 58 mm or 80 mm paper, run the local bridge, and make your first print.
+description: Connect the TM-L90 by USB, run the local bridge with the verified 80 mm setup, and make your first print.
 published: 2026-08-31
-updated: 2026-09-03
+updated: 2026-10-13
 summary: Connect the TM-L90 by USB, start OpenReceipt beside it, choose the paper width, and print one test slip before handing the printer to an agent.
 topics:
   - Epson TM-L90
@@ -16,10 +16,14 @@ OpenReceipt has one tested hardware path: an Epson TM-L90 connected directly by 
 bridge runs beside the printer, keeps the receipt and print job on that machine, and serves the app
 at `http://127.0.0.1:8731`.
 
+Physical printing has been verified with 80 mm paper. The 58 mm layout is available, but physical
+58 mm printing remains unverified. For the current unattended Docker, private MCP, and ChatGPT
+tunnel installation, use the [repository setup guide](https://github.com/phreshplastic/openreceipt/blob/main/deploy/README.md).
+
 You can run the bridge on a laptop while you work, or on a Raspberry Pi that stays beside the
-printer after the laptop is turned off. When the bridge runs on your laptop, the live OpenReceipt app
-can connect to it through loopback. A Pi setup uses the Pi-hosted app or an SSH tunnel because the
-live site does not reach across your network.
+printer after the laptop is turned off. Open the app served by that bridge for physical printing.
+The public site provides browser demo previews without contacting your local bridge. A Pi setup
+uses its private Tailscale editor or an SSH forward.
 
 ## Before you start
 
@@ -27,7 +31,7 @@ You will need:
 
 - an Epson TM-L90 with a USB interface and its 24 V power supply;
 - an 80 mm or 58 mm thermal roll;
-- Node.js 22 or newer and Python 3.12 or newer;
+- Node.js 24 or newer and Python 3.12 or newer for a source install;
 - permission for your user account to access the USB printer.
 
 The tested adapter expects vendor/product ID `04b8:0202`, interface `0`, OUT endpoint `01`, and IN

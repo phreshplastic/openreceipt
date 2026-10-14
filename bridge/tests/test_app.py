@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import time
 import os
 import subprocess
 import sys
@@ -31,6 +32,16 @@ def make_png(color=1):
     output = io.BytesIO()
     Image.new("1", (576, 80), color).save(output, format="PNG")
     return output.getvalue()
+
+
+def wait_for_terminal_job(client, path):
+    deadline = time.monotonic() + 5
+    while True:
+        response = client.get(path)
+        assert response.status_code == 200
+        if response.json()['status'] not in {'queued', 'sending'} or time.monotonic() >= deadline:
+            return response
+        time.sleep(0.02)
 
 
 def browser_session(client):
@@ -106,7 +117,7 @@ def test_public_bridge_interface_and_idempotent_replay(tmp_path):
         assert first.status_code == 201
         assert first.json()["id"] == job_id
 
-        status = client.get(f"/api/v1/print-jobs/{job_id}")
+        status = wait_for_terminal_job(client, f"/api/v1/print-jobs/{job_id}")
         assert status.status_code == 200
         assert status.json()["status"] == "succeeded"
 
@@ -220,7 +231,7 @@ def test_confirm_approval_stales_and_autonomous_prints(tmp_path):
         metadata |= {"id": str(uuid4()), "mutationId": str(uuid4()), "expectedRevision": 1}
         automatic = client.post("/api/v1/print-requests", headers=headers, data={"metadata": json.dumps(metadata)}, files={"artifact": ("receipt.png", artifact, "image/png")})
         assert automatic.status_code == 201
-        assert client.get(f"/api/v1/print-requests/{metadata['id']}").json()["status"] == "succeeded"
+        assert wait_for_terminal_job(client, f"/api/v1/print-requests/{metadata['id']}").json()["status"] == "succeeded"
 
 
 def test_csrf_and_scoped_bearer_authorization(tmp_path):
@@ -327,7 +338,7 @@ def test_trusted_template_policy_queues_only_trusted_sources_and_rejection_is_te
 
         trusted = request_metadata(0)
         assert client.post("/api/v1/print-requests", headers=headers, data={"metadata": json.dumps(trusted)}, files={"artifact": ("receipt.png", artifact, "image/png")}).status_code == 201
-        assert client.get(f"/api/v1/print-requests/{trusted['id']}").json()["status"] == "succeeded"
+        assert wait_for_terminal_job(client, f"/api/v1/print-requests/{trusted['id']}").json()["status"] == "succeeded"
 
         assert commit_receipt(client, headers, expected=0, proposed=1, source={"kind": "template", "id": "blank", "revision": 1}).status_code == 200
         untrusted = request_metadata(1)

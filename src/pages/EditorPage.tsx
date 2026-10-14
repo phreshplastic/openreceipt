@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Bot, Check, ChevronDown, FileStack, List, Redo2, Undo2, ZoomIn, ZoomOut } from "lucide-react";
 import { isAgentWorking } from "../agent/captions";
 import type { EditorActivity, PrintStage } from "../App";
-import type { PrintJob } from "../bridge/client";
+import { cancelPrintJob, getQueue, setQueuePaused, renderCanonicalReceipt, importSharedShelf, listSharedReceipts, listSharedTemplates, saveSharedTemplate, archiveSharedReceipt, deleteSharedTemplate, type PrintJob } from "../bridge/client";
+import { hasCachedReceipt } from "../state/storage";
 import { Brand } from "../components/Brand";
 import { BlockLibraryModal } from "../components/BlockLibraryModal";
 import { Inspector, InspectorSheet, type InspectorMode } from "../components/Inspector";
@@ -54,6 +55,7 @@ type Props = {
   print(destination: PrintDestination): Promise<unknown>;
   runtimeMode?: RuntimeMode;
   registerShelf?(shelf: AgentShelf | undefined): void;
+  openShared?(id: string): Promise<void>;
 };
 
 type LibraryState = { index: number; initialId?: PrototypeBlockId };
@@ -88,8 +90,31 @@ function isTextBlock(block?: ReceiptBlock): block is Extract<ReceiptBlock, { typ
   return block?.type === "heading" || block?.type === "text";
 }
 
-export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAvailable, printStatus, printStage, printJobs, printerConnected = false, syncStatus, history, editorActivity, applyOperations, applyCommands, loadTemplate, loadDocument, updateSettings, toggleBlockFavorite, undo, redo, refreshBridge, print, runtimeMode = "local", registerShelf }: Props) {
-  const rendered = useMemo(() => renderReceiptSvg(state.document), [state.document]);
+export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAvailable, printStatus, printStage, printJobs, printerConnected = false, syncStatus, history, editorActivity, applyOperations, applyCommands, loadTemplate, loadDocument, updateSettings, toggleBlockFavorite, undo, redo, refreshBridge, print, runtimeMode = "local", registerShelf, openShared }: Props) {
+  const localRendered = useMemo(() => renderReceiptSvg(state.document), [state.document]);
+  const [canonical, setCanonical] = useState<{ document: ReceiptDocument; rendered: typeof localRendered }>();
+  const rendered = canonical?.document === state.document ? canonical.rendered : localRendered;
+  const [queuePaused, setQueuePausedState] = useState(false);
+  const [queueError, setQueueError] = useState("");
+  useEffect(() => {
+    if (runtimeMode !== "local") return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      void renderCanonicalReceipt(state.document, controller.signal).then(({ rendered }) => setCanonical({ document: state.document, rendered })).catch(() => {});
+    }, 200);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [runtimeMode, state.document]);
+  useEffect(() => {
+    if (runtimeMode === "local") void getQueue().then((queue) => setQueuePausedState(queue.paused)).catch(() => {});
+  }, [runtimeMode, printJobs]);
+  const toggleQueue = async () => {
+    try { const queue = await setQueuePaused(!queuePaused); setQueuePausedState(queue.paused); setQueueError(""); }
+    catch (error) { setQueueError(error instanceof Error ? error.message : "Could not change the queue."); }
+  };
+  const cancelJob = async (id: string) => {
+    try { await cancelPrintJob(id); setQueueError(""); }
+    catch (error) { setQueueError(error instanceof Error ? error.message : "Could not cancel the job."); }
+  };
   const [selectedId, setSelectedId] = useState<string>();
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [draftsOpen, setDraftsOpen] = useState(false);
@@ -121,6 +146,37 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   const firstDocumentEffectRef = useRef(true);
   const saveMenuRef = useRef<HTMLDivElement>(null);
   const destinationMenuRef = useRef<HTMLDivElement>(null);
+  const importedShelf = useRef(false);
+  const templateWrites = useRef(new Map<string, Promise<string>>());
+  const pendingTemplateWrites = useRef(0);
+  const startupReceipt = useRef({ document: state.document, cached: hasCachedReceipt() });
+  useEffect(() => {
+    if (runtimeMode !== "local" || syncStatus !== "saved") return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        if (!importedShelf.current) {
+          const initial = startupReceipt.current;
+          const store = draftStoreRef.current;
+          // A fresh browser briefly renders a starter while reading the bridge.
+          // Preserve authored/cache drafts, but don't import that untouched placeholder.
+          const drafts = store.drafts.filter((draft) => initial.cached || draft.document.id !== initial.document.id || JSON.stringify(draft.document) !== JSON.stringify(initial.document));
+          await importSharedShelf({ ...store, drafts });
+          importedShelf.current = true;
+        }
+        const [receipts, templates] = await Promise.all([listSharedReceipts(), listSharedTemplates()]);
+        if (cancelled || pendingTemplateWrites.current > 0) return;
+        const next: DraftStore = { version: 1, activeId: documentRef.current.id,
+          drafts: receipts.items.map((item) => ({ id: item.document.id, title: item.document.title, document: item.document, updatedAt: item.updatedAt })), templates: templates.items };
+        draftStoreRef.current = next;
+        setDraftStore(next);
+        persistDraftStore(next);
+      } catch { /* Keep the browser cache available while disconnected. */ }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 5000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [runtimeMode, syncStatus]);
   useLayoutEffect(() => {
     draftStoreRef.current = draftStore;
     documentRef.current = state.document;
@@ -157,6 +213,21 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     setInspectorMode(printerProfile.useCaseIds.length ? "library" : "format");
   }, [applyOperations, dismissWelcome, settings, state.document.blocks, state.revision, updateSettings]);
   const commitStore = useCallback((next: DraftStore) => {
+    const previous = draftStoreRef.current;
+    if (runtimeMode === "local" && importedShelf.current) {
+      for (const template of next.templates) {
+        const old = previous.templates.find((item) => item.id === template.id);
+        if (!old || JSON.stringify(old.document) !== JSON.stringify(template.document)) {
+          // Keep the server ID until the shelf refreshes, and preserve write order
+          // if an edit or deletion follows a save that is still in flight.
+          const prior = templateWrites.current.get(template.id) ?? Promise.resolve(template.id);
+          const saved = prior.catch(() => template.id).then(() => saveSharedTemplate(template.name, template.document)).then((result) => result.id);
+          templateWrites.current.set(template.id, saved);
+          pendingTemplateWrites.current += 1;
+          void saved.finally(() => { pendingTemplateWrites.current -= 1; }).catch((error: unknown) => setSaveNotice(error instanceof Error ? error.message : "Template could not be saved to the bridge."));
+        }
+      }
+    }
     draftStoreRef.current = next;
     setDraftStore(next);
     // A shelf of whole receipts is the one store here that can exhaust the browser's quota,
@@ -164,18 +235,19 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     const persisted = persistDraftStore(next);
     setSaveNotice(persisted ? "" : "This browser would not save the shelf — it may be out of space.");
     return persisted;
-  }, []);
+  }, [runtimeMode]);
   const flushDraft = useCallback((options?: { asNew?: boolean; store?: DraftStore; document?: ReceiptDocument }) => {
     const store = options?.store ?? draftStoreRef.current;
     const document = options?.document ?? documentRef.current;
     const saved = saveDraft(store, {
-      id: options?.asNew ? undefined : (store.activeId || undefined),
+      id: importedShelf.current ? document.id : options?.asNew ? undefined : (store.activeId || undefined),
       title: document.title,
       document,
     });
     if (saved === store) return saved;
-    commitStore(saved);
-    return saved;
+    const normalized = importedShelf.current ? { ...saved, activeId: document.id, drafts: saved.drafts.map((draft) => draft.id === saved.activeId ? { ...draft, id: document.id } : draft) } : saved;
+    commitStore(normalized);
+    return normalized;
   }, [commitStore]);
   const saveCurrentDraft = useCallback(() => {
     startNewDraftRef.current = false;
@@ -201,6 +273,11 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   }, [commitStore, registerShelf, settings.printerProfile]);
   const openDraft = useCallback((id: string) => {
     if (id === draftStoreRef.current.activeId) return;
+    if (openShared && importedShelf.current) {
+      skipAutosaveRef.current = true;
+      void openShared(id).catch((error: unknown) => setSaveNotice(error instanceof Error ? error.message : "Could not open receipt."));
+      return;
+    }
     const store = draftStoreRef.current.activeId ? flushDraft() : draftStoreRef.current;
     const draft = store.drafts.find((candidate) => candidate.id === id);
     if (!draft) return;
@@ -208,7 +285,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     startNewDraftRef.current = false;
     loadDocument(structuredClone(draft.document));
     commitStore(setActiveDraft(store, id));
-  }, [commitStore, flushDraft, loadDocument]);
+  }, [commitStore, flushDraft, loadDocument, openShared]);
   const openTemplate = useCallback((id: string) => {
     const store = draftStoreRef.current.activeId ? flushDraft() : draftStoreRef.current;
     startNewDraftRef.current = true;
@@ -239,10 +316,16 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
     setTemplatesOpen(true);
   }, []);
   const removeDraft = useCallback((id: string) => {
+    if (importedShelf.current) void archiveSharedReceipt(id).catch((error: unknown) => setSaveNotice(error instanceof Error ? error.message : "Could not archive receipt."));
     if (id === draftStoreRef.current.activeId) skipAutosaveRef.current = true;
     commitStore(deleteDraft(draftStoreRef.current, id));
   }, [commitStore]);
   const removeTemplate = useCallback((id: string) => {
+    if (importedShelf.current) {
+      const saved = templateWrites.current.get(id) ?? Promise.resolve(id);
+      pendingTemplateWrites.current += 1;
+      void saved.then((serverId) => deleteSharedTemplate(serverId)).finally(() => { pendingTemplateWrites.current -= 1; }).catch((error: unknown) => setSaveNotice(error instanceof Error ? error.message : "Could not delete template."));
+    }
     commitStore(deleteTemplate(draftStoreRef.current, id));
   }, [commitStore]);
 
@@ -414,7 +497,7 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
   const printDisabled = busy || complete || syncStatus === "conflict" || printerUnavailable;
   const destinationLabel = destination === "printer" ? "Epson printer" : "Demo print";
   const destinationOnline = destination === "demo" || printerConnected;
-  const printerDetail = printerConnected ? "Epson TM-L90" : "Not connected";
+  const printerDetail = syncStatus === "offline" ? "Bridge offline" : printerConnected ? "Epson TM-L90" : "USB printer disconnected";
 
   return <main className={`editor-page ${railOpen ? "rail-open" : "rail-collapsed"}${draftsOpen ? " drafts-open" : draftsPresent ? " drafts-closing" : ""}${formatSheetPresent ? " format-sheet-open" : ""}`}>
     <header className="editor-header">
@@ -532,6 +615,10 @@ export function EditorPage({ state, settings, blockLibraryPreferences, webMcpAva
 
     <div className="editor-body">
     {railOpen && <ReceiptRail
+      queuePaused={queuePaused}
+      queueError={queueError}
+      onToggleQueue={runtimeMode === "local" ? () => void toggleQueue() : undefined}
+      onCancelJob={(id) => void cancelJob(id)}
       printJobs={printJobs}
       drafts={draftStore.drafts.map((draft) => ({ id: draft.id, title: draft.title, updatedAt: draft.updatedAt }))}
       activeDraftId={draftStore.activeId}
